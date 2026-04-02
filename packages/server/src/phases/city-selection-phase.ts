@@ -119,10 +119,8 @@ export class CitySelectionPhaseManager implements PhaseManager {
     // Record selection
     const newSelections = { ...draft.selections, [playerId]: decision.cityId };
 
-    // Remove chosen city from pool, and also remove the other offered cities
-    // so the next player gets a completely fresh set
-    const offeredSet = new Set(offeredIds);
-    const newPool = draft.remainingPool.filter(c => !offeredSet.has(c.id));
+    // Remove only the chosen city from the pool (unchosen offered cities stay available)
+    const newPool = draft.remainingPool.filter(c => c.id !== decision.cityId);
 
     let newDraft: CityDraftState = {
       ...draft,
