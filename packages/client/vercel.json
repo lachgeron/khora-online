@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && npm install && npm run build",
+  "buildCommand": "cd ../.. && npm install && npm run build --workspace=packages/shared && cd packages/client && npx vite build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
