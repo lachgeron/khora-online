@@ -11,6 +11,7 @@ export interface ProgressPhaseProps {
   philosophyTokens: number;
   pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number }[];
   currentPlayerId: string;
+  playedCardIds?: string[];
   onAdvance: (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[]) => void;
   onUndo: () => void;
   onSkip: () => void;
@@ -34,11 +35,13 @@ const TRACK_INFO: { type: ProgressTrackType; label: string; icon: string; color:
 
 export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
   economyTrack, cultureTrack, militaryTrack, coins, philosophyTokens,
-  pendingDecisions, currentPlayerId, onAdvance, onUndo, onSkip,
+  pendingDecisions, currentPlayerId, playedCardIds, onAdvance, onUndo, onSkip,
 }) => {
   const hasPending = pendingDecisions.some(d => d.playerId === currentPlayerId);
   const [primary, setPrimary] = useState<ProgressTrackType | null>(null);
   const [extras, setExtras] = useState<(ProgressTrackType | null)[]>([]);
+
+  const hasMint = playedCardIds?.includes('constructing-the-mint') ?? false;
 
   const getLevel = (t: ProgressTrackType) => t === 'ECONOMY' ? economyTrack : t === 'CULTURE' ? cultureTrack : militaryTrack;
 
@@ -49,9 +52,14 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
     return lvl;
   };
 
-  const getCostAt = (t: ProgressTrackType, upTo: number) => (TRACK_COSTS[t] ?? {})[getEffective(t, upTo)] ?? 99;
+  const getTrackCost = (t: ProgressTrackType, level: number) => {
+    if (t === 'ECONOMY' && hasMint) return 0;
+    return (TRACK_COSTS[t] ?? {})[level] ?? 99;
+  };
 
-  const primaryCost = primary ? ((TRACK_COSTS[primary] ?? {})[getLevel(primary)] ?? 99) : 0;
+  const getCostAt = (t: ProgressTrackType, upTo: number) => getTrackCost(t, getEffective(t, upTo));
+
+  const primaryCost = primary ? getTrackCost(primary, getLevel(primary)) : 0;
   let totalCost = primaryCost;
   for (let i = 0; i < extras.length; i++) {
     if (extras[i]) totalCost += getCostAt(extras[i]!, i);
@@ -140,7 +148,7 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
             key={t.type}
             track={t.type} label={t.label} icon={t.icon} color={t.color}
             level={getLevel(t.type)}
-            cost={(TRACK_COSTS[t.type] ?? {})[getLevel(t.type)] ?? 99}
+            cost={getTrackCost(t.type, getLevel(t.type))}
             isSelected={primary === t.type}
             onSelect={() => setPrimary(primary === t.type ? null : t.type)}
           />

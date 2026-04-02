@@ -200,13 +200,22 @@ export class ProgressPhaseManager implements PhaseManager {
     }
 
     const trackCosts = PROGRESS_COST_MAP[track] ?? {};
-    const cost = trackCosts[currentLevel] ?? 99;
+    let cost = trackCosts[currentLevel] ?? 99;
 
-    const costResult = subtractCoins(player, cost);
-    if (!costResult.ok) return { ok: false, error: costResult.error };
-    let updated = costResult.value;
+    // Constructing the Mint: Economy progress is free
+    if (track === 'ECONOMY' && hasCardInPlay(player, 'constructing-the-mint')) {
+      cost = 0;
+    }
 
-    updated = advanceTrack(updated, track, 1);
+    if (cost > 0) {
+      const costResult = subtractCoins(player, cost);
+      if (!costResult.ok) return { ok: false, error: costResult.error };
+      let updated = costResult.value;
+      updated = advanceTrack(updated, track, 1);
+      return { ok: true, value: updated };
+    }
+
+    const updated = advanceTrack(player, track, 1);
     return { ok: true, value: updated };
   }
 

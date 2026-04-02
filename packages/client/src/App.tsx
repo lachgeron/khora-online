@@ -384,6 +384,7 @@ export const App: React.FC = () => {
                   philosophyTokens={privateState.philosophyTokens}
                   pendingDecisions={gameState.pendingDecisions}
                   currentPlayerId={currentPlayerId}
+                  playedCardIds={privateState.playedCards.map(c => c.id)}
                   onAdvance={handleProgressTrack}
                   onUndo={handleUndoProgress}
                   onSkip={handleSkipPhase}
