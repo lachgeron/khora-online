@@ -35,7 +35,7 @@ import type {
   GameState,
   DraftState,
 } from './models';
-import type { GameLogEntry, PendingDecision, DisconnectionInfo } from './types';
+import type { GameLogEntry, PendingDecision, DisconnectionInfo, FinalScoreBoard } from './types';
 
 // ---------------------------------------------------------------------------
 // Primitive arbitraries
@@ -307,6 +307,7 @@ export const arbGameState: fc.Arbitrary<GameState> = fc
       pendingDecisions: fc.constant([] as PendingDecision[]),
       disconnectedPlayers: fc.constant(new Map() as Map<string, DisconnectionInfo>),
       draftState: fc.constant(null as DraftState | null),
+      finalScores: fc.constant(null as FinalScoreBoard | null),
       createdAt: fc.integer({ min: 1_700_000_000_000, max: 1_800_000_000_000 }),
       updatedAt: fc.integer({ min: 1_700_000_000_000, max: 1_800_000_000_000 }),
     }),
