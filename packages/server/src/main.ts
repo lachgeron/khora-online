@@ -50,7 +50,7 @@ function manageGameTimer(gameId: string, state: GameState): void {
 
   // Find the earliest timeout
   const earliest = Math.min(...state.pendingDecisions.map(d => d.timeoutAt));
-  const remaining = Math.max(0, earliest - Date.now());
+  const remaining = Math.max(500, earliest - Date.now()); // minimum 500ms to avoid instant firing
 
   const timerId = setTimeout(() => {
     gameTimers.delete(gameId);
@@ -59,19 +59,18 @@ function manageGameTimer(gameId: string, state: GameState): void {
     if (!currentState || !gameEngine) return;
 
     const now = Date.now();
-    const expired = currentState.pendingDecisions.filter(d => d.timeoutAt <= now);
-    if (expired.length === 0) {
-      // Not yet expired, re-check
-      manageGameTimer(gameId, currentState);
-      return;
-    }
 
-    console.log(`[TIMER] Timer expired for game ${gameId} (phase: ${currentState.currentPhase}) — auto-resolving ${expired.length} decisions`);
+    // Auto-resolve one expired decision at a time, re-checking state after each
+    let resolved = true;
+    while (resolved) {
+      resolved = false;
+      const expired = currentState.pendingDecisions.find(d => d.timeoutAt <= now);
+      if (!expired) break;
 
-    for (const decision of expired) {
-      const pid = decision.decisionType === 'PHASE_DISPLAY' ? '__display__' : decision.playerId;
-      console.log(`[TIMER] Auto-resolving ${decision.decisionType} for ${pid}`);
+      const pid = expired.decisionType === 'PHASE_DISPLAY' ? '__display__' : expired.playerId;
+      console.log(`[TIMER] Auto-resolving ${expired.decisionType} for ${pid} in game ${gameId}`);
       currentState = gameEngine.handleTimeout(currentState, pid);
+      resolved = true;
     }
 
     games.set(gameId, currentState);
