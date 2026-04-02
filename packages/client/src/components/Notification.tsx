@@ -24,6 +24,13 @@ const DECISION_LABELS: Record<DecisionType, string> = {
   CHOOSE_DEVELOPMENT: 'choose a city development',
   PROGRESS_TRACK: 'advance a track',
   ACHIEVEMENT_TRACK_CHOICE: 'choose a track to advance',
+  PHASE_DISPLAY: 'view phase results',
+  PROSPERITY_POLITICS: 'choose a prosperity politics action',
+  ORACLE_CHOOSE_TOKEN: 'choose an oracle token',
+  MILITARY_VICTORY_PROGRESS: 'choose a military victory track',
+  RISE_OF_PERSIA_PROGRESS: 'choose a track to advance',
+  THIRTY_TYRANTS_DISCARD: 'discard a card',
+  CONQUEST_ACTION: 'choose a conquest action',
 };
 
 /** Decision notification. */
