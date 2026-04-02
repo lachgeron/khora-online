@@ -197,12 +197,33 @@ export class ActionPhaseManager implements PhaseManager {
     if (unresolvedSlots.length === 0) return state;
 
     const slot = unresolvedSlots[0];
+    const playerBefore = updatedState.players.find(p => p.playerId === playerId);
+
     const resolver = this.resolvers.get(slot.actionType);
     if (resolver) {
       const result = resolver.resolve(updatedState, playerId, {});
       if (result.ok) {
         updatedState = result.value;
+
+        // Apply ongoing card effects triggered by this action
+        updatedState = applyOngoingEffects(updatedState, playerId, { type: 'ON_ACTION', actionType: slot.actionType });
+
+        // Apply ongoing city development effects triggered by this action
+        updatedState = applyOngoingDevEffects(updatedState, playerId, slot.actionType);
       }
+    }
+
+    // Log the auto-resolved action
+    const playerAfter = updatedState.players.find(p => p.playerId === playerId);
+    updatedState = appendLogEntry(updatedState, {
+      roundNumber: state.roundNumber, phase: 'ACTIONS', playerId,
+      action: `Auto-resolved ${slot.actionType}`,
+      details: { actionType: slot.actionType, auto: true },
+    });
+    if (playerBefore && playerAfter) {
+      updatedState = logPlayerDiff(updatedState, playerBefore, playerAfter, {
+        roundNumber: state.roundNumber, phase: 'ACTIONS', source: slot.actionType,
+      });
     }
 
     // Mark as resolved regardless of success

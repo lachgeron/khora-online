@@ -20,6 +20,7 @@ import type { PhaseManager } from './omen-phase';
 import { subtractCitizens, subtractPhilosophyTokens, addCitizens } from '../resources';
 import { determineTurnOrder } from '../turn-order';
 import { applyEffectToAllPlayers } from '../effects';
+import { appendLogEntry } from '../game-log';
 
 const CITIZENS_PER_PHILOSOPHY_TOKEN = 3;
 
@@ -310,7 +311,10 @@ export class DicePhaseManager implements PhaseManager {
     if (pendingDecision?.decisionType === 'ROLL_DICE' || player.diceRoll === null) {
       const rollResult = this.handleRollDice(state, playerId);
       if (rollResult.ok) {
-        return rollResult.value;
+        let s = rollResult.value;
+        const rolledPlayer = s.players.find(p => p.playerId === playerId);
+        s = appendLogEntry(s, { roundNumber: s.roundNumber, phase: 'DICE', playerId, action: `Auto-rolled dice: ${rolledPlayer?.diceRoll?.join(', ') ?? '?'}`, details: { auto: true } });
+        return s;
       }
       return state;
     }
@@ -347,7 +351,12 @@ export class DicePhaseManager implements PhaseManager {
         assignments,
       });
 
-      if (result.ok) return result.value;
+      if (result.ok) {
+        let s = result.value;
+        const actionNames = assignments.map(a => `${a.actionType}(${a.dieValue})`).join(', ');
+        s = appendLogEntry(s, { roundNumber: s.roundNumber, phase: 'DICE', playerId, action: `Auto-assigned dice: ${actionNames}`, details: { auto: true, assignments } });
+        return s;
+      }
     }
 
     // Fallback: just remove the pending decision

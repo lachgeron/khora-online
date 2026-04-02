@@ -233,6 +233,8 @@ export class ProgressPhaseManager implements PhaseManager {
       updatedPlayers[playerIdx] = addVP(updatedPlayers[playerIdx], 4);
       updatedState = { ...updatedState, players: updatedPlayers };
       updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Old Guard: +4 VP for skipping progress', details: { vp: 4 } });
+    } else {
+      updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Skipped progress (auto)', details: { auto: true } });
     }
     const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
     this.snapshots.delete(playerId);
