@@ -232,6 +232,7 @@ export const App: React.FC = () => {
               allCities={gameState.cityDraft.allCities}
               currentPlayerId={currentPlayerId}
               playerNames={playerNames}
+              pendingDecisions={gameState.pendingDecisions}
               onSelectCity={handleSelectCity}
             />
           )}
@@ -245,6 +246,7 @@ export const App: React.FC = () => {
               waitingFor={gameState.politicsDraft.waitingFor}
               currentPlayerId={currentPlayerId}
               playerNames={playerNames}
+              pendingDecisions={gameState.pendingDecisions}
               onDraftCard={handleDraftCard}
               cityCard={(() => {
                 const player = gameState.players.find(p => p.playerId === currentPlayerId);

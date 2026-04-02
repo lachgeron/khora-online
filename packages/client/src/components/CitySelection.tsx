@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CityCard } from '../types';
+import { CountdownTimer } from './CountdownTimer';
 
 export interface CitySelectionProps {
   offeredCities: CityCard[] | null;
@@ -10,6 +11,7 @@ export interface CitySelectionProps {
   allCities: CityCard[];
   currentPlayerId: string;
   playerNames: Record<string, string>;
+  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
   onSelectCity: (cityId: string) => void;
 }
 
@@ -21,7 +23,7 @@ const DEV_TYPE_STYLE: Record<string, string> = {
 
 export const CitySelection: React.FC<CitySelectionProps> = ({
   offeredCities, pickOrder, currentPickerIndex, selections, allCities,
-  currentPlayerId, playerNames, onSelectCity,
+  currentPlayerId, playerNames, pendingDecisions, onSelectCity,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const currentPickerId = pickOrder[currentPickerIndex];
@@ -31,9 +33,19 @@ export const CitySelection: React.FC<CitySelectionProps> = ({
   return (
     <div className="col-span-full max-w-3xl mx-auto py-8">
       <h2 className="font-display text-2xl font-bold text-sand-800 text-center mb-1">Choose Your City</h2>
-      <p className="text-sm text-sand-500 text-center mb-6">
+      <p className="text-sm text-sand-500 text-center mb-4">
         {isMyTurn ? 'Pick a city-state to lead' : `Waiting for ${playerNames[currentPickerId] ?? '...'} to pick...`}
       </p>
+
+      {/* Timer */}
+      {isMyTurn && (() => {
+        const myDecision = pendingDecisions?.find(d => d.playerId === currentPlayerId);
+        return myDecision ? (
+          <div className="max-w-xs mx-auto mb-6">
+            <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+          </div>
+        ) : null;
+      })()}
 
       {/* Already picked */}
       {pickedEntries.length > 0 && (

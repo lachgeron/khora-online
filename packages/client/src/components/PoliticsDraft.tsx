@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PoliticsCard, CityCard } from '../types';
+import { CountdownTimer } from './CountdownTimer';
 
 export interface PoliticsDraftProps {
   draftPack: PoliticsCard[] | null;
@@ -10,6 +11,7 @@ export interface PoliticsDraftProps {
   waitingFor: string[];
   currentPlayerId: string;
   playerNames: Record<string, string>;
+  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
   onDraftCard: (cardId: string) => void;
   cityCard: CityCard | null;
 }
@@ -22,7 +24,7 @@ const TYPE_STYLE: Record<string, string> = {
 
 export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
   draftPack, draftedCards, draftRound, totalRounds,
-  waitingFor, currentPlayerId, playerNames, onDraftCard, cityCard,
+  waitingFor, currentPlayerId, playerNames, pendingDecisions, onDraftCard, cityCard,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCity, setShowCity] = useState(false);
@@ -48,6 +50,15 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
             </div>
           ))}
         </div>
+        {/* Timer */}
+        {!hasAlreadyPicked && (() => {
+          const myDecision = pendingDecisions?.find(d => d.playerId === currentPlayerId);
+          return myDecision ? (
+            <div className="max-w-xs mx-auto mt-3">
+              <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* City info toggle */}

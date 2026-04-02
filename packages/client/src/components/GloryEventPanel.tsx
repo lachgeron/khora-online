@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PublicGameState, PrivatePlayerState, ClientMessage, ActionType, ActionChoices, ProgressTrackType } from '../types';
 import { ActionPhase } from './ActionPhase';
+import { CountdownTimer } from './CountdownTimer';
 
 const TOKEN_COLORS: Record<string, string> = { RED: '#c44040', BLUE: '#4060c4', GREEN: '#40a050' };
 const TRACK_LABELS: Record<string, string> = { ECONOMY: 'Economy', CULTURE: 'Culture', MILITARY: 'Military' };
@@ -28,6 +29,12 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
 
   return (
     <div className="py-4">
+      {/* Timer for interactive decisions */}
+      {myDecision && hasInteractive && (
+        <div className="mb-4">
+          <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+        </div>
+      )}
       <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Event Resolution</p>
       <p className="font-display text-base font-bold text-sand-800 text-center mb-1">{gameState.currentEvent.name}</p>
       <p className="text-xs text-sand-500 text-center mb-3">{gameState.currentEvent.gloryCondition.description}</p>

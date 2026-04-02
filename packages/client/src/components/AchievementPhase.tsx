@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { AchievementToken } from '../types';
+import { CountdownTimer } from './CountdownTimer';
 
 export interface AchievementPhaseProps {
   claimableAchievements: AchievementToken[];
@@ -27,7 +28,10 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
 
   return (
     <div>
-      <h3 className="font-display text-base font-semibold text-sand-800 mb-3">Achievement Phase</h3>
+      <div className="flex items-center gap-3 mb-3">
+        <h3 className="font-display text-base font-semibold text-sand-800">Achievement Phase</h3>
+        {myPending.length > 0 && <CountdownTimer timeoutAt={myPending[0].timeoutAt} />}
+      </div>
 
       {myPending.length > 0 ? (
         <div className="space-y-3">
