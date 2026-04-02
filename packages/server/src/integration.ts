@@ -69,7 +69,7 @@ export class GameServer {
 
     const players: PlayerInfo[] = start.value.players;
 
-    const cities = options?.cityCards ?? makeDefaultCityCards(players.length + 2);
+    const cities = options?.cityCards ?? makeDefaultCityCards();
 
     const state = this.engine.initializeGame(
       players,
@@ -157,8 +157,8 @@ export class GameServer {
  * Each city has different strengths reflected in starting coins, track levels,
  * and unique development effects.
  */
-export function makeDefaultCityCards(count: number): CityCard[] {
-  return getAllCityCards().slice(0, count);
+export function makeDefaultCityCards(): CityCard[] {
+  return getAllCityCards();
 }
 
 export function makeDefaultEventDeck(): EventCard[] {

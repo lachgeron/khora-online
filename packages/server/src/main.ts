@@ -182,7 +182,7 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
   if (!startResult.ok) return res.status(400).json(startResult.error);
 
   const players = startResult.value.players;
-  const cities = makeDefaultCityCards(players.length + 2);
+  const cities = makeDefaultCityCards();
 
   const gameEngine = new GameEngine();
   const state = gameEngine.initializeGame(players, cities, makeDefaultEventDeck(), makeDefaultPoliticsDeck(), makeDefaultAchievements(), makeDefaultCentralBoardTokens());
@@ -246,7 +246,7 @@ app.get('/api/lobbies/:lobbyId', (req, res) => {
 
 // GET /api/cities — available city cards
 app.get('/api/cities', (_req, res) => {
-  res.json(makeDefaultCityCards(7));
+  res.json(makeDefaultCityCards());
 });
 
 // --- HTTP + WebSocket server ---
