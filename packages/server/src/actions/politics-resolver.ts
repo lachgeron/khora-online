@@ -94,7 +94,8 @@ export class PoliticsResolver implements ActionResolver {
     let finalState = { ...state, players: updatedPlayers };
 
     // Trigger ON_PLAY_CARD ongoing effects (e.g., Extraordinary Collection)
-    finalState = applyOngoingEffects(finalState, playerId, { type: 'ON_PLAY_CARD' });
+    // Exclude the card just played so it doesn't trigger for itself
+    finalState = applyOngoingEffects(finalState, playerId, { type: 'ON_PLAY_CARD' }, choices.targetCardId);
 
     return { ok: true, value: finalState };
   }

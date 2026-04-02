@@ -144,12 +144,14 @@ export function applyOngoingEffects(
   state: GameState,
   playerId: string,
   trigger: OngoingTrigger,
+  excludeCardId?: string,
 ): GameState {
   const player = state.players.find(p => p.playerId === playerId);
   if (!player) return state;
 
   let result = state;
   for (const handler of ONGOING_HANDLERS) {
+    if (excludeCardId && handler.cardId === excludeCardId) continue;
     if (!hasCardInPlay(player, handler.cardId)) continue;
     if (!matchesTrigger(handler.trigger, trigger)) continue;
     result = handler.apply(result, playerId);

@@ -29,7 +29,7 @@ export function applyEffectToPlayer(player: PlayerState, effect: GameEffect): Pl
       return { ...player, coins: Math.max(0, player.coins - effect.amount) };
 
     case 'GAIN_CITIZENS':
-      return { ...player, citizenTrack: player.citizenTrack + effect.amount };
+      return { ...player, citizenTrack: Math.min(player.citizenTrack + effect.amount, 15) };
 
     case 'LOSE_CITIZENS':
       return { ...player, citizenTrack: Math.max(0, player.citizenTrack - effect.amount) };

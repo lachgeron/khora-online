@@ -12,7 +12,7 @@ export interface ProgressPhaseProps {
   pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number }[];
   currentPlayerId: string;
   playedCardIds?: string[];
-  onAdvance: (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[]) => void;
+  onAdvance: (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[], bonusTracks?: TrackAdvancement[]) => void;
   onUndo: () => void;
   onSkip: () => void;
 }
@@ -39,28 +39,41 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
 }) => {
   const hasPending = pendingDecisions.some(d => d.playerId === currentPlayerId);
   const [primary, setPrimary] = useState<ProgressTrackType | null>(null);
+  const [bonus, setBonus] = useState<ProgressTrackType | null>(null);
   const [extras, setExtras] = useState<(ProgressTrackType | null)[]>([]);
 
   const hasMint = playedCardIds?.includes('constructing-the-mint') ?? false;
+  const hasReformists = playedCardIds?.includes('reformists') ?? false;
+  const hasGradualism = playedCardIds?.includes('gradualism') ?? false;
 
   const getLevel = (t: ProgressTrackType) => t === 'ECONOMY' ? economyTrack : t === 'CULTURE' ? cultureTrack : militaryTrack;
 
   const getEffective = (t: ProgressTrackType, upTo: number) => {
     let lvl = getLevel(t);
     if (primary === t) lvl++;
+    if (bonus === t) lvl++;
     for (let i = 0; i < upTo; i++) if (extras[i] === t) lvl++;
+    return lvl;
+  };
+
+  const getEffectiveForBonus = (t: ProgressTrackType) => {
+    let lvl = getLevel(t);
+    if (primary === t) lvl++;
     return lvl;
   };
 
   const getTrackCost = (t: ProgressTrackType, level: number) => {
     if (t === 'ECONOMY' && hasMint) return 0;
-    return (TRACK_COSTS[t] ?? {})[level] ?? 99;
+    let cost = (TRACK_COSTS[t] ?? {})[level] ?? 99;
+    if (cost > 0 && hasGradualism) cost = Math.max(0, cost - 1);
+    return cost;
   };
 
   const getCostAt = (t: ProgressTrackType, upTo: number) => getTrackCost(t, getEffective(t, upTo));
 
   const primaryCost = primary ? getTrackCost(primary, getLevel(primary)) : 0;
-  let totalCost = primaryCost;
+  const bonusCost = bonus ? getTrackCost(bonus, getEffectiveForBonus(bonus)) : 0;
+  let totalCost = primaryCost + bonusCost;
   for (let i = 0; i < extras.length; i++) {
     if (extras[i]) totalCost += getCostAt(extras[i]!, i);
   }
@@ -79,7 +92,7 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
           <p className="text-xs text-sand-400 mb-3">Waiting for other players...</p>
         )}
         <button
-          onClick={() => { setPrimary(null); setExtras([]); onUndo(); }}
+          onClick={() => { setPrimary(null); setBonus(null); setExtras([]); onUndo(); }}
           className="w-full py-2 text-sand-500 text-xs font-medium border border-sand-300 rounded-lg hover:bg-sand-100 transition-colors"
         >
           Change Selection
@@ -92,7 +105,8 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
   const handleSubmit = () => {
     if (!primary) return;
     const validExtras = extras.filter((e): e is ProgressTrackType => e !== null).map(t => ({ track: t }));
-    onAdvance({ track: primary }, validExtras.length > 0 ? validExtras : undefined);
+    const validBonus = bonus ? [{ track: bonus }] : undefined;
+    onAdvance({ track: primary }, validExtras.length > 0 ? validExtras : undefined, validBonus);
   };
 
   const TrackButton: React.FC<{
@@ -154,6 +168,28 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
           />
         ))}
       </div>
+
+      {/* Reformists bonus advancement (free, no philosophy token) */}
+      {hasReformists && primary && (
+        <div className="mb-4 pl-3 border-l-2 border-gold">
+          <p className="text-xs font-medium text-gold-dim mb-2">Reformists — bonus advancement (free):</p>
+          <div className="space-y-1.5">
+            {TRACK_INFO.map(t => {
+              const lvl = getEffectiveForBonus(t.type);
+              const cost = getTrackCost(t.type, lvl);
+              return (
+                <TrackButton
+                  key={t.type}
+                  track={t.type} label={t.label} icon={t.icon} color={t.color}
+                  level={lvl} cost={cost}
+                  isSelected={bonus === t.type}
+                  onSelect={() => setBonus(bonus === t.type ? null : t.type)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Extra advancements via philosophy tokens */}
       {extras.map((et, i) => (

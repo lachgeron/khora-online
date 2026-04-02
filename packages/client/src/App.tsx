@@ -110,8 +110,8 @@ export const App: React.FC = () => {
   const handleUnassignDice = () => sendMessage({ type: 'UNASSIGN_DICE' });
   const handleResolveAction = (actionType: ActionType, choices: ActionChoices) =>
     sendMessage({ type: 'RESOLVE_ACTION', actionType, choices });
-  const handleProgressTrack = (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[]) =>
-    sendMessage({ type: 'PROGRESS_TRACK', advancement, extraTracks });
+  const handleProgressTrack = (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[], bonusTracks?: TrackAdvancement[]) =>
+    sendMessage({ type: 'PROGRESS_TRACK', advancement, extraTracks, bonusTracks });
   const handleUndoProgress = () => sendMessage({ type: 'UNDO_PROGRESS' });
   const handleSkipPhase = () => sendMessage({ type: 'SKIP_PHASE' });
   const handleClaimAchievement = (achievementId: string, trackChoice: 'TAX' | 'GLORY') =>

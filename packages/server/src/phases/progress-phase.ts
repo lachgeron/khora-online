@@ -94,7 +94,7 @@ export class ProgressPhaseManager implements PhaseManager {
     }
 
     let player = state.players[playerIndex];
-    const { advancement, extraTracks } = decision;
+    const { advancement, extraTracks, bonusTracks } = decision;
 
     // Save snapshot before any changes
     this.snapshots.set(playerId, player);
@@ -104,6 +104,21 @@ export class ProgressPhaseManager implements PhaseManager {
       const result = this.advanceOneTrack(player, advancement.track);
       if (!result.ok) { this.snapshots.delete(playerId); return result; }
       player = result.value;
+    }
+
+    // Reformists bonus advancements (free, just pay drachmas — no philosophy token)
+    if (bonusTracks && bonusTracks.length > 0) {
+      const hasReformists = hasCardInPlay(player, 'reformists');
+      const maxBonus = hasReformists ? 1 : 0;
+      if (bonusTracks.length > maxBonus) {
+        this.snapshots.delete(playerId);
+        return { ok: false, error: { code: 'INVALID_DECISION', message: 'No card granting bonus track advancements' } };
+      }
+      for (const bonus of bonusTracks) {
+        const result = this.advanceOneTrack(player, bonus.track);
+        if (!result.ok) { this.snapshots.delete(playerId); return result; }
+        player = result.value;
+      }
     }
 
     // Extra advancements (each costs 1 philosophy token + drachmas)
@@ -133,6 +148,11 @@ export class ProgressPhaseManager implements PhaseManager {
     const playerBefore = state.players[playerIndex];
     if (advancement) {
       updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${advancement.track}`, details: { track: advancement.track } });
+    }
+    if (bonusTracks && bonusTracks.length > 0) {
+      for (const bonus of bonusTracks) {
+        updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${bonus.track} (Reformists)`, details: { track: bonus.track } });
+      }
     }
     if (extraTracks && extraTracks.length > 0) {
       for (const extra of extraTracks) {
@@ -205,6 +225,11 @@ export class ProgressPhaseManager implements PhaseManager {
     // Constructing the Mint: Economy progress is free
     if (track === 'ECONOMY' && hasCardInPlay(player, 'constructing-the-mint')) {
       cost = 0;
+    }
+
+    // Gradualism: pay 1 less Drachma on any progress advancement
+    if (cost > 0 && hasCardInPlay(player, 'gradualism')) {
+      cost = Math.max(0, cost - 1);
     }
 
     if (cost > 0) {

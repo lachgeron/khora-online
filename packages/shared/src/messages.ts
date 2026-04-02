@@ -24,7 +24,7 @@ export type ClientMessage =
   | { type: 'ASSIGN_DICE'; assignments: DiceAssignment[]; philosophyTokensToSpend?: number }
   | { type: 'UNASSIGN_DICE' }
   | { type: 'RESOLVE_ACTION'; actionType: ActionType; choices: ActionChoices }
-  | { type: 'PROGRESS_TRACK'; advancement: TrackAdvancement; extraTracks?: TrackAdvancement[] }
+  | { type: 'PROGRESS_TRACK'; advancement: TrackAdvancement; extraTracks?: TrackAdvancement[]; bonusTracks?: TrackAdvancement[] }
   | { type: 'UNDO_PROGRESS' }
   | { type: 'SKIP_PHASE' }
   | { type: 'CLAIM_ACHIEVEMENT'; achievementId: string; trackChoice: 'TAX' | 'GLORY' }

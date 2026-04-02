@@ -67,7 +67,7 @@ const EVENT_HANDLERS: Record<string, (state: GameState) => GameState> = {
   'conscripting-troops': (s) => {
     let state = s;
     for (const p of getHighestTroops(state)) {
-      state = updatePlayer(state, p.playerId, pl => ({ ...pl, citizenTrack: pl.citizenTrack + 3 }));
+      state = updatePlayer(state, p.playerId, pl => ({ ...pl, citizenTrack: Math.min(pl.citizenTrack + 3, 15) }));
     }
     for (const p of getLowestTroops(state)) {
       state = updatePlayer(state, p.playerId, pl => ({ ...pl, citizenTrack: Math.max(0, pl.citizenTrack - 3) }));

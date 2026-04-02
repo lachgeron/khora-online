@@ -53,6 +53,11 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
     newLevel = Math.min(newLevel, 7);
   }
 
+  // Cap citizen track at 15
+  if (track === 'CITIZEN') {
+    newLevel = Math.min(newLevel, MAX_CITIZEN_TRACK);
+  }
+
   let updated = { ...player, [field]: newLevel };
 
   // Apply milestone rewards for each level crossed
@@ -71,9 +76,11 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
 
 interface Milestone { citizens?: number; vp?: number; taxes?: number; glory?: number }
 
+const MAX_CITIZEN_TRACK = 15;
+
 function applyMilestone(p: PlayerState, m: Milestone): PlayerState {
   let updated = p;
-  if (m.citizens) updated = { ...updated, citizenTrack: updated.citizenTrack + m.citizens };
+  if (m.citizens) updated = { ...updated, citizenTrack: Math.min(updated.citizenTrack + m.citizens, MAX_CITIZEN_TRACK) };
   if (m.vp) updated = { ...updated, victoryPoints: updated.victoryPoints + m.vp };
   if (m.taxes) updated = { ...updated, taxTrack: updated.taxTrack + m.taxes };
   if (m.glory) updated = { ...updated, gloryTrack: updated.gloryTrack + m.glory };
@@ -153,10 +160,10 @@ export function hasCitizens(player: PlayerState, amount: number): boolean {
 }
 
 /**
- * Adds citizens (citizen track levels) to a player.
+ * Adds citizens (citizen track levels) to a player. Capped at 15.
  */
 export function addCitizens(player: PlayerState, amount: number): PlayerState {
-  return { ...player, citizenTrack: player.citizenTrack + amount };
+  return { ...player, citizenTrack: Math.min(player.citizenTrack + amount, MAX_CITIZEN_TRACK) };
 }
 
 /**
