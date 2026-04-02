@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { ProgressTrackType, TrackAdvancement } from '../types';
+import { CountdownTimer } from './CountdownTimer';
 
 export interface ProgressPhaseProps {
   economyTrack: number;
@@ -117,7 +118,13 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <h3 className="font-display text-lg font-bold text-sand-800 mb-1">📈 Progress Phase</h3>
+      <div className="flex items-center gap-3 mb-1">
+        <h3 className="font-display text-lg font-bold text-sand-800">📈 Progress Phase</h3>
+        {hasPending && (() => {
+          const myDecision = pendingDecisions.find(d => d.playerId === currentPlayerId);
+          return myDecision ? <CountdownTimer timeoutAt={myDecision.timeoutAt} /> : null;
+        })()}
+      </div>
 
       {/* Resources */}
       <div className="flex gap-3 mb-4 text-xs text-sand-600">

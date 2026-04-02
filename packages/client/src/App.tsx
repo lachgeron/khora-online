@@ -365,6 +365,7 @@ export const App: React.FC = () => {
                         legislationDraw={privateState.legislationDraw}
                         onResolve={handleResolveAction}
                         onSkip={handleSkipPhase}
+                        timeoutAt={gameState.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'RESOLVE_ACTION')?.timeoutAt}
                       />
                     )}
                     <div className={nextSlot ? 'border-t border-sand-200 pt-4' : ''}>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import type { ActionType, ActionSlot, DiceAssignment, PublicPlayerState } from '../types';
+import { CountdownTimer } from './CountdownTimer';
 
 const ACTIONS: { type: ActionType; number: number; label: string; icon: string }[] = [
   { type: 'PHILOSOPHY', number: 0, label: 'Philosophy', icon: '📜' },
@@ -55,26 +56,6 @@ const PlayerRoll: React.FC<{ p: PublicPlayerState; isMe: boolean; isStar: boolea
   </div>
 );
 
-const CountdownTimer: React.FC<{ timeoutAt: number }> = ({ timeoutAt }) => {
-  const [remaining, setRemaining] = useState(() => Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000)));
-  useEffect(() => {
-    const tick = () => setRemaining(Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000)));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [timeoutAt]);
-  const minutes = Math.floor(remaining / 60);
-  const seconds = remaining % 60;
-  const isUrgent = remaining <= 15;
-  return (
-    <div className={`flex items-center gap-2 text-sm font-mono font-bold ${isUrgent ? 'text-red-600 animate-pulse' : 'text-sand-700'}`}>
-      <span>⏱</span>
-      <span>{minutes}:{seconds.toString().padStart(2, '0')}</span>
-      {isUrgent && <span className="text-[0.6rem] font-sans font-medium text-red-500">Time running out</span>}
-    </div>
-  );
-};
-
 export const DicePhase: React.FC<DicePhaseProps> = ({
   diceRoll, citizenTrack, philosophyTokens, players, currentPlayerId, startPlayerId,
   actionSlots, pendingDecisions, onRoll, onAssign, onUnassign,
@@ -125,9 +106,15 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
 
   // ── ROLL STEP ──
   if (!hasRolled) {
+    const rollDecision = pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'ROLL_DICE');
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
         <h3 className="font-display text-lg font-bold text-sand-800 mb-2">🎲 Dice Phase</h3>
+        {rollDecision && (
+          <div className="flex justify-center mb-3">
+            <CountdownTimer timeoutAt={rollDecision.timeoutAt} />
+          </div>
+        )}
         {players.some(p => p.playerId !== currentPlayerId && p.diceRoll != null) && (
           <div className="mb-4 rounded-lg bg-sand-100 p-3">
             {players.filter(p => p.diceRoll != null).map(p => (

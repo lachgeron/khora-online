@@ -9,6 +9,7 @@ import type {
   ProgressTrackType,
 } from '../types';
 import { KnowledgeStore } from './KnowledgeStore';
+import { CountdownTimer } from './CountdownTimer';
 
 const MINOR_KNOWLEDGE_COST = 5;
 
@@ -43,12 +44,13 @@ export interface ActionPhaseProps {
   legislationDraw?: PoliticsCard[] | null;
   onResolve: (actionType: ActionType, choices: ActionChoices) => void;
   onSkip: () => void;
+  timeoutAt?: number;
 }
 
 export const ActionPhase: React.FC<ActionPhaseProps> = ({
   actionType, handCards, playerCoins, playerMilitaryTrack, playerTroopTrack,
   playerKnowledgeTokens, philosophyTokens: philTokens, developmentLevel, cityId, cityDevelopments,
-  centralBoardTokens, legislationDraw, onResolve, onSkip,
+  centralBoardTokens, legislationDraw, onResolve, onSkip, timeoutAt,
 }) => {
   const [buyToken, setBuyToken] = useState(false);
   const [tokenColor, setTokenColor] = useState<KnowledgeColor>('GREEN');
@@ -110,6 +112,11 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
           <h3 className="font-display text-lg font-bold" style={{ color: info.color }}>{info.label}</h3>
           <p className="text-xs text-sand-500">Resolve this action</p>
         </div>
+        {timeoutAt && (
+          <div className="ml-auto">
+            <CountdownTimer timeoutAt={timeoutAt} />
+          </div>
+        )}
       </div>
 
       {/* ── POLITICS ── */}
