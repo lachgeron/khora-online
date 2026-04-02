@@ -1,0 +1,11 @@
+node_modules
+packages/client/node_modules
+packages/server/node_modules
+packages/shared/node_modules
+packages/client/dist
+packages/server/dist
+packages/shared/dist
+.git
+.vscode
+.kiro
+*.md

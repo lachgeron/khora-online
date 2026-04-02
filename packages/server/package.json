@@ -1,0 +1,24 @@
+{
+  "name": "@khora/server",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@khora/shared": "*",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0"
+  }
+}
