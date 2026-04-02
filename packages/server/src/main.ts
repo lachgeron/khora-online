@@ -50,7 +50,7 @@ function manageGameTimer(gameId: string, state: GameState): void {
 
   // Find the earliest timeout
   const earliest = Math.min(...state.pendingDecisions.map(d => d.timeoutAt));
-  const remaining = Math.max(500, earliest - Date.now()); // minimum 500ms to avoid instant firing
+  const remaining = Math.max(1000, earliest - Date.now()); // minimum 1s to avoid rapid cascading
 
   const timerId = setTimeout(() => {
     gameTimers.delete(gameId);
