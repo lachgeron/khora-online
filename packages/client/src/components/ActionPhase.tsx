@@ -33,6 +33,7 @@ export interface ActionPhaseProps {
   actionType: ActionType;
   handCards?: PoliticsCard[];
   playerCoins?: number;
+  playerEconomyTrack?: number;
   playerMilitaryTrack?: number;
   playerTroopTrack?: number;
   playerKnowledgeTokens?: KnowledgeToken[];
@@ -48,7 +49,7 @@ export interface ActionPhaseProps {
 }
 
 export const ActionPhase: React.FC<ActionPhaseProps> = ({
-  actionType, handCards, playerCoins, playerMilitaryTrack, playerTroopTrack,
+  actionType, handCards, playerCoins, playerEconomyTrack, playerMilitaryTrack, playerTroopTrack,
   playerKnowledgeTokens, philosophyTokens: philTokens, developmentLevel, cityId, cityDevelopments,
   centralBoardTokens, legislationDraw, onResolve, onSkip, timeoutAt,
 }) => {
@@ -222,7 +223,9 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
       {actionType === 'TRADE' && (
         <div className="space-y-4">
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-            <p className="text-sm text-amber-800 font-medium">You will gain coins equal to your Economy track + 1</p>
+            <p className="text-sm text-amber-800 font-medium">
+              Gain <span className="font-bold">{(playerEconomyTrack ?? 0) + 1}</span> drachma (Economy {playerEconomyTrack ?? 0} + 1)
+            </p>
           </div>
 
           <div className="rounded-lg border-2 border-sand-200 p-4">

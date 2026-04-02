@@ -94,7 +94,7 @@ export function explore(
 
   const updatedPlayer = {
     ...player,
-    troopTrack: player.troopTrack - actualSkullLoss,
+    troopTrack: Math.max(0, player.troopTrack - actualSkullLoss),
     coins: player.coins + bonusCoins,
     victoryPoints: player.victoryPoints + bonusVP,
     knowledgeTokens: [...player.knowledgeTokens, ...gainedTokens],

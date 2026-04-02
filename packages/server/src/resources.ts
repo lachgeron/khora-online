@@ -58,6 +58,9 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
     newLevel = Math.min(newLevel, MAX_CITIZEN_TRACK);
   }
 
+  // No track can go below 0
+  newLevel = Math.max(0, newLevel);
+
   let updated = { ...player, [field]: newLevel };
 
   // Apply milestone rewards for each level crossed

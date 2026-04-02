@@ -46,8 +46,18 @@ export class DevelopmentResolver implements ActionResolver {
     const nextDev = getNextDevelopment(city, player);
     if (!nextDev) return { canPerform: false, citizenCost, reason: 'No more developments' };
 
+    // Check knowledge requirement — allow scrolls (2 per missing token) to cover shortfall
     if (!meetsKnowledgeRequirement(player, nextDev.knowledgeRequirement)) {
-      return { canPerform: false, citizenCost, reason: 'Knowledge requirements not met' };
+      const greenCount = player.knowledgeTokens.filter(t => t.color === 'GREEN').length;
+      const blueCount = player.knowledgeTokens.filter(t => t.color === 'BLUE').length;
+      const redCount = player.knowledgeTokens.filter(t => t.color === 'RED').length;
+      const shortfall = Math.max(0, nextDev.knowledgeRequirement.green - greenCount)
+        + Math.max(0, nextDev.knowledgeRequirement.blue - blueCount)
+        + Math.max(0, nextDev.knowledgeRequirement.red - redCount);
+      const scrollsNeeded = shortfall * 2;
+      if (player.philosophyTokens < scrollsNeeded) {
+        return { canPerform: false, citizenCost, reason: 'Knowledge requirements not met' };
+      }
     }
 
     if (player.coins < nextDev.drachmaCost) {

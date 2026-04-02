@@ -356,6 +356,7 @@ export const App: React.FC = () => {
                         actionType={nextSlot.actionType}
                         handCards={privateState.handCards}
                         playerCoins={privateState.coins}
+                        playerEconomyTrack={currentPlayer?.economyTrack ?? 0}
                         playerMilitaryTrack={currentPlayer?.militaryTrack ?? 0}
                         playerTroopTrack={currentPlayer?.troopTrack ?? 0}
                         playerKnowledgeTokens={privateState.knowledgeTokens}
