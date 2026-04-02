@@ -52,6 +52,8 @@ function manageGameTimer(gameId: string, state: GameState): void {
   const earliest = Math.min(...state.pendingDecisions.map(d => d.timeoutAt));
   const remaining = Math.max(1000, earliest - Date.now()); // minimum 1s to avoid rapid cascading
 
+  console.log(`[TIMER] Setting timer for game ${gameId}: ${remaining}ms (phase: ${state.currentPhase}, decisions: ${state.pendingDecisions.map(d => `${d.decisionType}@${d.playerId}`).join(', ')})`);
+
   const timerId = setTimeout(() => {
     gameTimers.delete(gameId);
     let currentState = games.get(gameId);
