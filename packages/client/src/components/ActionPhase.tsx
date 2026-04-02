@@ -535,13 +535,15 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
         </div>
       )}
 
-      {/* Skip button */}
-      <button
-        onClick={onSkip}
-        className="mt-3 w-full py-2 text-sand-500 text-xs font-medium hover:text-sand-700 transition-colors"
-      >
-        Skip this action
-      </button>
+      {/* Skip button — hidden for actions that cannot be skipped */}
+      {!(['PHILOSOPHY', 'CULTURE', 'TRADE', 'MILITARY'] as ActionType[]).includes(actionType) && (
+        <button
+          onClick={onSkip}
+          className="mt-3 w-full py-2 text-sand-500 text-xs font-medium hover:text-sand-700 transition-colors"
+        >
+          Skip this action
+        </button>
+      )}
     </motion.div>
   );
 };

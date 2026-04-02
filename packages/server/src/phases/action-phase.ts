@@ -21,6 +21,20 @@ import { applyOngoingEffects } from '../card-handlers';
 import { applyOngoingDevEffects } from '../city-dev-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
 
+/** Per-action timeout durations in milliseconds. */
+const ACTION_TIMEOUTS: Record<string, number> = {
+  PHILOSOPHY: 10_000,
+  LEGISLATION: 30_000,
+  CULTURE: 5_000,
+  TRADE: 30_000,
+  MILITARY: 60_000,
+  POLITICS: 60_000,
+  DEVELOPMENT: 20_000,
+};
+
+/** Actions that cannot be skipped by the player. */
+const NO_SKIP_ACTIONS = new Set(['PHILOSOPHY', 'CULTURE', 'TRADE', 'MILITARY']);
+
 export class ActionPhaseManager implements PhaseManager {
   private resolvers: Map<ActionType, ActionResolver> = new Map();
 
@@ -56,6 +70,20 @@ export class ActionPhaseManager implements PhaseManager {
           ok: false,
           error: { code: 'NOT_YOUR_TURN', message: 'It is not your turn to resolve actions.' },
         };
+      }
+      // Check if the current action can be skipped
+      const player = state.players.find(p => p.playerId === playerId);
+      if (player) {
+        const unresolvedSlots = player.actionSlots
+          .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved);
+        const lowestCost = Math.min(...unresolvedSlots.map(s => ACTION_NUMBERS[s.actionType]));
+        const nextAction = ACTION_BY_NUMBER[lowestCost];
+        if (nextAction && NO_SKIP_ACTIONS.has(nextAction)) {
+          return {
+            ok: false,
+            error: { code: 'INVALID_DECISION', message: `Cannot skip ${nextAction} action.` },
+          };
+        }
       }
       // Auto-resolve all remaining actions for this player and advance to next player
       let updatedState = this.autoResolvePlayer(state, playerId);
@@ -228,13 +256,25 @@ export class ActionPhaseManager implements PhaseManager {
       return { ...state, pendingDecisions: [] };
     }
 
+    // Determine the next action type for this player to set the correct timeout
+    const player = state.players.find(p => p.playerId === activeId);
+    let timeout = 30_000; // default fallback
+    if (player) {
+      const unresolvedSlots = player.actionSlots
+        .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
+        .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType]);
+      if (unresolvedSlots.length > 0) {
+        timeout = ACTION_TIMEOUTS[unresolvedSlots[0].actionType] ?? 30_000;
+      }
+    }
+
     const now = Date.now();
     return {
       ...state,
       pendingDecisions: [{
         playerId: activeId,
         decisionType: 'RESOLVE_ACTION' as const,
-        timeoutAt: now + 120_000,
+        timeoutAt: now + timeout,
         options: null as unknown,
       }],
     };

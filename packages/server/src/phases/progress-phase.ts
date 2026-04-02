@@ -44,7 +44,7 @@ export class ProgressPhaseManager implements PhaseManager {
       .map(pid => ({
         playerId: pid,
         decisionType: 'PROGRESS_TRACK' as const,
-        timeoutAt: now + 120_000,
+        timeoutAt: now + 30_000,
         options: null as unknown,
       }));
 
@@ -175,7 +175,7 @@ export class ProgressPhaseManager implements PhaseManager {
       {
         playerId,
         decisionType: 'PROGRESS_TRACK' as const,
-        timeoutAt: now + 120_000,
+        timeoutAt: now + 30_000,
         options: null as unknown,
       },
     ];

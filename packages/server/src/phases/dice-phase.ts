@@ -48,7 +48,7 @@ export class DicePhaseManager implements PhaseManager {
       .map(p => ({
         playerId: p.playerId,
         decisionType: 'ROLL_DICE' as const,
-        timeoutAt: now + 120_000,
+        timeoutAt: now + 10_000,
         options: null as unknown,
       }));
 

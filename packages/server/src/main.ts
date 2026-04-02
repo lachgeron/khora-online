@@ -29,113 +29,70 @@ const games = new Map<string, GameState>();
 const engines = new Map<string, GameEngine>();
 // Map lobbyId → gameId (so non-host players can discover the game)
 const lobbyGameIds = new Map<string, string>();
-// Track active assign-dice timers per game
-const assignDiceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// Track active display-phase timers per game
-const displayTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Track active decision timers per game
+const gameTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
- * After each state update, check if we need to start or cancel
- * the 5-second PHASE_DISPLAY timer (for Omen, Taxation, Glory phases).
+ * Generic timer manager: after each state update, start a timer for the
+ * earliest pending decision timeout. When it fires, auto-resolve all
+ * expired decisions.
  */
-function manageDisplayTimer(gameId: string, state: GameState): void {
-  const pendingDisplay = state.pendingDecisions.filter(d => d.decisionType === 'PHASE_DISPLAY');
-
-  if (pendingDisplay.length === 0) {
-    const existing = displayTimers.get(gameId);
-    if (existing) {
-      clearTimeout(existing);
-      displayTimers.delete(gameId);
-    }
-    return;
+function manageGameTimer(gameId: string, state: GameState): void {
+  // Cancel existing timer
+  const existing = gameTimers.get(gameId);
+  if (existing) {
+    clearTimeout(existing);
+    gameTimers.delete(gameId);
   }
 
-  if (displayTimers.has(gameId)) return;
+  if (state.pendingDecisions.length === 0) return;
+  if (state.currentPhase === 'GAME_OVER') return;
 
-  const timeoutAt = pendingDisplay[0].timeoutAt;
-  const remaining = Math.max(0, timeoutAt - Date.now());
-  console.log(`[TIMER] Starting ${remaining}ms display timer for game ${gameId} (phase: ${state.currentPhase})`);
+  // Find the earliest timeout
+  const earliest = Math.min(...state.pendingDecisions.map(d => d.timeoutAt));
+  const remaining = Math.max(0, earliest - Date.now());
 
   const timerId = setTimeout(() => {
-    displayTimers.delete(gameId);
+    gameTimers.delete(gameId);
     let currentState = games.get(gameId);
     const gameEngine = engines.get(gameId);
     if (!currentState || !gameEngine) return;
 
-    if (currentState.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
-      console.log(`[TIMER] Display timer expired for game ${gameId} — advancing from ${currentState.currentPhase}`);
-      currentState = gameEngine.handleTimeout(currentState, '__display__');
-      games.set(gameId, currentState);
-      wsGateway.broadcastToGame(gameId, currentState);
-
-      // Send dedicated GAME_OVER message when game ends via timer
-      if (currentState.currentPhase === 'GAME_OVER' && currentState.finalScores) {
-        const gameConns = wsGateway.getConnectedPlayers(gameId);
-        for (const pid of gameConns) {
-          wsGateway.sendToPlayer(gameId, pid, {
-            type: 'GAME_OVER',
-            finalScores: currentState.finalScores,
-          });
-        }
-      }
-
-      manageDisplayTimer(gameId, currentState);
-      manageAssignDiceTimer(gameId, currentState);
-    }
-  }, remaining);
-
-  displayTimers.set(gameId, timerId);
-}
-
-/**
- * After each state update, check if we need to start or cancel
- * the 60-second ASSIGN_DICE timer.
- */
-function manageAssignDiceTimer(gameId: string, state: GameState): void {
-  const pendingAssign = state.pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE');
-
-  if (pendingAssign.length === 0) {
-    const existing = assignDiceTimers.get(gameId);
-    if (existing) {
-      console.log(`[TIMER] Cancelling assign-dice timer for game ${gameId} — all players assigned`);
-      clearTimeout(existing);
-      assignDiceTimers.delete(gameId);
-    }
-    return;
-  }
-
-  if (assignDiceTimers.has(gameId)) return;
-
-  const timeoutAt = pendingAssign[0].timeoutAt;
-  const remaining = Math.max(0, timeoutAt - Date.now());
-  console.log(`[TIMER] Starting 60s assign-dice timer for game ${gameId} (${remaining}ms remaining, ${pendingAssign.length} players pending)`);
-
-  const timerId = setTimeout(() => {
-    assignDiceTimers.delete(gameId);
-    let currentState = games.get(gameId);
-    const gameEngine = engines.get(gameId);
-    if (!currentState || !gameEngine) {
-      console.log(`[TIMER] Timer fired but game ${gameId} not found`);
+    const now = Date.now();
+    const expired = currentState.pendingDecisions.filter(d => d.timeoutAt <= now);
+    if (expired.length === 0) {
+      // Not yet expired, re-check
+      manageGameTimer(gameId, currentState);
       return;
     }
 
-    if (currentState.currentPhase !== 'DICE') {
-      console.log(`[TIMER] Timer fired but game ${gameId} is in phase ${currentState.currentPhase}, skipping`);
-      return;
-    }
+    console.log(`[TIMER] Timer expired for game ${gameId} (phase: ${currentState.currentPhase}) — auto-resolving ${expired.length} decisions`);
 
-    const stillPending = currentState.pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE');
-    console.log(`[TIMER] Timer expired for game ${gameId} — auto-resolving ${stillPending.length} players`);
-    for (const decision of stillPending) {
-      console.log(`[TIMER] Auto-resolving player ${decision.playerId}`);
-      currentState = gameEngine.handleTimeout(currentState, decision.playerId);
+    for (const decision of expired) {
+      const pid = decision.decisionType === 'PHASE_DISPLAY' ? '__display__' : decision.playerId;
+      console.log(`[TIMER] Auto-resolving ${decision.decisionType} for ${pid}`);
+      currentState = gameEngine.handleTimeout(currentState, pid);
     }
 
     games.set(gameId, currentState);
     wsGateway.broadcastToGame(gameId, currentState);
+
+    // Send dedicated GAME_OVER message when game ends via timer
+    if (currentState.currentPhase === 'GAME_OVER' && currentState.finalScores) {
+      const gameConns = wsGateway.getConnectedPlayers(gameId);
+      for (const pid of gameConns) {
+        wsGateway.sendToPlayer(gameId, pid, {
+          type: 'GAME_OVER',
+          finalScores: currentState.finalScores,
+        });
+      }
+    }
+
+    // Continue managing timers for remaining decisions
+    manageGameTimer(gameId, currentState);
   }, remaining);
 
-  assignDiceTimers.set(gameId, timerId);
+  gameTimers.set(gameId, timerId);
 }
 
 // --- Game data ---
@@ -191,8 +148,7 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
   engines.set(state.gameId, gameEngine);
   lobbyGameIds.set(lobbyId, state.gameId);
 
-  manageAssignDiceTimer(state.gameId, state);
-  manageDisplayTimer(state.gameId, state);
+  manageGameTimer(state.gameId, state);
   res.json({ gameId: state.gameId, players });
 });
 
@@ -291,7 +247,7 @@ wss.on('connection', (ws, req) => {
 
   // Send initial state
   wsGateway.broadcastToGame(gameId, state);
-  manageDisplayTimer(gameId, state);
+  manageGameTimer(gameId, state);
 
   ws.on('message', (data) => {
     try {
@@ -320,8 +276,7 @@ wss.on('connection', (ws, req) => {
       if (result.ok) {
         games.set(gameId, result.value);
         wsGateway.broadcastToGame(gameId, result.value);
-        manageAssignDiceTimer(gameId, result.value);
-        manageDisplayTimer(gameId, result.value);
+        manageGameTimer(gameId, result.value);
 
         // Send dedicated GAME_OVER message when game ends
         if (result.value.currentPhase === 'GAME_OVER' && result.value.finalScores) {
