@@ -304,52 +304,53 @@ export class DicePhaseManager implements PhaseManager {
     if (playerIndex === -1) return state;
 
     const player = state.players[playerIndex];
+    const pendingDecision = state.pendingDecisions.find(d => d.playerId === playerId);
 
-    // If they haven't rolled yet, roll for them
-    if (player.diceRoll === null) {
+    // If they have a ROLL_DICE decision, only auto-roll (don't auto-assign)
+    if (pendingDecision?.decisionType === 'ROLL_DICE' || player.diceRoll === null) {
       const rollResult = this.handleRollDice(state, playerId);
       if (rollResult.ok) {
-        state = rollResult.value;
+        return rollResult.value;
       }
-      // Re-fetch player after roll
-      const updatedPlayer = state.players.find(p => p.playerId === playerId);
-      if (!updatedPlayer?.diceRoll || updatedPlayer.diceRoll.length === 0) return state;
+      return state;
     }
 
-    const currentPlayer = state.players.find(p => p.playerId === playerId)!;
-    if (!currentPlayer.diceRoll || currentPlayer.diceRoll.length === 0) return state;
+    // If they have an ASSIGN_DICE decision, auto-assign
+    if (pendingDecision?.decisionType === 'ASSIGN_DICE') {
+      const currentPlayer = state.players.find(p => p.playerId === playerId)!;
+      if (!currentPlayer.diceRoll || currentPlayer.diceRoll.length === 0) return state;
 
-    // Auto-assign: pick cheapest affordable actions
-    const sortedActions: Array<{ type: typeof ACTION_NUMBERS extends Record<infer K, number> ? K : never; number: number }> = (
-      Object.entries(ACTION_NUMBERS) as Array<[keyof typeof ACTION_NUMBERS, number]>
-    )
-      .map(([type, num]) => ({ type, number: num }))
-      .sort((a, b) => a.number - b.number);
+      // Auto-assign: pick cheapest affordable actions
+      const sortedActions: Array<{ type: typeof ACTION_NUMBERS extends Record<infer K, number> ? K : never; number: number }> = (
+        Object.entries(ACTION_NUMBERS) as Array<[keyof typeof ACTION_NUMBERS, number]>
+      )
+        .map(([type, num]) => ({ type, number: num }))
+        .sort((a, b) => a.number - b.number);
 
-    const dice = [...currentPlayer.diceRoll];
-    const assignments: Array<{ slotIndex: 0 | 1 | 2; actionType: keyof typeof ACTION_NUMBERS; dieValue: number }> = [];
+      const dice = [...currentPlayer.diceRoll];
+      const assignments: Array<{ slotIndex: 0 | 1 | 2; actionType: keyof typeof ACTION_NUMBERS; dieValue: number }> = [];
 
-    for (let i = 0; i < dice.length && i < 3; i++) {
-      // Find cheapest action that hasn't been picked
-      const usedActions = new Set(assignments.map(a => a.actionType));
-      const action = sortedActions.find(a => !usedActions.has(a.type));
-      if (action) {
-        assignments.push({
-          slotIndex: i as 0 | 1 | 2,
-          actionType: action.type,
-          dieValue: dice[i],
-        });
+      for (let i = 0; i < dice.length && i < 3; i++) {
+        const usedActions = new Set(assignments.map(a => a.actionType));
+        const action = sortedActions.find(a => !usedActions.has(a.type));
+        if (action) {
+          assignments.push({
+            slotIndex: i as 0 | 1 | 2,
+            actionType: action.type,
+            dieValue: dice[i],
+          });
+        }
       }
+
+      const result = this.handleDiceAssignment(state, playerId, {
+        type: 'ASSIGN_DICE',
+        assignments,
+      });
+
+      if (result.ok) return result.value;
     }
 
-    const result = this.handleDiceAssignment(state, playerId, {
-      type: 'ASSIGN_DICE',
-      assignments,
-    });
-
-    if (result.ok) return result.value;
-
-    // If auto-assignment failed, just remove the pending decision
+    // Fallback: just remove the pending decision
     return {
       ...state,
       pendingDecisions: state.pendingDecisions.filter(d => d.playerId !== playerId),
