@@ -86,7 +86,7 @@ export class ActionPhaseManager implements PhaseManager {
         }
       }
       // Auto-resolve all remaining actions for this player and advance to next player
-      let updatedState = this.autoResolvePlayer(state, playerId);
+      let updatedState = this.autoResolveAllActions(state, playerId);
       updatedState = this.buildPendingForActivePlayer(updatedState);
       return { ok: true, value: updatedState };
     }
@@ -178,51 +178,59 @@ export class ActionPhaseManager implements PhaseManager {
   }
 
   autoResolve(state: GameState, playerId: string): GameState {
-    let updatedState = this.autoResolvePlayer(state, playerId);
+    let updatedState = this.autoResolveSingleAction(state, playerId);
     return this.buildPendingForActivePlayer(updatedState);
   }
 
-  /**
-   * Resolves all unresolved actions for a player with empty choices
-   * and marks them as resolved.
-   */
-  private autoResolvePlayer(state: GameState, playerId: string): GameState {
+  private autoResolveSingleAction(state: GameState, playerId: string): GameState {
     const playerIndex = state.players.findIndex(p => p.playerId === playerId);
     if (playerIndex === -1) return state;
 
     let updatedState = state;
     const player = state.players[playerIndex];
 
-    // Resolve all unresolved actions in ascending cost order
+    // Find the next unresolved action in ascending cost order
     const unresolvedSlots = player.actionSlots
       .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
       .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType]);
 
-    for (const slot of unresolvedSlots) {
-      const resolver = this.resolvers.get(slot.actionType);
-      if (resolver) {
-        const result = resolver.resolve(updatedState, playerId, {});
-        if (result.ok) {
-          updatedState = result.value;
-        }
-      }
+    if (unresolvedSlots.length === 0) return state;
 
-      // Mark as resolved regardless of success
-      const pIdx = updatedState.players.findIndex(p => p.playerId === playerId);
-      if (pIdx !== -1) {
-        const p = updatedState.players[pIdx];
-        const updatedSlots = p.actionSlots.map(s => {
-          if (s && s.actionType === slot.actionType) return { ...s, resolved: true };
-          return s;
-        }) as typeof p.actionSlots;
-
-        const updatedPlayers = [...updatedState.players];
-        updatedPlayers[pIdx] = { ...p, actionSlots: updatedSlots };
-        updatedState = { ...updatedState, players: updatedPlayers };
+    const slot = unresolvedSlots[0];
+    const resolver = this.resolvers.get(slot.actionType);
+    if (resolver) {
+      const result = resolver.resolve(updatedState, playerId, {});
+      if (result.ok) {
+        updatedState = result.value;
       }
     }
 
-    // Return state with this player's actions resolved
+    // Mark as resolved regardless of success
+    const pIdx = updatedState.players.findIndex(p => p.playerId === playerId);
+    if (pIdx !== -1) {
+      const p = updatedState.players[pIdx];
+      const updatedSlots = p.actionSlots.map(s => {
+        if (s && s.actionType === slot.actionType) return { ...s, resolved: true };
+        return s;
+      }) as typeof p.actionSlots;
+
+      const updatedPlayers = [...updatedState.players];
+      updatedPlayers[pIdx] = { ...p, actionSlots: updatedSlots };
+      updatedState = { ...updatedState, players: updatedPlayers };
+    }
+
+    return updatedState;
+  }
+
+  /** Resolves ALL remaining actions for a player (used when player explicitly skips). */
+  private autoResolveAllActions(state: GameState, playerId: string): GameState {
+    let updatedState = state;
+    // Keep resolving one action at a time until none remain
+    for (let i = 0; i < 10; i++) { // safety limit
+      const player = updatedState.players.find(p => p.playerId === playerId);
+      if (!player || !this.hasUnresolvedActions(player.actionSlots)) break;
+      updatedState = this.autoResolveSingleAction(updatedState, playerId);
+    }
     return updatedState;
   }
 
