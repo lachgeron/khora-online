@@ -366,6 +366,7 @@ export const App: React.FC = () => {
                         cityDevelopments={gameState.cityCards?.[currentPlayer?.cityId ?? '']?.developments}
                         centralBoardTokens={gameState.centralBoardTokens}
                         legislationDraw={privateState.legislationDraw}
+                        playedCards={privateState.playedCards}
                         onResolve={handleResolveAction}
                         onSkip={handleSkipPhase}
                         timeoutAt={gameState.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'RESOLVE_ACTION')?.timeoutAt}

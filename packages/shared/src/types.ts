@@ -38,6 +38,10 @@ export interface ActionChoices {
   philosophyPairsToUse?: number;
   /** Track choices for developments that let the player pick tracks (e.g. Miletus dev 2). */
   devTrackChoices?: ProgressTrackType[];
+  /** Color of minor token to gain from Scholarly Welcome. */
+  scholarlyWelcomeColor?: KnowledgeColor;
+  /** Card ID to return to hand via Ostracism. */
+  ostracismReturnCardId?: string;
 }
 
 /** A decision the server is waiting on from a specific player. */

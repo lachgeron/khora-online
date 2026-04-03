@@ -43,6 +43,7 @@ export interface ActionPhaseProps {
   cityDevelopments?: { id?: string; name: string; drachmaCost: number; knowledgeRequirement: { red: number; blue: number; green: number } }[];
   centralBoardTokens?: KnowledgeToken[];
   legislationDraw?: PoliticsCard[] | null;
+  playedCards?: PoliticsCard[];
   onResolve: (actionType: ActionType, choices: ActionChoices) => void;
   onSkip: () => void;
   timeoutAt?: number;
@@ -51,7 +52,7 @@ export interface ActionPhaseProps {
 export const ActionPhase: React.FC<ActionPhaseProps> = ({
   actionType, handCards, playerCoins, playerEconomyTrack, playerMilitaryTrack, playerTroopTrack,
   playerKnowledgeTokens, philosophyTokens: philTokens, developmentLevel, cityId, cityDevelopments,
-  centralBoardTokens, legislationDraw, onResolve, onSkip, timeoutAt,
+  centralBoardTokens, legislationDraw, playedCards, onResolve, onSkip, timeoutAt,
 }) => {
   const [buyToken, setBuyToken] = useState(false);
   const [tokenColor, setTokenColor] = useState<KnowledgeColor>('GREEN');
@@ -60,6 +61,8 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
   const [useScrollsForCard, setUseScrollsForCard] = useState(false);
   const [useScrollsForDev, setUseScrollsForDev] = useState(false);
   const [devTrackChoices, setDevTrackChoices] = useState<ProgressTrackType[]>([]);
+  const [scholarlyColor, setScholarlyColor] = useState<KnowledgeColor>('GREEN');
+  const [ostracismReturnId, setOstracismReturnId] = useState<string | null>(null);
 
   const coins = playerCoins ?? 0;
   const scrolls = philTokens ?? 0;
@@ -198,15 +201,66 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                           </button>
                         </div>
                       )}
+                      {/* Scholarly Welcome: choose token color */}
+                      {card.id === 'scholarly-welcome' && (
+                        <div className="mt-2 rounded bg-emerald-50 border border-emerald-200 p-2">
+                          <p className="text-[0.65rem] text-emerald-700 font-medium mb-1.5">Choose a minor token color:</p>
+                          <div className="flex gap-2">
+                            {(['GREEN', 'BLUE', 'RED'] as KnowledgeColor[]).map(color => {
+                              const tc = TOKEN_COLORS[color];
+                              return (
+                                <button
+                                  key={color}
+                                  onClick={(e) => { e.stopPropagation(); setScholarlyColor(color); }}
+                                  className={`flex-1 py-2 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                                    scholarlyColor === color
+                                      ? 'border-sand-700 shadow-md scale-105'
+                                      : 'border-sand-200 hover:border-sand-400'
+                                  }`}
+                                >
+                                  <span className="w-5 h-5 rounded-full shadow" style={{ background: tc.bg }} />
+                                  <span className="text-[0.6rem] font-semibold text-sand-700">{tc.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {/* Ostracism: choose card to return */}
+                      {card.id === 'ostracism' && playedCards && playedCards.filter(c => c.id !== 'ostracism').length > 0 && (
+                        <div className="mt-2 rounded bg-amber-50 border border-amber-200 p-2">
+                          <p className="text-[0.65rem] text-amber-700 font-medium mb-1.5">Choose a card to return to your hand:</p>
+                          <div className="space-y-1">
+                            {playedCards.filter(c => c.id !== 'ostracism').map(pc => (
+                              <button
+                                key={pc.id}
+                                onClick={(e) => { e.stopPropagation(); setOstracismReturnId(pc.id); }}
+                                className={`w-full text-left px-2 py-1.5 rounded border text-[0.65rem] transition-all ${
+                                  ostracismReturnId === pc.id
+                                    ? 'border-gold bg-gold/10 font-semibold text-sand-800'
+                                    : 'border-sand-200 bg-sand-50 text-sand-600 hover:border-sand-400'
+                                }`}
+                              >
+                                {pc.name}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[0.55rem] text-amber-600 mt-1.5">You'll then get a bonus politics action.</p>
+                        </div>
+                      )}
                       <motion.button
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         onClick={(e) => {
                           e.stopPropagation();
                           const pairs = (useScrollsForCard && shortfall > 0) ? shortfall : undefined;
-                          onResolve(actionType, { targetCardId: card.id, philosophyPairsToUse: pairs });
+                          const resolveChoices: ActionChoices = { targetCardId: card.id, philosophyPairsToUse: pairs };
+                          if (card.id === 'scholarly-welcome') resolveChoices.scholarlyWelcomeColor = scholarlyColor;
+                          if (card.id === 'ostracism' && ostracismReturnId) resolveChoices.ostracismReturnCardId = ostracismReturnId;
+                          onResolve(actionType, resolveChoices);
                         }}
-                        className="mt-3 w-full py-2 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim transition-colors"
+                        disabled={card.id === 'ostracism' && playedCards && playedCards.filter(c => c.id !== 'ostracism').length > 0 && !ostracismReturnId}
+                        className="mt-3 w-full py-2 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         Play {card.name}{useScrollsForCard && shortfall > 0 ? ` (−${scrollCost} 📜)` : ''}
                       </motion.button>
@@ -418,17 +472,29 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                     <p className="text-sm text-red-800 font-medium">Cannot develop: {nextDev.name}</p>
                     {reasons.map((r, i) => <p key={i} className="text-xs text-red-600 mt-0.5">⚠ {r}</p>)}
                   </div>
-                  {canUseScrollsForDev && (
-                    <div className="rounded bg-purple-50 border border-purple-200 p-2">
-                      <p className="text-[0.65rem] text-purple-700">📜 Use {devScrollCost} scrolls to cover missing tokens?</p>
-                      <button
-                        onClick={() => setUseScrollsForDev(true)}
-                        className="mt-1 px-3 py-1 bg-purple-600 text-white rounded text-[0.65rem] font-semibold hover:bg-purple-700 transition-colors"
-                      >
-                        Use Scrolls ({scrolls} available)
-                      </button>
-                    </div>
-                  )}
+                </div>
+              );
+            }
+
+            if (cantMeetReq && canUseScrollsForDev && !useScrollsForDev) {
+              return (
+                <div className="space-y-2">
+                  <div className="rounded-lg bg-sand-100 border border-sand-200 p-3 text-xs text-sand-600">
+                    Next: <span className="font-semibold text-sand-800">{nextDev.name}</span>
+                    {nextDev.drachmaCost > 0 && ` — ${nextDev.drachmaCost}💰`}
+                    {nextDev.knowledgeRequirement.red > 0 && ` ${nextDev.knowledgeRequirement.red}🔴`}
+                    {nextDev.knowledgeRequirement.blue > 0 && ` ${nextDev.knowledgeRequirement.blue}🔵`}
+                    {nextDev.knowledgeRequirement.green > 0 && ` ${nextDev.knowledgeRequirement.green}🟢`}
+                  </div>
+                  <div className="rounded bg-purple-50 border border-purple-200 p-2">
+                    <p className="text-[0.65rem] text-purple-700">📜 Use {devScrollCost} scrolls to cover missing tokens?</p>
+                    <button
+                      onClick={() => setUseScrollsForDev(true)}
+                      className="mt-1 px-3 py-1 bg-purple-600 text-white rounded text-[0.65rem] font-semibold hover:bg-purple-700 transition-colors"
+                    >
+                      Use Scrolls ({scrolls} available)
+                    </button>
+                  </div>
                 </div>
               );
             }

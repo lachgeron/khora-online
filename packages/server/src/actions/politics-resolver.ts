@@ -29,9 +29,18 @@ export class PoliticsResolver implements ActionResolver {
       return { canPerform: false, citizenCost, reason: 'No cards in hand' };
     }
 
-    const hasPlayableCard = player.handCards.some(card =>
-      player.coins >= card.cost && meetsKnowledgeRequirement(player, card.knowledgeRequirement),
-    );
+    const hasPlayableCard = player.handCards.some(card => {
+      if (player.coins < card.cost) return false;
+      if (meetsKnowledgeRequirement(player, card.knowledgeRequirement)) return true;
+      // Check if scrolls can cover the shortfall
+      const greenCount = player.knowledgeTokens.filter(t => t.color === 'GREEN').length;
+      const blueCount = player.knowledgeTokens.filter(t => t.color === 'BLUE').length;
+      const redCount = player.knowledgeTokens.filter(t => t.color === 'RED').length;
+      const shortfall = Math.max(0, card.knowledgeRequirement.green - greenCount)
+        + Math.max(0, card.knowledgeRequirement.blue - blueCount)
+        + Math.max(0, card.knowledgeRequirement.red - redCount);
+      return player.philosophyTokens >= shortfall * 2;
+    });
 
     if (!hasPlayableCard) {
       return { canPerform: false, citizenCost, reason: 'No affordable/qualified cards in hand' };
@@ -85,7 +94,7 @@ export class PoliticsResolver implements ActionResolver {
       // Apply the card's dedicated handler (handles complex effects)
       let updatedState: GameState = { ...state, players: [...state.players] };
       updatedState.players[playerIndex] = player;
-      updatedState = applyImmediateCardEffect(updatedState, playerId, card.id);
+      updatedState = applyImmediateCardEffect(updatedState, playerId, card.id, choices);
       player = updatedState.players[playerIndex];
     }
 

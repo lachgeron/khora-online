@@ -13,7 +13,7 @@
  * - ON_EXPLORE: when exploring a knowledge token
  */
 
-import type { GameState, PlayerState, ActionType, PoliticsCard } from '@khora/shared';
+import type { GameState, PlayerState, ActionType, PoliticsCard, ActionChoices } from '@khora/shared';
 import { createMinorToken } from './knowledge-tokens';
 import { applyEffectToPlayer } from './effects';
 
@@ -187,10 +187,11 @@ export function applyImmediateCardEffect(
   state: GameState,
   playerId: string,
   cardId: string,
+  choices?: ActionChoices,
 ): GameState {
   const handler = IMMEDIATE_HANDLERS[cardId];
   if (handler) {
-    return handler(state, playerId);
+    return handler(state, playerId, choices);
   }
   // Fallback: apply the card's effect field directly
   const player = state.players.find(p => p.playerId === playerId);
@@ -202,7 +203,7 @@ export function applyImmediateCardEffect(
   return state;
 }
 
-const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string) => GameState> = {
+const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, choices?: ActionChoices) => GameState> = {
   // Gifts from the West: gain 3 Drachma
   'gifts-from-the-west': (s, pid) => updatePlayer(s, pid, p => ({ ...p, coins: p.coins + 3 })),
 
@@ -261,20 +262,23 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string) =>
   },
 
   // Scholarly Welcome: gain 1 minor token of your choice from supply
-  // For now, defaults to GREEN minor (player choice would need UI support)
-  'scholarly-welcome': (s, pid) => {
-    const token = createMinorToken('GREEN');
+  'scholarly-welcome': (s, pid, choices) => {
+    const color = choices?.scholarlyWelcomeColor ?? 'GREEN';
+    const token = createMinorToken(color);
     return updatePlayer(s, pid, p => ({ ...p, knowledgeTokens: [...p.knowledgeTokens, token] }));
   },
 
   // Ostracism: return 1 played card to hand, then take 1 politics action
-  // Complex: for now, just returns the most recently played card to hand
-  'ostracism': (s, pid) => updatePlayer(s, pid, p => {
+  // The bonus politics action is handled by the action phase (slot not marked resolved)
+  'ostracism': (s, pid, choices) => updatePlayer(s, pid, p => {
     if (p.playedCards.length <= 1) return p; // Don't return ostracism itself
-    // Return the last non-ostracism played card
     const candidates = p.playedCards.filter(c => c.id !== 'ostracism');
     if (candidates.length === 0) return p;
-    const returned = candidates[candidates.length - 1];
+    // Use the player's chosen card, or fall back to the last one
+    const returnId = choices?.ostracismReturnCardId;
+    const returned = returnId
+      ? candidates.find(c => c.id === returnId) ?? candidates[candidates.length - 1]
+      : candidates[candidates.length - 1];
     return {
       ...p,
       playedCards: p.playedCards.filter(c => c !== returned),

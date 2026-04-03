@@ -150,8 +150,11 @@ export class ActionPhaseManager implements PhaseManager {
     }
 
     // Mark the action slot as resolved
+    // Exception: Ostracism grants a bonus politics action — don't mark resolved yet
+    const isOstracismBonusAction = decision.actionType === 'POLITICS'
+      && decision.choices.targetCardId === 'ostracism';
     const playerIndex = updatedState.players.findIndex(p => p.playerId === playerId);
-    if (playerIndex !== -1) {
+    if (playerIndex !== -1 && !isOstracismBonusAction) {
       const p = updatedState.players[playerIndex];
       const updatedSlots = p.actionSlots.map(slot => {
         if (slot && slot.actionType === decision.actionType) {
