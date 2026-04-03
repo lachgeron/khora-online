@@ -292,7 +292,7 @@ export const ALL_CITIES: CityCard[] = [
         effect: { type: 'ADVANCE_TRACK', track: 'TROOP', amount: 2 }, effectType: 'IMMEDIATE' },
       { id: 'argos-dev-2', name: 'Gain 2 troops, or 3 Drachma, or 4 VP, or 5 citizens', level: 2,
         knowledgeRequirement: { green: 0, blue: 2, red: 0 }, drachmaCost: 0,
-        effect: { type: 'GAIN_VP', amount: 4 }, effectType: 'IMMEDIATE' },
+        effect: { type: 'GAIN_VP', amount: 0 }, effectType: 'IMMEDIATE' },
       { id: 'argos-dev-3', name: 'Move up 1 Military for free', level: 3,
         knowledgeRequirement: { green: 0, blue: 2, red: 1 }, drachmaCost: 0,
         effect: { type: 'ADVANCE_TRACK', track: 'MILITARY', amount: 1 }, effectType: 'IMMEDIATE' },

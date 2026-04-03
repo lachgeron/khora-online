@@ -42,6 +42,8 @@ export interface ActionChoices {
   scholarlyWelcomeColor?: KnowledgeColor;
   /** Card ID to return to hand via Ostracism. */
   ostracismReturnCardId?: string;
+  /** Argos dev 2 reward choice: 'troops' | 'coins' | 'vp' | 'citizens'. */
+  argosDevReward?: 'troops' | 'coins' | 'vp' | 'citizens';
 }
 
 /** A decision the server is waiting on from a specific player. */

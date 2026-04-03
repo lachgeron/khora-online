@@ -58,6 +58,11 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
     newLevel = Math.min(newLevel, MAX_CITIZEN_TRACK);
   }
 
+  // Cap troop track at 15
+  if (track === 'TROOP') {
+    newLevel = Math.min(newLevel, MAX_TROOP_TRACK);
+  }
+
   // No track can go below 0
   newLevel = Math.max(0, newLevel);
 
@@ -80,6 +85,7 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
 interface Milestone { citizens?: number; vp?: number; taxes?: number; glory?: number }
 
 const MAX_CITIZEN_TRACK = 15;
+const MAX_TROOP_TRACK = 15;
 
 function applyMilestone(p: PlayerState, m: Milestone): PlayerState {
   let updated = p;

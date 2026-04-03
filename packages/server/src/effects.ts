@@ -6,7 +6,7 @@
  */
 
 import type { GameEffect, GameState, PlayerState } from '@khora/shared';
-import { getTrackLevel, trackField } from './resources';
+import { advanceTrack } from './resources';
 
 /**
  * Applies a single GameEffect to a PlayerState. Returns a new PlayerState.
@@ -37,11 +37,8 @@ export function applyEffectToPlayer(player: PlayerState, effect: GameEffect): Pl
     case 'GAIN_PHILOSOPHY_TOKENS':
       return { ...player, philosophyTokens: player.philosophyTokens + effect.amount };
 
-    case 'ADVANCE_TRACK': {
-      const field = trackField(effect.track);
-      const current = player[field] as number;
-      return { ...player, [field]: current + effect.amount };
-    }
+    case 'ADVANCE_TRACK':
+      return advanceTrack(player, effect.track, effect.amount);
 
     case 'GAIN_VP':
       return { ...player, victoryPoints: player.victoryPoints + effect.amount };

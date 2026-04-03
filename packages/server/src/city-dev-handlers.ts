@@ -51,7 +51,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
 
   // Sparta dev 3: Take 2 military actions — gain troops equal to military track * 2
   'sparta-dev-3': (s, pid) => updatePlayer(s, pid, p => ({
-    ...p, troopTrack: p.troopTrack + p.militaryTrack * 2,
+    ...p, troopTrack: Math.min(p.troopTrack + p.militaryTrack * 2, 15),
   })),
 
   // Olympia dev 4: Take 3 culture actions — gain VP equal to culture track * 3
@@ -60,7 +60,18 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
   })),
 
   // Argos dev 2: Gain 2 troops, or 3 Drachma, or 4 VP, or 5 citizens
-  // Auto-resolve: pick 4 VP — but the effect field already gives 4 VP, so no custom handler needed
+  'argos-dev-2': (s, pid, choices) => {
+    const reward = choices?.argosDevReward ?? 'vp';
+    return updatePlayer(s, pid, p => {
+      switch (reward) {
+        case 'troops': return { ...p, troopTrack: Math.min(p.troopTrack + 2, 15) };
+        case 'coins': return { ...p, coins: p.coins + 3 };
+        case 'vp': return { ...p, victoryPoints: p.victoryPoints + 4 };
+        case 'citizens': return { ...p, citizenTrack: Math.min(p.citizenTrack + 5, 15) };
+        default: return { ...p, victoryPoints: p.victoryPoints + 4 };
+      }
+    });
+  },
 
   // Argos dev 4: Gain 2 glory — handled by the effect field directly
   // Miletus dev 4: Gain 15 VP — handled by the effect field directly
@@ -107,7 +118,7 @@ export function applyOngoingDevEffects(
   // Olympia dev 2: +1 troop +1 scroll on culture action
   if (actionType === 'CULTURE' && hasDevUnlocked(player, 'olympia-dev-2')) {
     state = updatePlayer(state, playerId, p => ({
-      ...p, troopTrack: p.troopTrack + 1, philosophyTokens: p.philosophyTokens + 1,
+      ...p, troopTrack: Math.min(p.troopTrack + 1, 15), philosophyTokens: p.philosophyTokens + 1,
     }));
   }
 
@@ -121,7 +132,7 @@ export function applyOngoingDevEffects(
   // Athens dev 3: When you play a card (politics action), gain 2 troops
   if (actionType === 'POLITICS' && hasDevUnlocked(player, 'athens-dev-3')) {
     state = updatePlayer(state, playerId, p => ({
-      ...p, troopTrack: p.troopTrack + 2,
+      ...p, troopTrack: Math.min(p.troopTrack + 2, 15),
     }));
   }
 

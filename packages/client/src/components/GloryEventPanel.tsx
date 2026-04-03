@@ -176,17 +176,55 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
         );
       })()}
 
-      {dt === 'CONQUEST_ACTION' && (
-        <div className="mt-4 border-t border-sand-200 pt-4">
-          <p className="font-display text-xs uppercase tracking-[0.12em] text-gold mb-2 text-center">Conquest of the Persians — Take Any Non-Military Action</p>
-          <ActionPhase actionType="POLITICS" handCards={privateState.handCards} playerCoins={privateState.coins}
-            playerKnowledgeTokens={privateState.knowledgeTokens} philosophyTokens={privateState.philosophyTokens}
-            developmentLevel={currentPlayer?.developmentLevel ?? 0}
-            cityDevelopments={gameState.cityCards?.[currentPlayer?.cityId ?? '']?.developments}
-            centralBoardTokens={gameState.centralBoardTokens} legislationDraw={privateState.legislationDraw}
-            onResolve={onResolveAction} onSkip={onSkip} />
-        </div>
-      )}
+      {dt === 'CONQUEST_ACTION' && (() => {
+        const NON_MILITARY_ACTIONS: { type: ActionType; icon: string; label: string }[] = [
+          { type: 'PHILOSOPHY', icon: '📜', label: 'Philosophy' },
+          { type: 'LEGISLATION', icon: '📋', label: 'Legislation' },
+          { type: 'CULTURE', icon: '🎭', label: 'Culture' },
+          { type: 'TRADE', icon: '💰', label: 'Trade' },
+          { type: 'POLITICS', icon: '🏛', label: 'Politics' },
+          { type: 'DEVELOPMENT', icon: '🔨', label: 'Development' },
+        ];
+        const [conquestAction, setConquestAction] = React.useState<ActionType | null>(null);
+        return (
+          <div className="mt-4 border-t border-sand-200 pt-4">
+            <p className="font-display text-xs uppercase tracking-[0.12em] text-gold mb-2 text-center">Conquest of the Persians — Take Any Non-Military Action</p>
+            {!conquestAction && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {NON_MILITARY_ACTIONS.map(a => (
+                  <button key={a.type} onClick={() => setConquestAction(a.type)}
+                    className="py-3 rounded-lg border-2 border-sand-200 bg-sand-50 hover:border-gold hover:shadow-md transition-all text-center">
+                    <span className="text-lg">{a.icon}</span>
+                    <p className="text-[0.65rem] font-semibold text-sand-700 mt-0.5">{a.label}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {conquestAction && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-sand-600">Resolving: <span className="font-semibold">{conquestAction}</span></p>
+                  <button onClick={() => setConquestAction(null)} className="text-xs text-sand-400 hover:text-sand-700 underline">Change</button>
+                </div>
+                <ActionPhase actionType={conquestAction} handCards={privateState.handCards} playerCoins={privateState.coins}
+                  playerEconomyTrack={currentPlayer?.economyTrack ?? 0}
+                  playerMilitaryTrack={currentPlayer?.militaryTrack ?? 0}
+                  playerTroopTrack={currentPlayer?.troopTrack ?? 0}
+                  playerKnowledgeTokens={privateState.knowledgeTokens} philosophyTokens={privateState.philosophyTokens}
+                  developmentLevel={currentPlayer?.developmentLevel ?? 0}
+                  cityId={currentPlayer?.cityId}
+                  cityDevelopments={gameState.cityCards?.[currentPlayer?.cityId ?? '']?.developments}
+                  centralBoardTokens={gameState.centralBoardTokens} legislationDraw={privateState.legislationDraw}
+                  playedCards={privateState.playedCards}
+                  onResolve={onResolveAction} onSkip={onSkip} />
+              </>
+            )}
+            {!conquestAction && (
+              <button onClick={onSkip} className="w-full py-2 text-sand-500 text-xs font-medium hover:text-sand-700 transition-colors">Skip</button>
+            )}
+          </div>
+        );
+      })()}
 
       {!hasInteractive && (
         <p className="text-xs text-sand-400 mt-4 text-center animate-pulse">Continuing shortly...</p>

@@ -63,6 +63,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
   const [devTrackChoices, setDevTrackChoices] = useState<ProgressTrackType[]>([]);
   const [scholarlyColor, setScholarlyColor] = useState<KnowledgeColor>('GREEN');
   const [ostracismReturnId, setOstracismReturnId] = useState<string | null>(null);
+  const [argosReward, setArgosReward] = useState<'troops' | 'coins' | 'vp' | 'citizens'>('vp');
 
   const coins = playerCoins ?? 0;
   const scrolls = philTokens ?? 0;
@@ -579,6 +580,41 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             );
           })()}
 
+          {/* Argos dev 2: reward selection */}
+          {actionType === 'DEVELOPMENT' && (() => {
+            const devLevel = developmentLevel ?? 0;
+            const devs = cityDevelopments ?? [];
+            const nextDev = devs[devLevel];
+            const isArgosDev2 = nextDev?.id === 'argos-dev-2' || (cityId === 'argos' && devLevel === 1);
+            if (!isArgosDev2 || devLevel >= 4) return null;
+            const REWARDS: { key: 'troops' | 'coins' | 'vp' | 'citizens'; label: string; icon: string }[] = [
+              { key: 'troops', label: '+2 Troops', icon: '⚔️' },
+              { key: 'coins', label: '+3 Drachma', icon: '💰' },
+              { key: 'vp', label: '+4 VP', icon: '⭐' },
+              { key: 'citizens', label: '+5 Citizens', icon: '👥' },
+            ];
+            return (
+              <div className="rounded-lg border border-sand-200 p-3">
+                <p className="text-xs font-medium text-sand-600 mb-2">Choose your reward:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {REWARDS.map(r => (
+                    <button
+                      key={r.key}
+                      onClick={() => setArgosReward(r.key)}
+                      className={`py-2.5 rounded-lg border-2 text-xs font-semibold transition-all ${
+                        argosReward === r.key
+                          ? 'border-gold bg-gold/10 text-sand-800'
+                          : 'border-sand-200 bg-sand-50 text-sand-500 hover:border-sand-400'
+                      }`}
+                    >
+                      {r.icon} {r.label}{argosReward === r.key ? ' ✓' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -588,10 +624,12 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const devs = cityDevelopments ?? [];
                 const nextDev = devs[devLevel];
                 const isMiletusDev2 = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1);
+                const isArgosDev2 = nextDev?.id === 'argos-dev-2' || (cityId === 'argos' && devLevel === 1);
                 const shortfall = nextDev ? getKnowledgeShortfall(nextDev.knowledgeRequirement) : 0;
                 const resolveChoices: ActionChoices = {};
                 if (useScrollsForDev && shortfall > 0) resolveChoices.philosophyPairsToUse = shortfall;
                 if (isMiletusDev2 && devTrackChoices.length === 2) resolveChoices.devTrackChoices = devTrackChoices;
+                if (isArgosDev2) resolveChoices.argosDevReward = argosReward;
                 onResolve(actionType, resolveChoices);
               } else {
                 onResolve(actionType, {});
