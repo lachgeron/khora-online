@@ -71,8 +71,9 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
 
   const getCost = (die: number, action: ActionType) => Math.max(0, (ACTIONS.find(a => a.type === action)?.number ?? 0) - die);
 
-  const handleDragStart = useCallback((e: React.DragEvent, actionType: ActionType) => {
+  const handleDragStart = useCallback((e: React.DragEvent, actionType: ActionType, fromSlot?: number) => {
     e.dataTransfer.setData('text/plain', actionType);
+    if (fromSlot !== undefined) e.dataTransfer.setData('fromSlot', String(fromSlot));
     e.dataTransfer.effectAllowed = 'move';
   }, []);
 
@@ -90,6 +91,13 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       next[slotIndex] = actionType;
       return next;
     });
+  }, []);
+
+  const handleSlotDragEnd = useCallback((e: React.DragEvent, slotIndex: number) => {
+    // If the drop wasn't accepted by a valid target, reset the slot
+    if (e.dataTransfer.dropEffect === 'none') {
+      setSlots(prev => { const next = [...prev]; next[slotIndex] = null; return next; });
+    }
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent, slotIndex: number) => {
@@ -255,8 +263,8 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       )}
 
       {/* Action tiles (draggable) */}
-      <p className="text-[0.65rem] font-display uppercase tracking-[0.12em] text-sand-500 mb-2">Drag actions to dice</p>
-      <div className="flex flex-wrap gap-1.5 mb-5">
+      <p className="text-[0.65rem] font-display uppercase tracking-[0.12em] text-sand-500 mb-2 text-center">Drag actions to dice</p>
+      <div className="flex flex-wrap gap-2 mb-5 justify-center">
         {ACTIONS.map(a => {
           const isUsed = usedActions.has(a.type);
           return (
@@ -264,14 +272,14 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
               key={a.type}
               draggable={!isUsed}
               onDragStart={(e) => handleDragStart(e, a.type)}
-              className={`flex flex-col items-center gap-0.5 w-[3.6rem] py-2 rounded-lg border-2 text-center select-none transition-all ${
+              className={`flex flex-col items-center gap-1 w-[4.5rem] py-2.5 rounded-lg border-2 text-center select-none transition-all ${
                 isUsed
                   ? 'border-sand-200 bg-sand-100 opacity-30 cursor-default'
                   : 'border-sand-300 bg-sand-50 cursor-grab active:cursor-grabbing hover:border-sand-500 hover:shadow-sm'
               }`}
             >
-              <span className="text-lg leading-none">{a.icon}</span>
-              <span className="text-[0.55rem] font-semibold text-sand-700 leading-tight">{a.label}</span>
+              <span className="text-xl leading-none">{a.icon}</span>
+              <span className="text-[0.6rem] font-semibold text-sand-700 leading-tight">{a.label}</span>
               <span className="text-[0.5rem] text-sand-400">#{a.number}</span>
             </div>
           );
@@ -311,9 +319,12 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="flex flex-col items-center gap-1 cursor-pointer"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, assigned, i)}
+                    onDragEnd={(e) => handleSlotDragEnd(e as unknown as React.DragEvent, i)}
+                    className="flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing"
                     onClick={() => removeFromSlot(i)}
-                    title="Click to remove"
+                    title="Drag to move or click to remove"
                   >
                     <span className="text-2xl">{action.icon}</span>
                     <span className="text-xs font-semibold text-sand-800">{action.label}</span>

@@ -102,7 +102,7 @@ export interface PublicPlayerState {
   // Public counts
   handCardCount: number;
   playedCardCount: number;
-  playedCardSummaries: { name: string; type: string }[];
+  playedCardSummaries: { name: string; type: string; description: string }[];
   knowledgeTokenCount: number;
   developmentLevel: number;
   victoryPoints: number;

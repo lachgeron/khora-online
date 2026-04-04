@@ -36,7 +36,7 @@ export function buildPublicPlayerState(player: PlayerState): PublicPlayerState {
     knowledgeTokens: player.knowledgeTokens,
     handCardCount: player.handCards.length,
     playedCardCount: player.playedCards.length,
-    playedCardSummaries: player.playedCards.map(c => ({ name: c.name, type: c.type })),
+    playedCardSummaries: player.playedCards.map(c => ({ name: c.name, type: c.type, description: c.description })),
     knowledgeTokenCount: player.knowledgeTokens.length,
     developmentLevel: player.developmentLevel,
     victoryPoints: player.victoryPoints,

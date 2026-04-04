@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
 import { PlayerBoard } from './PlayerBoard';
-import { PublicPlayerInfo } from './PublicPlayerInfo';
 import { SharedTracks } from './SharedTracks';
 import { VPTrack } from './VPTrack';
 import { KnowledgeStore } from './KnowledgeStore';
@@ -154,16 +153,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
             <p className="text-xs text-sand-600 mt-0.5">{gameState.currentEvent.gloryCondition.description}</p>
           </div>
         )}
-
-        {/* Players */}
-        <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
-          <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-600 mb-2">Players</p>
-          <div className="space-y-1">
-            {gameState.players.map(p => (
-              <PublicPlayerInfo key={p.playerId} player={p} isCurrentPlayer={p.playerId === currentPlayerId} cityCard={gameState.cityCards?.[p.cityId]} />
-            ))}
-          </div>
-        </div>
 
         {/* Achievements */}
         <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">

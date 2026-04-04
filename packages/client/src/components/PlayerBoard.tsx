@@ -84,7 +84,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
     <div className="space-y-4">
       {/* Name */}
       <div>
-        <h3 className="font-display text-base font-semibold text-sand-800">{p.playerName}</h3>
+        <h3 className="font-display text-base font-semibold text-sand-800">
+          {p.playerName}
+          {!p.isConnected && <span className="text-crimson ml-1.5 text-sm" title="Disconnected">●</span>}
+        </h3>
         <p className="text-[0.7rem] text-sand-500">{p.cityId}</p>
       </div>
 
@@ -163,6 +166,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sand-200 border border-sand-300 rounded-full text-xs">
             <span className="font-bold text-sm">{p.victoryPoints}</span> ★
           </span>
+          {!isOwn && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sand-200 border border-sand-300 rounded-full text-xs">
+              <span className="font-bold text-sm">{p.handCardCount}</span> 🃏
+            </span>
+          )}
         </div>
       </section>
 
@@ -242,13 +250,21 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
       {!isOwn && p.playedCardSummaries.length > 0 && (
         <section>
           <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">In Play ({p.playedCardCount})</p>
-          <div className="space-y-0.5">
-            {p.playedCardSummaries.map((c, i) => (
-              <p key={i} className="text-[0.7rem] text-sand-600">
-                <span className="font-semibold text-sand-800">{c.name}</span>
-                <span className="ml-1 text-[0.6rem] text-sand-400 uppercase">{c.type.replace('_', ' ')}</span>
-              </p>
-            ))}
+          <div className="space-y-1.5">
+            {p.playedCardSummaries.map((c, i) => {
+              const typeColor = c.type === 'IMMEDIATE' ? 'bg-amber-100 text-amber-800' : c.type === 'ONGOING' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800';
+              return (
+                <div key={i} className="bg-sand-50 border border-sand-300 rounded-lg p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-display text-xs font-semibold text-sand-800">{c.name}</span>
+                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[0.55rem] font-bold uppercase ${typeColor}`}>
+                      {c.type.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <p className="text-[0.65rem] text-sand-600 mt-1 leading-snug">{c.description}</p>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
