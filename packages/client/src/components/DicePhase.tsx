@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { ActionType, ActionSlot, DiceAssignment, PublicPlayerState } from '../types';
 import { CountdownTimer } from './CountdownTimer';
@@ -111,6 +111,36 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
   const removeFromSlot = (slotIndex: number) => {
     setSlots(prev => { const next = [...prev]; next[slotIndex] = null; return next; });
   };
+
+  // Keep a ref to current slots so the onExpire callback sees latest state
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+
+  const handleAssignExpire = useCallback(() => {
+    if (!diceRoll || diceRoll.length === 0) return;
+    const currentSlots = [...slotsRef.current];
+    const diceCount = diceRoll.length;
+    const sortedActions = [...ACTIONS].sort((a, b) => a.number - b.number);
+
+    // Fill empty slots with cheapest available actions
+    for (let i = 0; i < diceCount; i++) {
+      if (!currentSlots[i]) {
+        const usedActions = new Set(currentSlots.slice(0, diceCount).filter((s): s is ActionType => s !== null));
+        const cheapest = sortedActions.find(a => !usedActions.has(a.type));
+        if (cheapest) currentSlots[i] = cheapest.type;
+      }
+    }
+
+    const assignments: DiceAssignment[] = [];
+    for (let i = 0; i < diceCount; i++) {
+      if (currentSlots[i]) {
+        assignments.push({ slotIndex: i as 0 | 1 | 2, actionType: currentSlots[i]!, dieValue: diceRoll[i] });
+      }
+    }
+    if (assignments.length === diceCount) {
+      onAssign(assignments);
+    }
+  }, [diceRoll, onAssign]);
 
   // ── ROLL STEP ──
   if (!hasRolled) {
@@ -226,7 +256,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       {/* Countdown */}
       {pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE').length > 0 && (
         <div className="mb-3">
-          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} />
+          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} onExpire={handleAssignExpire} />
         </div>
       )}
 

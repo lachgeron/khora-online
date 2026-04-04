@@ -3,23 +3,32 @@ import React, { useState, useEffect, useRef } from 'react';
 export interface CountdownTimerProps {
   timeoutAt: number;
   label?: string;
+  onExpire?: () => void;
 }
 
-export const CountdownTimer: React.FC<CountdownTimerProps> = ({ timeoutAt, label }) => {
+export const CountdownTimer: React.FC<CountdownTimerProps> = ({ timeoutAt, label, onExpire }) => {
   const totalRef = useRef(Math.max(1, Math.ceil((timeoutAt - Date.now()) / 1000)));
   const [remaining, setRemaining] = useState(() => Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000)));
+  const expiredRef = useRef(false);
 
   useEffect(() => {
     const total = Math.max(1, Math.ceil((timeoutAt - Date.now()) / 1000));
     totalRef.current = total;
+    expiredRef.current = false;
     setRemaining(total);
     const interval = setInterval(() => {
       const r = Math.max(0, Math.ceil((timeoutAt - Date.now()) / 1000));
       setRemaining(r);
-      if (r <= 0) clearInterval(interval);
+      if (r <= 0) {
+        clearInterval(interval);
+        if (!expiredRef.current && onExpire) {
+          expiredRef.current = true;
+          onExpire();
+        }
+      }
     }, 250);
     return () => clearInterval(interval);
-  }, [timeoutAt]);
+  }, [timeoutAt, onExpire]);
 
   const isUrgent = remaining <= 5;
   const minutes = Math.floor(remaining / 60);

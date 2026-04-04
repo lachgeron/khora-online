@@ -140,11 +140,11 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="flex items-center gap-3 mb-1">
+      <div className="mb-4">
         <h3 className="font-display text-lg font-bold text-sand-800">📈 Progress Phase</h3>
         {hasPending && (() => {
           const myDecision = pendingDecisions.find(d => d.playerId === currentPlayerId);
-          return myDecision ? <CountdownTimer timeoutAt={myDecision.timeoutAt} /> : null;
+          return myDecision ? <div className="mt-2"><CountdownTimer timeoutAt={myDecision.timeoutAt} /></div> : null;
         })()}
       </div>
 

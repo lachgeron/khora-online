@@ -7,7 +7,7 @@ import { KnowledgeStore } from './KnowledgeStore';
 import { AchievementsDisplay } from './AchievementsDisplay';
 import { GameLog } from './GameLog';
 import { CardDisplay } from './CardDisplay';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export interface GameBoardProps {
   gameState: PublicGameState;
@@ -21,9 +21,13 @@ export interface GameBoardProps {
 
 export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, currentPlayerId, statusText, isMyTurn, children, onActivateDev }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState(currentPlayerId);
+  const [openPanel, setOpenPanel] = useState<'vp' | 'tracks' | 'knowledge' | null>(null);
   const me = gameState.players.find(p => p.playerId === currentPlayerId);
   const selectedPlayer = gameState.players.find(p => p.playerId === selectedPlayerId);
   const isViewingSelf = selectedPlayerId === currentPlayerId;
+
+  const togglePanel = (panel: 'vp' | 'tracks' | 'knowledge') =>
+    setOpenPanel(prev => prev === panel ? null : panel);
 
   const TURN_PHASES: { phase: string; label: string }[] = [
     { phase: 'OMEN', label: 'Event Announcement' },
@@ -131,17 +135,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
         <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
           <CardDisplay handCards={privateState.handCards} playedCards={privateState.playedCards} />
         </div>
-        <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
-          <VPTrack players={gameState.players} currentPlayerId={currentPlayerId} />
-        </div>
-        <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
-          <SharedTracks players={gameState.players} currentPlayerId={currentPlayerId} />
-        </div>
-        {gameState.centralBoardTokens.length > 0 && (
-          <div className="rounded-xl bg-sand-100 border border-sand-300 p-4">
-            <KnowledgeStore tokens={gameState.centralBoardTokens} />
-          </div>
-        )}
       </div>
 
       {/* ── Right sidebar: Event, Players, Achievements ── */}
@@ -153,6 +146,57 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
             <p className="text-xs text-sand-600 mt-0.5">{gameState.currentEvent.gloryCondition.description}</p>
           </div>
         )}
+
+        {/* Info panels */}
+        <div className="rounded-xl bg-sand-100 border border-sand-300 p-2">
+          <div className="flex gap-1.5">
+            {([
+              { key: 'vp' as const, label: 'VP', icon: '★' },
+              { key: 'tracks' as const, label: 'Tracks', icon: '📊' },
+              { key: 'knowledge' as const, label: 'Knowledge', icon: '🔮' },
+            ]).map(({ key, label, icon }) => (
+              <button
+                key={key}
+                onClick={() => togglePanel(key)}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg text-center transition-all ${
+                  openPanel === key
+                    ? 'bg-sand-700 text-sand-100 shadow-md'
+                    : 'bg-sand-200 text-sand-600 hover:bg-sand-300'
+                }`}
+              >
+                <span className="text-base leading-none">{icon}</span>
+                <span className="text-[0.6rem] font-semibold">{label}</span>
+              </button>
+            ))}
+          </div>
+          <AnimatePresence mode="wait">
+            {openPanel && (
+              <motion.div
+                key={openPanel}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="pt-2">
+                  {openPanel === 'vp' && (
+                    <VPTrack players={gameState.players} currentPlayerId={currentPlayerId} />
+                  )}
+                  {openPanel === 'tracks' && (
+                    <SharedTracks players={gameState.players} currentPlayerId={currentPlayerId} />
+                  )}
+                  {openPanel === 'knowledge' && gameState.centralBoardTokens.length > 0 && (
+                    <KnowledgeStore tokens={gameState.centralBoardTokens} />
+                  )}
+                  {openPanel === 'knowledge' && gameState.centralBoardTokens.length === 0 && (
+                    <p className="text-xs text-sand-400 text-center py-2">No tokens available.</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Achievements */}
         <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
