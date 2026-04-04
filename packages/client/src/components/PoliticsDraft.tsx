@@ -14,6 +14,8 @@ export interface PoliticsDraftProps {
   pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
   onDraftCard: (cardId: string) => void;
   cityCard: CityCard | null;
+  /** Other players' city selections: playerId → CityCard */
+  otherPlayerCities: { playerId: string; playerName: string; city: CityCard }[];
 }
 
 const TYPE_STYLE: Record<string, string> = {
@@ -25,6 +27,7 @@ const TYPE_STYLE: Record<string, string> = {
 export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
   draftPack, draftedCards, draftRound, totalRounds,
   waitingFor, currentPlayerId, playerNames, pendingDecisions, onDraftCard, cityCard,
+  otherPlayerCities,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCity, setShowCity] = useState(false);
@@ -102,6 +105,22 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Other players' city selections */}
+      {otherPlayerCities.length > 0 && (
+        <div className="mb-6">
+          <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-500 mb-2">Other players' cities</p>
+          <div className="flex flex-wrap gap-2">
+            {otherPlayerCities.map(({ playerId, playerName, city }) => (
+              <div key={playerId} className="rounded-lg bg-sand-50 border border-sand-200 px-3 py-2 text-sm">
+                <span className="font-display font-semibold text-sand-700">{playerName}</span>
+                <span className="text-sand-400 mx-1">—</span>
+                <span className="text-sand-600">{city.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

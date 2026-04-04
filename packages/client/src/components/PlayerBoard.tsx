@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 export interface PlayerBoardProps {
   publicState: PublicPlayerState;
-  privateState: PrivatePlayerState;
+  privateState?: PrivatePlayerState | null;
   cityCard?: CityCard;
   onActivateDev?: (devId: string) => void;
 }
@@ -73,8 +73,9 @@ const Track: React.FC<{ label: string; value: number; max: number; color: string
 };
 
 export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privateState: pr, cityCard, onActivateDev }) => {
+  const isOwn = !!pr;
   const tokens = { red: { M: 0, m: 0 }, blue: { M: 0, m: 0 }, green: { M: 0, m: 0 } };
-  for (const t of pr.knowledgeTokens) {
+  for (const t of p.knowledgeTokens) {
     const c = t.color.toLowerCase() as 'red' | 'blue' | 'green';
     tokens[c][t.tokenType === 'MAJOR' ? 'M' : 'm']++;
   }
@@ -154,10 +155,10 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
         <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Resources</p>
         <div className="flex flex-wrap gap-1.5">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sand-200 border border-sand-300 rounded-full text-xs">
-            <span className="font-bold text-sm">{pr.coins}</span> 💰
+            <span className="font-bold text-sm">{p.coins}</span> 💰
           </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sand-200 border border-sand-300 rounded-full text-xs">
-            <span className="font-bold text-sm">{pr.philosophyTokens}</span> 📜
+            <span className="font-bold text-sm">{p.philosophyTokens}</span> 📜
           </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-sand-200 border border-sand-300 rounded-full text-xs">
             <span className="font-bold text-sm">{p.victoryPoints}</span> ★
@@ -166,7 +167,7 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
       </section>
 
       {/* Knowledge tokens */}
-      {pr.knowledgeTokens.length > 0 && (
+      {p.knowledgeTokens.length > 0 && (
         <section>
           <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Tokens</p>
           <div className="flex flex-wrap gap-1.5">
@@ -187,11 +188,11 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
       )}
 
       {/* Dice */}
-      {pr.diceRoll && (
+      {(isOwn ? pr?.diceRoll : p.diceRoll) && (
         <section>
           <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Dice</p>
           <div className="flex gap-2">
-            {pr.diceRoll.map((d, i) => (
+            {(isOwn ? pr!.diceRoll! : p.diceRoll!).map((d, i) => (
               <motion.span
                 key={i}
                 initial={{ scale: 0, rotate: -180 }}
@@ -206,8 +207,8 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
         </section>
       )}
 
-      {/* Action slots */}
-      {pr.actionSlots.some(s => s !== null) && (
+      {/* Action slots (own: detailed with die values; other: type + resolved) */}
+      {isOwn && pr && pr.actionSlots.some(s => s !== null) && (
         <section>
           <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Actions</p>
           <div className="space-y-0.5">
@@ -223,50 +224,35 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
           </div>
         </section>
       )}
-
-      {/* Hand cards */}
-      {pr.handCards.length > 0 && (
+      {!isOwn && p.actionSlots.length > 0 && (
         <section>
-          <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Hand ({pr.handCards.length})</p>
-          <div className="space-y-1.5">
-            {pr.handCards.map(c => {
-              const typeColor = c.type === 'IMMEDIATE' ? 'bg-amber-100 text-amber-800' : c.type === 'ONGOING' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800';
-              return (
-                <div key={c.id} className="bg-sand-50 border border-sand-300 rounded-lg p-2.5 hover:-translate-y-0.5 hover:shadow-md transition-all">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-display text-xs font-semibold text-sand-800">{c.name}</span>
-                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[0.6rem] font-semibold uppercase ${typeColor}`}>
-                      {c.type.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <p className="text-[0.7rem] text-sand-600 mt-1 leading-snug">{c.description}</p>
-                  <p className="text-[0.65rem] text-sand-400 mt-1">
-                    {c.cost > 0 && `${c.cost}💰 `}
-                    {c.knowledgeRequirement.red > 0 && `${c.knowledgeRequirement.red}🔴 `}
-                    {c.knowledgeRequirement.blue > 0 && `${c.knowledgeRequirement.blue}🔵 `}
-                    {c.knowledgeRequirement.green > 0 && `${c.knowledgeRequirement.green}🟢 `}
-                    {c.cost === 0 && !c.knowledgeRequirement.red && !c.knowledgeRequirement.blue && !c.knowledgeRequirement.green && 'Free'}
-                  </p>
-                </div>
-              );
-            })}
+          <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">Actions</p>
+          <div className="space-y-0.5">
+            {p.actionSlots.map((slot, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className="font-medium">{slot.actionType}</span>
+                {slot.resolved && <span className="text-olive-light font-bold">✓</span>}
+              </div>
+            ))}
           </div>
         </section>
       )}
 
-      {/* Played cards */}
-      {pr.playedCards.length > 0 && (
+      {/* Played card summaries (other players only) */}
+      {!isOwn && p.playedCardSummaries.length > 0 && (
         <section>
-          <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">In Play ({pr.playedCards.length})</p>
+          <p className="font-display text-[0.6rem] uppercase tracking-[0.14em] text-sand-500 mb-1">In Play ({p.playedCardCount})</p>
           <div className="space-y-0.5">
-            {pr.playedCards.map(c => (
-              <p key={c.id} className="text-[0.7rem] text-sand-600">
-                <span className="font-semibold text-sand-800">{c.name}</span> — {c.description}
+            {p.playedCardSummaries.map((c, i) => (
+              <p key={i} className="text-[0.7rem] text-sand-600">
+                <span className="font-semibold text-sand-800">{c.name}</span>
+                <span className="ml-1 text-[0.6rem] text-sand-400 uppercase">{c.type.replace('_', ' ')}</span>
               </p>
             ))}
           </div>
         </section>
       )}
+
     </div>
   );
 };

@@ -95,6 +95,10 @@ export interface PublicPlayerState {
   gloryTrack: number;
   troopTrack: number;
   citizenTrack: number;
+  // Resources
+  coins: number;
+  philosophyTokens: number;
+  knowledgeTokens: KnowledgeToken[];
   // Public counts
   handCardCount: number;
   playedCardCount: number;

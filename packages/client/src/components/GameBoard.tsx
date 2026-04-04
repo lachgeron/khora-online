@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
 import { PlayerBoard } from './PlayerBoard';
 import { PublicPlayerInfo } from './PublicPlayerInfo';
@@ -7,6 +7,7 @@ import { VPTrack } from './VPTrack';
 import { KnowledgeStore } from './KnowledgeStore';
 import { AchievementsDisplay } from './AchievementsDisplay';
 import { GameLog } from './GameLog';
+import { CardDisplay } from './CardDisplay';
 import { motion } from 'framer-motion';
 
 export interface GameBoardProps {
@@ -20,7 +21,10 @@ export interface GameBoardProps {
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, currentPlayerId, statusText, isMyTurn, children, onActivateDev }) => {
+  const [selectedPlayerId, setSelectedPlayerId] = useState(currentPlayerId);
   const me = gameState.players.find(p => p.playerId === currentPlayerId);
+  const selectedPlayer = gameState.players.find(p => p.playerId === selectedPlayerId);
+  const isViewingSelf = selectedPlayerId === currentPlayerId;
 
   const TURN_PHASES: { phase: string; label: string }[] = [
     { phase: 'OMEN', label: 'Event Announcement' },
@@ -86,7 +90,34 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
 
       {/* ── Left: Player board ── */}
       <div className="row-span-2 overflow-y-auto rounded-xl bg-sand-100 border border-sand-300 p-3">
-        {me && <PlayerBoard publicState={me} privateState={privateState} cityCard={gameState.cityCards?.[me.cityId]} onActivateDev={onActivateDev} />}
+        {/* Player tabs */}
+        <div className="flex gap-1 mb-3 flex-wrap">
+          {gameState.players.map(player => {
+            const isActive = player.playerId === selectedPlayerId;
+            const isSelf = player.playerId === currentPlayerId;
+            return (
+              <button
+                key={player.playerId}
+                onClick={() => setSelectedPlayerId(player.playerId)}
+                className={`px-2.5 py-1 rounded-md text-[0.65rem] font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-sand-700 text-sand-100'
+                    : 'bg-sand-200 text-sand-500 hover:bg-sand-300'
+                }`}
+              >
+                {isSelf ? 'You' : player.playerName}
+              </button>
+            );
+          })}
+        </div>
+        {selectedPlayer && (
+          <PlayerBoard
+            publicState={selectedPlayer}
+            privateState={isViewingSelf ? privateState : null}
+            cityCard={gameState.cityCards?.[selectedPlayer.cityId]}
+            onActivateDev={isViewingSelf ? onActivateDev : undefined}
+          />
+        )}
       </div>
 
       {/* ── Center: Action Panel + VP, Shared Tracks, Knowledge Store ── */}
@@ -97,6 +128,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
             {children}
           </div>
         )}
+        {/* Cards: hand + played */}
+        <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
+          <CardDisplay handCards={privateState.handCards} playedCards={privateState.playedCards} />
+        </div>
         <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
           <VPTrack players={gameState.players} currentPlayerId={currentPlayerId} />
         </div>

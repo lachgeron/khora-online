@@ -252,6 +252,9 @@ export const App: React.FC = () => {
                 const player = gameState.players.find(p => p.playerId === currentPlayerId);
                 return player?.cityId ? (gameState.cityCards?.[player.cityId] ?? null) : null;
               })()}
+              otherPlayerCities={gameState.players
+                .filter(p => p.playerId !== currentPlayerId && p.cityId && gameState.cityCards?.[p.cityId])
+                .map(p => ({ playerId: p.playerId, playerName: p.playerName, city: gameState.cityCards[p.cityId] }))}
             />
           )}
 
