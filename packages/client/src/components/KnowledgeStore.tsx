@@ -57,7 +57,7 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
               </div>
 
               {/* Tokens */}
-              <div className={compact ? 'space-y-1' : 'space-y-1'}>
+              <div className={compact ? 'flex flex-wrap gap-1.5' : 'space-y-1'}>
                 {colorTokens.map(t => {
                   const isMajor = t.tokenType === 'MAJOR';
                   const isSelected = selectedTokenId === t.id;
@@ -70,41 +70,37 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
                       <div
                         key={t.id}
                         onClick={() => isSelectable && canAfford && !isExplored && onSelectToken(isSelected ? null : t.id)}
-                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-all ${
+                        title={[
+                          `${isMajor ? 'Major' : 'Minor'} Token`,
+                          `Requirement: ${t.militaryRequirement} troops`,
+                          `Cost: ${t.skullValue} troops`,
+                          ...((t.bonusCoins ?? 0) > 0 || (t.bonusVP ?? 0) > 0 ? [
+                            `Gain: ${[(t.bonusVP ?? 0) > 0 ? `${t.bonusVP} VP` : '', (t.bonusCoins ?? 0) > 0 ? `${t.bonusCoins} Drachma` : ''].filter(Boolean).join(' + ')}`
+                          ] : []),
+                        ].join('\n')}
+                        className={`relative flex items-center justify-center transition-all ${
                           isExplored ? 'opacity-30 grayscale cursor-default' :
                           isSelectable ? (
                             !canAfford ? 'opacity-30 cursor-not-allowed' :
-                            isSelected ? 'ring-2 ring-gold bg-gold/10 cursor-pointer' :
-                            'hover:brightness-95 cursor-pointer'
+                            isSelected ? 'ring-2 ring-gold cursor-pointer' :
+                            'hover:scale-110 cursor-pointer'
                           ) : ''
                         }`}
-                        style={{ background: isExplored ? '#e8e4df' : `${c.light}80` }}
                       >
                         <span
-                          className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white text-[0.6rem] font-bold shadow-sm"
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[0.55rem] font-bold shadow-sm"
                           style={{
                             background: c.bg,
-                            outline: isMajor ? `2px solid ${c.mid}` : 'none',
-                            outlineOffset: '1.5px',
+                            outline: isMajor ? `2.5px solid ${c.mid}` : 'none',
+                            outlineOffset: '2px',
                           }}
                         >
-                          {isMajor ? 'M' : 'm'}
+                          {t.militaryRequirement}-{t.skullValue}
                         </span>
-                        <div className="flex-1 min-w-0 flex items-center gap-2 text-[0.6rem]">
-                          <span className="font-semibold" style={{ color: c.text }}>⚔ {t.militaryRequirement}</span>
-                          <span className="text-sand-400">-{t.skullValue} troops</span>
-                        </div>
                         {hasBonus && (
-                          <div className="shrink-0 text-[0.55rem] font-bold">
-                            {(t.bonusCoins ?? 0) > 0 && <span className="text-amber-600">+{t.bonusCoins}💰 </span>}
+                          <span className="absolute -bottom-1 -right-1 bg-white rounded-full px-1 text-[0.45rem] font-bold shadow-sm border border-sand-200 leading-tight">
+                            {(t.bonusCoins ?? 0) > 0 && <span className="text-amber-600">+{t.bonusCoins}💰</span>}
                             {(t.bonusVP ?? 0) > 0 && <span className="text-purple-600">+{t.bonusVP}★</span>}
-                          </div>
-                        )}
-                        {isSelectable && canAfford && !isExplored && (
-                          <span className={`shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[0.4rem] font-bold transition-colors ${
-                            isSelected ? 'bg-gold border-gold text-sand-900' : 'border-sand-300'
-                          }`}>
-                            {isSelected && '✓'}
                           </span>
                         )}
                       </div>
