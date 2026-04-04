@@ -9,6 +9,8 @@ interface KnowledgeStoreProps {
   onSelectToken?: (tokenId: string | null) => void;
   /** Troops available for exploration (used to determine which tokens are affordable) */
   availableTroops?: number;
+  /** Use compact vertical layout (for narrow containers like sidebar) */
+  compact?: boolean;
 }
 
 const COL = {
@@ -18,7 +20,7 @@ const COL = {
 } as const;
 
 export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
-  tokens, selectedTokenId, onSelectToken, availableTroops,
+  tokens, selectedTokenId, onSelectToken, availableTroops, compact,
 }) => {
   if (tokens.length === 0) return null;
   const isSelectable = !!onSelectToken;
@@ -32,22 +34,22 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
         Knowledge Store
         {isSelectable && <span className="text-gold-dim ml-1">— tap to explore</span>}
       </p>
-      <div className="flex gap-4">
+      <div className={compact ? 'space-y-3' : 'flex gap-4'}>
         {(['RED', 'BLUE', 'GREEN'] as const).map(color => {
           const c = COL[color];
           const colorTokens = regularTokens.filter(t => t.color === color)
             .sort((a, b) => (a.militaryRequirement ?? 0) - (b.militaryRequirement ?? 0));
           if (colorTokens.length === 0) return (
-            <div key={color} className="flex-1 text-center text-xs text-sand-400 py-4">
+            <div key={color} className={`${compact ? '' : 'flex-1'} text-center text-xs text-sand-400 py-2`}>
               No {color.toLowerCase()} tokens
             </div>
           );
 
           return (
-            <div key={color} className="flex-1">
+            <div key={color} className={compact ? '' : 'flex-1'}>
               {/* Column header */}
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ background: c.bg }} />
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="w-3 h-3 rounded-full shadow-sm" style={{ background: c.bg }} />
                 <span className="text-xs font-display font-bold uppercase tracking-wider" style={{ color: c.bg }}>
                   {color}
                 </span>
@@ -55,13 +57,48 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
               </div>
 
               {/* Tokens */}
-              <div className="space-y-1">
+              <div className={compact ? 'flex flex-wrap gap-1.5' : 'space-y-1'}>
                 {colorTokens.map(t => {
                   const isMajor = t.tokenType === 'MAJOR';
                   const isSelected = selectedTokenId === t.id;
                   const isExplored = t.explored === true;
                   const canAfford = !isExplored && (availableTroops !== undefined ? availableTroops >= (t.militaryRequirement ?? 0) : true);
                   const hasBonus = (t.bonusCoins ?? 0) > 0 || (t.bonusVP ?? 0) > 0;
+
+                  if (compact) {
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => isSelectable && canAfford && !isExplored && onSelectToken(isSelected ? null : t.id)}
+                        title={`${isMajor ? 'Major' : 'Minor'} · ⚔ ${t.militaryRequirement} req · -${t.skullValue} troops${(t.bonusCoins ?? 0) > 0 ? ` · +${t.bonusCoins} coins` : ''}${(t.bonusVP ?? 0) > 0 ? ` · +${t.bonusVP} VP` : ''}`}
+                        className={`relative flex items-center justify-center transition-all ${
+                          isExplored ? 'opacity-30 grayscale cursor-default' :
+                          isSelectable ? (
+                            !canAfford ? 'opacity-30 cursor-not-allowed' :
+                            isSelected ? 'ring-2 ring-gold cursor-pointer' :
+                            'hover:scale-110 cursor-pointer'
+                          ) : ''
+                        }`}
+                      >
+                        <span
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[0.65rem] font-bold shadow-sm"
+                          style={{
+                            background: c.bg,
+                            outline: isMajor ? `2.5px solid ${c.mid}` : 'none',
+                            outlineOffset: '2px',
+                          }}
+                        >
+                          {t.militaryRequirement}
+                        </span>
+                        {hasBonus && (
+                          <span className="absolute -bottom-1 -right-1 bg-white rounded-full px-1 text-[0.45rem] font-bold shadow-sm border border-sand-200 leading-tight">
+                            {(t.bonusCoins ?? 0) > 0 && <span className="text-amber-600">+{t.bonusCoins}💰</span>}
+                            {(t.bonusVP ?? 0) > 0 && <span className="text-purple-600">+{t.bonusVP}★</span>}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
 
                   return (
                     <div

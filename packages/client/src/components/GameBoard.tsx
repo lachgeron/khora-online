@@ -187,7 +187,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
                     <SharedTracks players={gameState.players} currentPlayerId={currentPlayerId} />
                   )}
                   {openPanel === 'knowledge' && gameState.centralBoardTokens.length > 0 && (
-                    <KnowledgeStore tokens={gameState.centralBoardTokens} />
+                    <KnowledgeStore tokens={gameState.centralBoardTokens} compact />
                   )}
                   {openPanel === 'knowledge' && gameState.centralBoardTokens.length === 0 && (
                     <p className="text-xs text-sand-400 text-center py-2">No tokens available.</p>
