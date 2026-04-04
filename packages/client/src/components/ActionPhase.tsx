@@ -111,14 +111,16 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
       transition={{ duration: 0.3 }}
     >
       {/* Action header */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-2xl">{info.icon}</span>
-        <div>
-          <h3 className="font-display text-lg font-bold" style={{ color: info.color }}>{info.label}</h3>
-          <p className="text-xs text-sand-500">Resolve this action</p>
+      <div className="mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{info.icon}</span>
+          <div>
+            <h3 className="font-display text-lg font-bold" style={{ color: info.color }}>{info.label}</h3>
+            <p className="text-xs text-sand-500">Resolve this action</p>
+          </div>
         </div>
         {timeoutAt && (
-          <div className="ml-auto">
+          <div className="mt-3">
             <CountdownTimer timeoutAt={timeoutAt} />
           </div>
         )}
