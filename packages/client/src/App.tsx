@@ -320,7 +320,7 @@ export const App: React.FC = () => {
                     .filter(e => e.roundNumber === gameState.roundNumber && e.phase === 'TAXATION' && e.playerId === p.playerId);
                   const effects: { text: string; type: 'gain' | 'loss' | 'action' }[] = [];
                   const taxIncome = (entries.find(e => e.details?.taxIncome != null)?.details?.taxIncome as number) ?? 0;
-                  if (taxIncome > 0) effects.push({ text: `+${taxIncome} coins`, type: 'gain' });
+                  effects.push({ text: taxIncome > 0 ? `+${taxIncome} coins` : '0 coins', type: taxIncome > 0 ? 'gain' : 'action' });
                   const vpGain = (entries.find(e => e.details?.vpGain != null)?.details?.vpGain as number) ?? 0;
                   if (vpGain > 0) effects.push({ text: `+${vpGain} VP`, type: 'gain' });
                   const troopGain = (entries.find(e => e.details?.troopGain != null)?.details?.troopGain as number) ?? 0;
@@ -329,7 +329,7 @@ export const App: React.FC = () => {
                   if (extraCoins > 0) effects.push({ text: `+${extraCoins} coins (cards)`, type: 'gain' });
                   const citizenGain = (entries.find(e => e.details?.citizenGain != null)?.details?.citizenGain as number) ?? 0;
                   if (citizenGain > 0) effects.push({ text: `+${citizenGain} citizens`, type: 'gain' });
-                  if (effects.length > 0) taxEffects[p.playerId] = effects;
+                  taxEffects[p.playerId] = effects;
                 }
                 return (
                   <div className="py-4">
