@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type { ClientMessage, ServerMessage, PublicGameState, PrivatePlayerState, FinalScoreBoard } from './types';
+import type { ClientMessage, ServerMessage, PublicGameState, PrivatePlayerState, FinalScoreBoard, PoliticsCard } from './types';
 
 export interface GameSocketState {
   gameState: PublicGameState | null;
@@ -11,6 +11,7 @@ export interface GameSocketState {
   finalScores: FinalScoreBoard | null;
   error: string | null;
   connected: boolean;
+  adminDeckCards: PoliticsCard[] | null;
 }
 
 export function useGameSocket(gameId: string | null, playerId: string | null) {
@@ -21,6 +22,7 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
     finalScores: null,
     error: null,
     connected: false,
+    adminDeckCards: null,
   });
 
   useEffect(() => {
@@ -52,6 +54,8 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
           ...s,
           finalScores: msg.finalScores,
         }));
+      } else if (msg.type === 'ADMIN_DECK_RESPONSE') {
+        setState((s) => ({ ...s, adminDeckCards: msg.deckCards }));
       } else if (msg.type === 'ERROR') {
         setState((s) => ({ ...s, error: msg.message }));
       }

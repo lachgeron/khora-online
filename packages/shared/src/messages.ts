@@ -32,7 +32,9 @@ export type ClientMessage =
   | { type: 'ACTIVATE_DEV'; devId: string }
   | { type: 'CHOOSE_TOKEN'; tokenId: string }
   | { type: 'EVENT_PROGRESS_TRACK'; track: ProgressTrackType }
-  | { type: 'DISCARD_CARDS'; cardIds: string[] };
+  | { type: 'DISCARD_CARDS'; cardIds: string[] }
+  | { type: 'ADMIN_REQUEST_DECK' }
+  | { type: 'ADMIN_SWAP_CARD'; handCardId: string; deckCardId: string };
 
 // ---------------------------------------------------------------------------
 // Server -> Client
@@ -46,7 +48,8 @@ export type ServerMessage =
   | { type: 'PLAYER_DISCONNECTED'; playerId: string }
   | { type: 'PLAYER_RECONNECTED'; playerId: string }
   | { type: 'GAME_OVER'; finalScores: FinalScoreBoard }
-  | { type: 'ERROR'; code: string; message: string };
+  | { type: 'ERROR'; code: string; message: string }
+  | { type: 'ADMIN_DECK_RESPONSE'; deckCards: PoliticsCard[] };
 
 // ---------------------------------------------------------------------------
 // Visibility-filtered state

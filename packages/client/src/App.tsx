@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ACTION_NUMBERS } from './types';
 import type {
   PlayerInfo,
@@ -22,6 +22,8 @@ import { ProgressPhase } from './components/ProgressPhase';
 import { AchievementPhase } from './components/AchievementPhase';
 import { GloryEventPanel } from './components/GloryEventPanel';
 import { GameSummary } from './components/GameSummary';
+import { AdminSwapModal } from './components/AdminSwapModal';
+import { useAdminMode } from './useAdminMode';
 
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME';
 
@@ -35,8 +37,19 @@ export const App: React.FC = () => {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
 
-  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage } =
+  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards } =
     useGameSocket(gameId, currentPlayerId);
+
+  const { adminMode, deactivateAdmin } = useAdminMode();
+  const [showAdminSwap, setShowAdminSwap] = useState(false);
+
+  // When admin mode activates, request deck and show swap modal
+  useEffect(() => {
+    if (adminMode && gameId) {
+      sendMessage({ type: 'ADMIN_REQUEST_DECK' });
+      setShowAdminSwap(true);
+    }
+  }, [adminMode, gameId, sendMessage]);
 
   // Poll lobby for player list updates while in LOBBY screen
   useLobbyPolling(
@@ -412,6 +425,21 @@ export const App: React.FC = () => {
         </div>
         );
       })()}
+
+      {showAdminSwap && adminMode && privateState && adminDeckCards && (
+        <AdminSwapModal
+          handCards={privateState.handCards}
+          deckCards={adminDeckCards}
+          onSwap={(handCardId, deckCardId) => {
+            sendMessage({ type: 'ADMIN_SWAP_CARD', handCardId, deckCardId });
+            sendMessage({ type: 'ADMIN_REQUEST_DECK' });
+          }}
+          onClose={() => {
+            setShowAdminSwap(false);
+            deactivateAdmin();
+          }}
+        />
+      )}
     </div>
   );
 };

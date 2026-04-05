@@ -264,6 +264,39 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      if (message.type === 'ADMIN_REQUEST_DECK') {
+        wsGateway.sendToPlayer(gameId, playerId, {
+          type: 'ADMIN_DECK_RESPONSE',
+          deckCards: currentState.politicsDeck,
+        });
+        return;
+      }
+
+      if (message.type === 'ADMIN_SWAP_CARD') {
+        const player = currentState.players.find(p => p.playerId === playerId);
+        if (!player) return;
+        const handIdx = player.handCards.findIndex(c => c.id === message.handCardId);
+        const deckIdx = currentState.politicsDeck.findIndex(c => c.id === message.deckCardId);
+        if (handIdx === -1 || deckIdx === -1) return;
+        const removedFromHand = player.handCards[handIdx];
+        const removedFromDeck = currentState.politicsDeck[deckIdx];
+        const newHandCards = [...player.handCards];
+        newHandCards[handIdx] = removedFromDeck;
+        const newDeck = [...currentState.politicsDeck];
+        newDeck[deckIdx] = removedFromHand;
+        const updatedState: typeof currentState = {
+          ...currentState,
+          politicsDeck: newDeck,
+          players: currentState.players.map(p =>
+            p.playerId === playerId ? { ...p, handCards: newHandCards } : p,
+          ),
+          updatedAt: Date.now(),
+        };
+        games.set(gameId, updatedState);
+        wsGateway.broadcastToGame(gameId, updatedState);
+        return;
+      }
+
       if (message.type === 'ACTIVATE_DEV') {
         const updatedState = activateDev(currentState, playerId, message.devId);
         if (updatedState !== currentState) {
