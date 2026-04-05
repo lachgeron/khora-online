@@ -186,7 +186,9 @@ describe('AchievementPhaseManager', () => {
       if (result.ok) {
         expect(result.value.players[0].gloryTrack).toBe(1);
         expect(result.value.players[0].taxTrack).toBe(0);
-        expect(result.value.pendingDecisions).toHaveLength(0);
+        // After last decision, a PHASE_DISPLAY is inserted
+        expect(result.value.pendingDecisions).toHaveLength(1);
+        expect(result.value.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
       }
     });
 
@@ -198,7 +200,9 @@ describe('AchievementPhaseManager', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.players[0].taxTrack).toBe(1);
-        expect(result.value.pendingDecisions).toHaveLength(0);
+        // After last decision, a PHASE_DISPLAY is inserted
+        expect(result.value.pendingDecisions).toHaveLength(1);
+        expect(result.value.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
       }
     });
 
@@ -267,7 +271,13 @@ describe('AchievementPhaseManager', () => {
       const result = manager.autoResolve(state, 'p1');
 
       expect(result.players[0].taxTrack).toBe(2);
-      expect(result.pendingDecisions).toHaveLength(0);
+      // After last player resolves, a PHASE_DISPLAY is inserted
+      expect(result.pendingDecisions).toHaveLength(1);
+      expect(result.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
+
+      // autoResolve for __display__ clears it
+      const final = manager.autoResolve(result, '__display__');
+      expect(final.pendingDecisions).toHaveLength(0);
     });
   });
 });

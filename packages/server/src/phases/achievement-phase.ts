@@ -78,7 +78,8 @@ export class AchievementPhaseManager implements PhaseManager {
         updatedState = this.applyTrackChoice(updatedState, playerId, 'TAX');
       }
       const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
-      return { ok: true, value: { ...updatedState, pendingDecisions: updatedDecisions } };
+      const result = { ...updatedState, pendingDecisions: updatedDecisions };
+      return { ok: true, value: this.finishOrDisplay(result) };
     }
 
     if (decision.type !== 'CLAIM_ACHIEVEMENT') {
@@ -106,7 +107,25 @@ export class AchievementPhaseManager implements PhaseManager {
     const updatedDecisions = [...updatedState.pendingDecisions];
     if (idx !== -1) updatedDecisions.splice(idx, 1);
 
-    return { ok: true, value: { ...updatedState, pendingDecisions: updatedDecisions } };
+    const result = { ...updatedState, pendingDecisions: updatedDecisions };
+    return { ok: true, value: this.finishOrDisplay(result) };
+  }
+
+  /** If all ACHIEVEMENT_TRACK_CHOICE decisions are done, insert a 15 s display pause. */
+  private finishOrDisplay(state: GameState): GameState {
+    const hasReal = state.pendingDecisions.some(d => d.decisionType === 'ACHIEVEMENT_TRACK_CHOICE');
+    if (hasReal) return state;
+    // Already showing display? Don't stack another.
+    if (state.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) return state;
+    return {
+      ...state,
+      pendingDecisions: [{
+        playerId: '__display__',
+        decisionType: 'PHASE_DISPLAY' as const,
+        timeoutAt: Date.now() + 15_000,
+        options: {},
+      }],
+    };
   }
 
   private applyTrackChoice(state: GameState, playerId: string, track: 'TAX' | 'GLORY'): GameState {
@@ -123,6 +142,10 @@ export class AchievementPhaseManager implements PhaseManager {
   }
 
   autoResolve(state: GameState, playerId: string): GameState {
+    // Display pause expired — clear it and finish
+    if (playerId === '__display__') {
+      return { ...state, pendingDecisions: [] };
+    }
     // Default all remaining achievements for this player to Tax
     let updatedState = state;
     const playerPending = state.pendingDecisions.filter(d => d.playerId === playerId);
@@ -130,6 +153,6 @@ export class AchievementPhaseManager implements PhaseManager {
       updatedState = this.applyTrackChoice(updatedState, playerId, 'TAX');
     }
     const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
-    return { ...updatedState, pendingDecisions: updatedDecisions };
+    return this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions });
   }
 }
