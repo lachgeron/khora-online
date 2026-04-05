@@ -33,13 +33,15 @@ describe('ActionPhaseManager', () => {
       expect(result.pendingDecisions[0].playerId).toBe('player-1');
     });
 
-    it('does not create pending decisions for players with all null slots', () => {
+    it('creates a display pause for players with all null slots', () => {
       const player = makeTestPlayer({ actionSlots: [null, null, null] });
       const state = makeTestGameState({ currentPhase: 'ACTIONS' as any, players: [player] });
 
       const result = manager.onEnter(state);
 
-      expect(result.pendingDecisions).toHaveLength(0);
+      expect(result.pendingDecisions).toHaveLength(1);
+      expect(result.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
+      expect(result.pendingDecisions[0].playerId).toBe('__display__');
     });
   });
 
@@ -161,7 +163,7 @@ describe('ActionPhaseManager', () => {
   });
 
   describe('autoResolve', () => {
-    it('resolves unresolved actions with empty choices', () => {
+    it('resolves one unresolved action per call', () => {
       const player = makeTestPlayer({
         knowledgeTokens: [],
         actionSlots: [
@@ -180,9 +182,9 @@ describe('ActionPhaseManager', () => {
 
       const result = manager.autoResolve(state, 'player-1');
 
-      // Both slots should be resolved
+      // Only the first (lowest cost) slot should be resolved
       expect(result.players[0].actionSlots[0]!.resolved).toBe(true);
-      expect(result.players[0].actionSlots[1]!.resolved).toBe(true);
+      expect(result.players[0].actionSlots[1]!.resolved).toBe(false);
     });
 
     it('skips already-resolved slots', () => {
@@ -208,10 +210,11 @@ describe('ActionPhaseManager', () => {
       expect(result.players[0].actionSlots[1]!.resolved).toBe(true);
     });
 
-    it('returns state unchanged for unknown player', () => {
+    it('inserts display pause for unknown player when no actions remain', () => {
       const state = makeTestGameState({ currentPhase: 'ACTIONS' as any });
       const result = manager.autoResolve(state, 'unknown');
-      expect(result).toEqual(state);
+      expect(result.pendingDecisions).toHaveLength(1);
+      expect(result.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
     });
 
     it('handles null action slots gracefully', () => {
@@ -226,6 +229,9 @@ describe('ActionPhaseManager', () => {
 
       const result = manager.autoResolve(state, 'player-1');
       expect(result.players[0].actionSlots).toEqual([null, null, null]);
+      // No active player, so a display pause is inserted
+      expect(result.pendingDecisions).toHaveLength(1);
+      expect(result.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
     });
   });
 });

@@ -176,12 +176,20 @@ export class ActionPhaseManager implements PhaseManager {
   }
 
   isComplete(state: GameState): boolean {
+    // Not complete while a display pause is active
+    if (state.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
+      return false;
+    }
     return state.players
       .filter(p => p.isConnected)
       .every(p => !this.hasUnresolvedActions(p.actionSlots));
   }
 
   autoResolve(state: GameState, playerId: string): GameState {
+    // Clear the display pause when it times out
+    if (playerId === '__display__') {
+      return { ...state, pendingDecisions: [] };
+    }
     let updatedState = this.autoResolveSingleAction(state, playerId);
     return this.buildPendingForActivePlayer(updatedState);
   }
@@ -290,7 +298,20 @@ export class ActionPhaseManager implements PhaseManager {
       // Per the rules, troops can temporarily exceed 15 during military actions
       // for exploration, but must be reduced to 15 at the end of the Action Phase.
       const cappedPlayers = state.players.map(p => capTroops(p));
-      return { ...state, players: cappedPlayers, pendingDecisions: [] };
+
+      // Insert a 5-second display pause so players can review the action overview
+      // before transitioning to the next phase.
+      const now = Date.now();
+      return {
+        ...state,
+        players: cappedPlayers,
+        pendingDecisions: [{
+          playerId: '__display__',
+          decisionType: 'PHASE_DISPLAY' as const,
+          timeoutAt: now + 5_000,
+          options: null as unknown,
+        }],
+      };
     }
 
     // Determine the next action type for this player to set the correct timeout

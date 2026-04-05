@@ -69,7 +69,7 @@ export class ProgressPhaseManager implements PhaseManager {
       }
       const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
       this.snapshots.delete(playerId);
-      return { ok: true, value: { ...updatedState, pendingDecisions: updatedDecisions } };
+      return { ok: true, value: this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions }) };
     }
 
     if (decision.type === 'UNDO_PROGRESS') {
@@ -161,7 +161,7 @@ export class ProgressPhaseManager implements PhaseManager {
     }
     updatedState = logPlayerDiff(updatedState, playerBefore, player, { roundNumber: state.roundNumber, phase: 'PROGRESS', source: 'Progress' });
 
-    return { ok: true, value: updatedState };
+    return { ok: true, value: this.finishOrDisplay(updatedState) };
   }
 
   private handleUndo(
@@ -248,7 +248,27 @@ export class ProgressPhaseManager implements PhaseManager {
     return state.pendingDecisions.length === 0;
   }
 
+  /** Insert a display pause when all player decisions are resolved. */
+  private finishOrDisplay(state: GameState): GameState {
+    const remaining = state.pendingDecisions.filter(d => d.decisionType !== 'PHASE_DISPLAY');
+    if (remaining.length === 0 && !state.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
+      return {
+        ...state,
+        pendingDecisions: [{
+          playerId: '__display__',
+          decisionType: 'PHASE_DISPLAY' as const,
+          timeoutAt: Date.now() + 15_000,
+          options: null as unknown,
+        }],
+      };
+    }
+    return state;
+  }
+
   autoResolve(state: GameState, playerId: string): GameState {
+    if (playerId === '__display__') {
+      return { ...state, pendingDecisions: [] };
+    }
     let updatedState = state;
     // Old Guard: +4 VP if player has the card (auto-resolve = skip = no progress)
     const player = state.players.find(p => p.playerId === playerId);
@@ -263,6 +283,6 @@ export class ProgressPhaseManager implements PhaseManager {
     }
     const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
     this.snapshots.delete(playerId);
-    return { ...updatedState, pendingDecisions: updatedDecisions };
+    return this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions });
   }
 }

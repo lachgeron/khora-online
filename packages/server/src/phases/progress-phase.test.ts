@@ -112,7 +112,9 @@ describe('ProgressPhaseManager', () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.value.pendingDecisions).toHaveLength(0);
+        // After the last player resolves, a PHASE_DISPLAY decision is inserted
+        expect(result.value.pendingDecisions).toHaveLength(1);
+        expect(result.value.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
       }
     });
 
@@ -155,7 +157,9 @@ describe('ProgressPhaseManager', () => {
       if (result.ok) {
         expect(result.value.players[0].economyTrack).toBe(3);
         expect(result.value.players[0].coins).toBe(10);
-        expect(result.value.pendingDecisions).toHaveLength(0);
+        // After the last player resolves, a PHASE_DISPLAY decision is inserted
+        expect(result.value.pendingDecisions).toHaveLength(1);
+        expect(result.value.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
       }
     });
   });
@@ -210,7 +214,9 @@ describe('ProgressPhaseManager', () => {
 
       const result = manager.autoResolve(state, 'p1');
 
-      expect(result.pendingDecisions).toHaveLength(0);
+      // After the last player resolves, a PHASE_DISPLAY decision is inserted
+      expect(result.pendingDecisions).toHaveLength(1);
+      expect(result.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
       expect(result.players[0].economyTrack).toBe(3);
       expect(result.players[0].coins).toBe(10);
     });
@@ -261,6 +267,14 @@ describe('ProgressPhaseManager', () => {
       const r2 = manager.handleDecision(state, 'p2', { type: 'SKIP_PHASE' });
       expect(r2.ok).toBe(true);
       if (r2.ok) state = r2.value;
+
+      // After all players decide, a PHASE_DISPLAY pause is inserted
+      expect(manager.isComplete(state)).toBe(false);
+      expect(state.pendingDecisions).toHaveLength(1);
+      expect(state.pendingDecisions[0].decisionType).toBe('PHASE_DISPLAY');
+
+      // Auto-resolving the display clears it
+      state = manager.autoResolve(state, '__display__');
       expect(manager.isComplete(state)).toBe(true);
     });
   });

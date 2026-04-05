@@ -220,6 +220,7 @@ export const App: React.FC = () => {
           OMEN: 'Event Announcement',
           TAXATION: 'Collecting taxes',
           GLORY: 'Event Resolution',
+          ACTIONS: 'Actions complete',
         };
         const pending = gameState.pendingDecisions.find(d => d.decisionType !== 'PHASE_DISPLAY') ?? gameState.pendingDecisions[0];
         const isDisplayPhase = pending?.decisionType === 'PHASE_DISPLAY';
@@ -422,6 +423,7 @@ export const App: React.FC = () => {
 
               {gameState.currentPhase === 'PROGRESS' && (
                 <ProgressPhase
+                  gameState={gameState}
                   economyTrack={currentPlayer?.economyTrack ?? 0}
                   cultureTrack={currentPlayer?.cultureTrack ?? 0}
                   militaryTrack={currentPlayer?.militaryTrack ?? 0}

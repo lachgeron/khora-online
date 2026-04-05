@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import type { ProgressTrackType, TrackAdvancement } from '../types';
+import type { PublicGameState, ProgressTrackType, TrackAdvancement } from '../types';
 import { CountdownTimer } from './CountdownTimer';
+import { StandingsRecap } from './StandingsRecap';
+import type { PlayerEffect } from './StandingsRecap';
 
 export interface ProgressPhaseProps {
+  gameState: PublicGameState;
   economyTrack: number;
   cultureTrack: number;
   militaryTrack: number;
@@ -34,10 +37,11 @@ const TRACK_INFO: { type: ProgressTrackType; label: string; icon: string; color:
 ];
 
 export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
-  economyTrack, cultureTrack, militaryTrack, coins, philosophyTokens,
+  gameState, economyTrack, cultureTrack, militaryTrack, coins, philosophyTokens,
   pendingDecisions, currentPlayerId, playedCardIds, onAdvance, onUndo, onSkip,
 }) => {
-  const hasPending = pendingDecisions.some(d => d.playerId === currentPlayerId);
+  const isDisplayPhase = pendingDecisions.length === 1 && pendingDecisions[0].decisionType === 'PHASE_DISPLAY';
+  const hasPending = !isDisplayPhase && pendingDecisions.some(d => d.playerId === currentPlayerId);
   const [primary, setPrimary] = useState<ProgressTrackType | null>(null);
   const [bonus, setBonus] = useState<ProgressTrackType | null>(null);
   const [extras, setExtras] = useState<(ProgressTrackType | null)[]>([]);
@@ -81,6 +85,37 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
   const allExtrasSelected = extras.every(e => e !== null);
   const canAfford = coins >= totalCost && philosophyTokens >= philCost;
   const canSubmit = primary !== null && canAfford && allExtrasSelected;
+
+  // ── DISPLAY PAUSE (recap) ──
+  if (isDisplayPhase) {
+    // Build per-player progress effects from game log
+    const progressEffects: Record<string, PlayerEffect[]> = {};
+    for (const entry of gameState.gameLog) {
+      if (entry.roundNumber !== gameState.roundNumber || entry.phase !== 'PROGRESS' || !entry.playerId) continue;
+      const changes = entry.details?.changes as string[] | undefined;
+      if (changes && changes.length > 0) {
+        if (!progressEffects[entry.playerId]) progressEffects[entry.playerId] = [];
+        for (const c of changes) {
+          progressEffects[entry.playerId].push({
+            text: c,
+            type: c.startsWith('+') ? 'gain' : c.startsWith('-') ? 'loss' : 'action',
+          });
+        }
+      }
+    }
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <h3 className="font-display text-lg font-bold text-sand-800 mb-1">Progress Phase</h3>
+        <p className="text-xs text-sand-400 animate-pulse">Continuing shortly...</p>
+        <StandingsRecap
+          gameState={gameState}
+          currentPlayerId={currentPlayerId}
+          playerEffects={progressEffects}
+          title="After Progress"
+        />
+      </motion.div>
+    );
+  }
 
   // ── LOCKED IN ──
   if (!hasPending) {

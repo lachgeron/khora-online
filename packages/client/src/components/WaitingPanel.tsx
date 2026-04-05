@@ -60,7 +60,12 @@ export const WaitingPanel: React.FC<WaitingPanelProps> = ({ gameState, privateSt
         </div>
       )}
       {myUnresolved.length === 0 && mySlots.length > 0 && (
-        <p className="text-xs text-emerald-600 font-medium">All your actions resolved ✓</p>
+        <div>
+          <p className="text-xs text-emerald-600 font-medium">All actions resolved ✓</p>
+          {!activePlayer && (
+            <p className="text-xs text-sand-400 mt-1 animate-pulse">Continuing shortly...</p>
+          )}
+        </div>
       )}
     </motion.div>
   );
