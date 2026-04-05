@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { PublicGameState, PrivatePlayerState, ClientMessage, ActionType, ActionChoices, ProgressTrackType } from '../types';
 import { ActionPhase } from './ActionPhase';
 import { CountdownTimer } from './CountdownTimer';
+import { motion } from 'framer-motion';
 
 const TOKEN_COLORS: Record<string, string> = { RED: '#c44040', BLUE: '#4060c4', GREEN: '#40a050' };
 const TRACK_LABELS: Record<string, string> = { ECONOMY: 'Economy', CULTURE: 'Culture', MILITARY: 'Military' };
@@ -27,6 +28,18 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
   const dt = myDecision?.decisionType;
   const hasInteractive = dt && dt !== 'PHASE_DISPLAY';
 
+  // Gather per-player effects from game log for this round's GLORY phase
+  const playerEffects: Record<string, string[]> = {};
+  for (const entry of gameState.gameLog) {
+    if (entry.roundNumber === gameState.roundNumber && entry.phase === 'GLORY' && entry.playerId) {
+      const changes = entry.details?.changes as string[] | undefined;
+      if (changes && changes.length > 0) {
+        if (!playerEffects[entry.playerId]) playerEffects[entry.playerId] = [];
+        playerEffects[entry.playerId].push(...changes);
+      }
+    }
+  }
+
   return (
     <div className="py-4">
       {/* Timer for interactive decisions */}
@@ -36,22 +49,78 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
         </div>
       )}
       <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Event Resolution</p>
-      <p className="font-display text-base font-bold text-sand-800 text-center mb-1">{gameState.currentEvent.name}</p>
-      <p className="text-xs text-sand-500 text-center mb-3">{gameState.currentEvent.gloryCondition.description}</p>
 
+      {/* Event card — slides back from sidebar via shared layoutId */}
+      <div className="flex justify-center mb-4">
+        <motion.div
+          layoutId="event-card"
+          className="inline-block bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-5 py-4 shadow-lg"
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        >
+          <p className="font-display text-lg font-bold text-sand-800 text-center">{gameState.currentEvent.name}</p>
+          <p className="mt-2 font-display text-base font-semibold text-gold-dim leading-snug text-center"
+            style={{ textShadow: '0 0 12px rgba(201,168,76,0.25)' }}
+          >
+            {gameState.currentEvent.gloryCondition.description}
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Per-player results */}
       <div className="space-y-1.5">
         {gameState.players.map(p => {
           const gotGlory = gameState.gameLog.some(
             e => e.roundNumber === gameState.roundNumber && e.phase === 'GLORY' && e.playerId === p.playerId && e.action.includes('VP from glory'),
           );
+          const effects = playerEffects[p.playerId] ?? [];
+          const hasEffects = effects.length > 0 || gotGlory;
           const isMe = p.playerId === currentPlayerId;
+
+          // Categorize effects as gains or losses
+          const gains = effects.filter(e => e.startsWith('+'));
+          const losses = effects.filter(e => e.startsWith('-'));
+          const other = effects.filter(e => !e.startsWith('+') && !e.startsWith('-'));
+
           return (
-            <div key={p.playerId} className={`flex items-center justify-between rounded-lg px-3 py-2 ${gotGlory ? 'bg-emerald-50 border border-emerald-200' : 'bg-sand-100'}`}>
-              <span className={`text-sm ${isMe ? 'font-semibold text-sand-800' : 'text-sand-600'}`}>
-                {p.playerName}{isMe ? ' (you)' : ''}
-              </span>
-              {gotGlory ? <span className="text-sm font-semibold text-emerald-700">+2 VP ✓</span> : <span className="text-xs text-sand-400">—</span>}
-            </div>
+            <motion.div
+              key={p.playerId}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 + gameState.players.indexOf(p) * 0.1 }}
+              className={`rounded-lg px-3 py-2.5 ${
+                hasEffects
+                  ? gotGlory
+                    ? 'bg-emerald-50 border border-emerald-200'
+                    : gains.length > 0
+                    ? 'bg-amber-50 border border-amber-200'
+                    : losses.length > 0
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-sand-100 border border-sand-200'
+                  : 'bg-sand-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`text-sm ${isMe ? 'font-semibold text-sand-800' : 'text-sand-600'}`}>
+                  {p.playerName}{isMe ? ' (you)' : ''}
+                </span>
+                {gotGlory && <span className="text-sm font-semibold text-emerald-700">+2 VP</span>}
+                {!gotGlory && !hasEffects && <span className="text-xs text-sand-400">—</span>}
+              </div>
+              {/* Show detailed effects */}
+              {(gains.length > 0 || losses.length > 0 || other.length > 0) && (
+                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                  {gains.map((g, i) => (
+                    <span key={`g${i}`} className="text-xs font-semibold text-emerald-700">{g}</span>
+                  ))}
+                  {losses.map((l, i) => (
+                    <span key={`l${i}`} className="text-xs font-semibold text-red-600">{l}</span>
+                  ))}
+                  {other.map((o, i) => (
+                    <span key={`o${i}`} className="text-xs font-medium text-sand-600">{o}</span>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           );
         })}
       </div>

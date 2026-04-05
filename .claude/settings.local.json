@@ -5,7 +5,8 @@
       "Bash(python3 -c:*)",
       "Bash(node -e \":*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(find /c/Users/User/Documents/KHORA/src -type f \\\\\\(-name *.js -o -name *.ts -o -name *.tsx -o -name *.jsx -o -name *.css -o -name *.scss \\\\\\))"
     ]
   }
 }

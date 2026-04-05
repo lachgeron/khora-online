@@ -140,7 +140,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
       {/* ── Right sidebar: Event, Players, Achievements ── */}
       <div className="row-span-2 flex flex-col gap-3 overflow-y-auto">
         {/* Event — hidden during OMEN so the announcement's layoutId animates here on phase change */}
-        {gameState.currentEvent && gameState.currentPhase !== 'OMEN' && (
+        {gameState.currentEvent && gameState.currentPhase !== 'OMEN' && gameState.currentPhase !== 'GLORY' && (
           <motion.div
             layoutId="event-card"
             className="bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-4 py-3"
