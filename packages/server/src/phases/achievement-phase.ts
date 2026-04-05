@@ -76,6 +76,12 @@ export class AchievementPhaseManager implements PhaseManager {
       const playerPending = state.pendingDecisions.filter(d => d.playerId === playerId);
       for (const _d of playerPending) {
         updatedState = this.applyTrackChoice(updatedState, playerId, 'TAX');
+        updatedState = appendLogEntry(updatedState, {
+          roundNumber: state.roundNumber,
+          phase: 'ACHIEVEMENT',
+          playerId,
+          action: 'Chose +1 Tax',
+        });
       }
       const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
       const result = { ...updatedState, pendingDecisions: updatedDecisions };
@@ -98,7 +104,13 @@ export class AchievementPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'INVALID_DECISION', message: 'Must choose TAX or GLORY' } };
     }
 
-    const updatedState = this.applyTrackChoice(state, playerId, trackChoice);
+    let updatedState = this.applyTrackChoice(state, playerId, trackChoice);
+    updatedState = appendLogEntry(updatedState, {
+      roundNumber: state.roundNumber,
+      phase: 'ACHIEVEMENT',
+      playerId,
+      action: `Chose +1 ${trackChoice === 'TAX' ? 'Tax' : 'Glory'}`,
+    });
 
     // Remove just the first matching pending decision for this player
     const idx = updatedState.pendingDecisions.findIndex(d =>
@@ -151,6 +163,12 @@ export class AchievementPhaseManager implements PhaseManager {
     const playerPending = state.pendingDecisions.filter(d => d.playerId === playerId);
     for (const _d of playerPending) {
       updatedState = this.applyTrackChoice(updatedState, playerId, 'TAX');
+      updatedState = appendLogEntry(updatedState, {
+        roundNumber: state.roundNumber,
+        phase: 'ACHIEVEMENT',
+        playerId,
+        action: 'Chose +1 Tax',
+      });
     }
     const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
     return this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions });

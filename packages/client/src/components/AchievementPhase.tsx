@@ -51,13 +51,8 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
         const name = entry.action.replace('Claimed achievement: ', '');
         achievementEffects[entry.playerId].push({ text: name, type: 'gain' });
       }
-      // Also show track choice from details if available
-      if (entry.details?.trackChoice) {
-        const track = entry.details.trackChoice as string;
-        achievementEffects[entry.playerId].push({
-          text: `+1 ${track === 'TAX' ? 'Tax' : 'Glory'}`,
-          type: 'gain',
-        });
+      if (entry.action.startsWith('Chose +1')) {
+        achievementEffects[entry.playerId].push({ text: entry.action.replace('Chose ', ''), type: 'gain' });
       }
     }
   }
