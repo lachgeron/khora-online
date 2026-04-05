@@ -30,6 +30,8 @@ export interface ActionChoices {
   minorKnowledgeColor?: KnowledgeColor;
   /** Knowledge token ID to explore (Military action). */
   explorationTokenId?: string;
+  /** Second knowledge token ID to explore (Military action, Thebes dev-3: explore twice). */
+  secondExplorationTokenId?: string;
   /** Number of philosophy tokens to spend (Dice phase). */
   philosophyTokensToSpend?: number;
   /** Track to advance when achieving (TAX or GLORY). */

@@ -6,6 +6,8 @@
  * 2. Optionally explore a Knowledge token on the central board
  *    (requires troops >= token requirement, lose troops = skull value)
  *
+ * Thebes dev-3: "Explore twice on military action" — allows a second exploration.
+ *
  * This is the ONLY action resolved in turn order (not simultaneously).
  */
 
@@ -14,6 +16,7 @@ import { ACTION_NUMBERS } from '@khora/shared';
 import type { ActionResolver } from './action-resolver';
 import { advanceTrack } from '../resources';
 import { explore } from '../knowledge-tokens';
+import { hasDevUnlocked } from '../city-dev-handlers';
 
 export class MilitaryResolver implements ActionResolver {
   readonly actionNumber = ACTION_NUMBERS.MILITARY; // 4
@@ -48,6 +51,16 @@ export class MilitaryResolver implements ActionResolver {
         return exploreResult;
       }
       updatedState = exploreResult.value;
+    }
+
+    // Step 3: Thebes dev-3 — optionally explore a second knowledge token
+    const currentPlayer = updatedState.players.find(p => p.playerId === playerId);
+    if (currentPlayer && hasDevUnlocked(currentPlayer, 'thebes-dev-3') && choices.secondExplorationTokenId) {
+      const exploreResult2 = explore(updatedState, playerId, choices.secondExplorationTokenId);
+      if (!exploreResult2.ok) {
+        return exploreResult2;
+      }
+      updatedState = exploreResult2.value;
     }
 
     return { ok: true, value: updatedState };

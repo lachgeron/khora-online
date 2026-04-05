@@ -58,10 +58,8 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
     newLevel = Math.min(newLevel, MAX_CITIZEN_TRACK);
   }
 
-  // Cap troop track at 15
-  if (track === 'TROOP') {
-    newLevel = Math.min(newLevel, MAX_TROOP_TRACK);
-  }
+  // Troop track can temporarily exceed 15 (e.g. during military action for exploration).
+  // It is capped at 15 at the end of the Action Phase.
 
   // No track can go below 0
   newLevel = Math.max(0, newLevel);
@@ -85,7 +83,7 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
 interface Milestone { citizens?: number; vp?: number; taxes?: number; glory?: number }
 
 const MAX_CITIZEN_TRACK = 15;
-const MAX_TROOP_TRACK = 15;
+export const MAX_TROOP_TRACK = 15;
 
 function applyMilestone(p: PlayerState, m: Milestone): PlayerState {
   let updated = p;
@@ -261,4 +259,16 @@ export function meetsKnowledgeRequirement(
  */
 export function addVP(player: PlayerState, amount: number): PlayerState {
   return { ...player, victoryPoints: player.victoryPoints + amount };
+}
+
+/**
+ * Caps a player's troop track at MAX_TROOP_TRACK (15).
+ * Per the rules, troops can temporarily exceed 15 during the military action
+ * (for exploration purposes), but must be capped at the end of the Action Phase.
+ */
+export function capTroops(player: PlayerState): PlayerState {
+  if (player.troopTrack > MAX_TROOP_TRACK) {
+    return { ...player, troopTrack: MAX_TROOP_TRACK };
+  }
+  return player;
 }

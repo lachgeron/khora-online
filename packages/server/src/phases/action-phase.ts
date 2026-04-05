@@ -20,6 +20,7 @@ import { DevelopmentResolver } from '../actions/development-resolver';
 import { applyOngoingEffects } from '../card-handlers';
 import { applyOngoingDevEffects } from '../city-dev-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
+import { capTroops } from '../resources';
 
 /** Per-action timeout durations in milliseconds. */
 const ACTION_TIMEOUTS: Record<string, number> = {
@@ -285,7 +286,11 @@ export class ActionPhaseManager implements PhaseManager {
   private buildPendingForActivePlayer(state: GameState): GameState {
     const activeId = this.getActivePlayerId(state);
     if (!activeId) {
-      return { ...state, pendingDecisions: [] };
+      // All actions resolved — cap troops at 15 for all players.
+      // Per the rules, troops can temporarily exceed 15 during military actions
+      // for exploration, but must be reduced to 15 at the end of the Action Phase.
+      const cappedPlayers = state.players.map(p => capTroops(p));
+      return { ...state, players: cappedPlayers, pendingDecisions: [] };
     }
 
     // Determine the next action type for this player to set the correct timeout

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { ActionType, ActionSlot, DiceAssignment, PublicPlayerState } from '../types';
 import { CountdownTimer } from './CountdownTimer';
@@ -112,12 +112,26 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
     setSlots(prev => { const next = [...prev]; next[slotIndex] = null; return next; });
   };
 
-  // Keep a ref to current slots so the onExpire callback sees latest state
+  // Keep a ref to current slots so the timeout callback sees latest state
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
 
+  // Track whether we've already auto-submitted to prevent double-firing
+  const autoSubmittedRef = useRef(false);
+
+  // Reset auto-submitted flag when pending decisions change (e.g., after unassign)
+  const assignDecision = pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'ASSIGN_DICE');
+  useEffect(() => {
+    if (assignDecision) {
+      autoSubmittedRef.current = false;
+    }
+  }, [assignDecision?.timeoutAt]);
+
   const handleAssignExpire = useCallback(() => {
+    if (autoSubmittedRef.current) return;
     if (!diceRoll || diceRoll.length === 0) return;
+    autoSubmittedRef.current = true;
+
     const currentSlots = [...slotsRef.current];
     const diceCount = diceRoll.length;
     const sortedActions = [...ACTIONS].sort((a, b) => a.number - b.number);
@@ -141,6 +155,21 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       onAssign(assignments);
     }
   }, [diceRoll, onAssign]);
+
+  // Fire auto-submit 3 seconds BEFORE server timeout to win the race.
+  // The server auto-resolves at timeoutAt and would ignore partial assignments,
+  // so we submit the client's current state early to preserve player choices.
+  useEffect(() => {
+    if (!assignDecision || !diceRoll || diceRoll.length === 0) return;
+    const earlyMs = assignDecision.timeoutAt - Date.now() - 3000;
+    if (earlyMs <= 0) {
+      // Already past the early-submit window — fire immediately
+      handleAssignExpire();
+      return;
+    }
+    const timer = setTimeout(handleAssignExpire, earlyMs);
+    return () => clearTimeout(timer);
+  }, [assignDecision?.timeoutAt, diceRoll, handleAssignExpire]);
 
   // ── ROLL STEP ──
   if (!hasRolled) {
@@ -256,7 +285,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       {/* Countdown */}
       {pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE').length > 0 && (
         <div className="mb-3">
-          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} onExpire={handleAssignExpire} />
+          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} />
         </div>
       )}
 

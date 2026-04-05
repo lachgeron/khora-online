@@ -16,6 +16,7 @@
 import type { GameState, PlayerState, ActionType, PoliticsCard, ActionChoices } from '@khora/shared';
 import { createMinorToken } from './knowledge-tokens';
 import { applyEffectToPlayer } from './effects';
+import { advanceTrack } from './resources';
 
 // ─── ONGOING CARD TRIGGERS ───────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ export const ONGOING_HANDLERS: OngoingCardHandler[] = [
 
   // Persians: +2 troops on culture action
   { cardId: 'persians', trigger: { type: 'ON_ACTION', actionType: 'CULTURE' },
-    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: Math.min(p.troopTrack + 2, 15) })) },
+    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: p.troopTrack + 2 })) },
 
   // Extraordinary Collection: +2 Drachma when you play a card (excluding this one)
   { cardId: 'extraordinary-collection', trigger: { type: 'ON_PLAY_CARD' },
@@ -62,7 +63,7 @@ export const ONGOING_HANDLERS: OngoingCardHandler[] = [
   // Diolkos: +1 Drachma, +1 troop, +1 VP on trade action
   { cardId: 'diolkos', trigger: { type: 'ON_ACTION', actionType: 'TRADE' },
     apply: (s, pid) => updatePlayer(s, pid, p => ({
-      ...p, coins: p.coins + 1, troopTrack: Math.min(p.troopTrack + 1, 15), victoryPoints: p.victoryPoints + 1,
+      ...p, coins: p.coins + 1, troopTrack: p.troopTrack + 1, victoryPoints: p.victoryPoints + 1,
     })) },
 
   // Corinthian Columns: minor knowledge cost reduced from 5 to 3 on trade
@@ -73,7 +74,7 @@ export const ONGOING_HANDLERS: OngoingCardHandler[] = [
 
   // Foreign Supplies: +2 troops on trade action
   { cardId: 'foreign-supplies', trigger: { type: 'ON_ACTION', actionType: 'TRADE' },
-    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: Math.min(p.troopTrack + 2, 15) })) },
+    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: p.troopTrack + 2 })) },
 
   // Gradualism: pay 1 less Drachma on progress — handled as modifier in progress phase
   { cardId: 'gradualism', trigger: { type: 'ON_PROGRESS_PHASE' },
@@ -117,7 +118,7 @@ export const ONGOING_HANDLERS: OngoingCardHandler[] = [
 
   // Stadion: +2 troops during tax phase
   { cardId: 'stadion', trigger: { type: 'ON_TAX_PHASE' },
-    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: Math.min(p.troopTrack + 2, 15) })) },
+    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: p.troopTrack + 2 })) },
 
   // Lighthouse: +3 VP on trade action
   { cardId: 'lighthouse', trigger: { type: 'ON_ACTION', actionType: 'TRADE' },
@@ -222,11 +223,11 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, ch
   // Silver Mining: gain 2 taxes
   'silver-mining': (s, pid) => updatePlayer(s, pid, p => ({ ...p, taxTrack: p.taxTrack + 2 })),
 
-  // Peripteros: move up 1 culture for free
-  'peripteros': (s, pid) => updatePlayer(s, pid, p => ({ ...p, cultureTrack: p.cultureTrack + 1 })),
+  // Peripteros: move up 1 culture for free (with milestone rewards)
+  'peripteros': (s, pid) => updatePlayer(s, pid, p => advanceTrack(p, 'CULTURE', 1)),
 
   // Greek Fire: gain 4 troops
-  'greek-fire': (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: Math.min(p.troopTrack + 4, 15) })),
+  'greek-fire': (s, pid) => updatePlayer(s, pid, p => ({ ...p, troopTrack: p.troopTrack + 4 })),
 
   // Contribution: gain 1 Drachma per minor token
   'contribution': (s, pid) => updatePlayer(s, pid, p => {
@@ -236,10 +237,10 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, ch
 
   // Mercenary Recruitment: gain troops equal to economy track level
   'mercenary-recruitment': (s, pid) => updatePlayer(s, pid, p => ({
-    ...p, troopTrack: Math.min(p.troopTrack + p.economyTrack, 15),
+    ...p, troopTrack: p.troopTrack + p.economyTrack,
   })),
 
-  // Rivalry: if all others have higher military, move up 1 military for free
+  // Rivalry: if all others have higher military, move up 1 military for free (with milestone rewards)
   'rivalry': (s, pid) => {
     const player = s.players.find(p => p.playerId === pid);
     if (!player) return s;
@@ -247,7 +248,7 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, ch
       .filter(p => p.playerId !== pid && p.isConnected)
       .every(p => p.militaryTrack > player.militaryTrack);
     if (!allOthersHigher) return s;
-    return updatePlayer(s, pid, p => ({ ...p, militaryTrack: p.militaryTrack + 1 }));
+    return updatePlayer(s, pid, p => advanceTrack(p, 'MILITARY', 1));
   },
 
   // Council: draw 2 cards from the deck

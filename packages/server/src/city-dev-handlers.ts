@@ -9,6 +9,7 @@
 import type { GameState, PlayerState } from '@khora/shared';
 import type { ActionChoices } from '@khora/shared';
 import { explore } from './knowledge-tokens';
+import { advanceTrack } from './resources';
 
 function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) => PlayerState): GameState {
   const idx = state.players.findIndex(p => p.playerId === playerId);
@@ -28,23 +29,17 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     ...p, taxTrack: p.taxTrack + p.knowledgeTokens.length,
   })),
 
-  // Miletus dev 2: Choose 2 tracks, move up 1 each free
+  // Miletus dev 2: Choose 2 tracks, move up 1 each free (with milestone rewards)
   'miletus-dev-2': (s, pid, choices) => {
     const tracks = choices?.devTrackChoices;
     if (!tracks || tracks.length !== 2) {
       // Fallback: advance economy and culture
-      return updatePlayer(s, pid, p => ({
-        ...p, economyTrack: p.economyTrack + 1, cultureTrack: p.cultureTrack + 1,
-      }));
+      return updatePlayer(s, pid, p => advanceTrack(advanceTrack(p, 'ECONOMY', 1), 'CULTURE', 1));
     }
     return updatePlayer(s, pid, p => {
-      const updated = { ...p };
+      let updated = p;
       for (const track of tracks) {
-        switch (track) {
-          case 'ECONOMY': updated.economyTrack += 1; break;
-          case 'CULTURE': updated.cultureTrack += 1; break;
-          case 'MILITARY': updated.militaryTrack += 1; break;
-        }
+        updated = advanceTrack(updated, track, 1);
       }
       return updated;
     });
@@ -55,7 +50,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
   'sparta-dev-3': (s, pid, choices) => {
     // Step 1: Gain troops = militaryTrack * 2 (two military actions worth)
     let state = updatePlayer(s, pid, p => ({
-      ...p, troopTrack: Math.min(p.troopTrack + p.militaryTrack * 2, 15),
+      ...p, troopTrack: p.troopTrack + p.militaryTrack * 2,
     }));
 
     // Step 2: Optionally explore up to 2 knowledge tokens
@@ -81,7 +76,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     const reward = choices?.argosDevReward ?? 'vp';
     return updatePlayer(s, pid, p => {
       switch (reward) {
-        case 'troops': return { ...p, troopTrack: Math.min(p.troopTrack + 2, 15) };
+        case 'troops': return { ...p, troopTrack: p.troopTrack + 2 };
         case 'coins': return { ...p, coins: p.coins + 3 };
         case 'vp': return { ...p, victoryPoints: p.victoryPoints + 4 };
         case 'citizens': return { ...p, citizenTrack: Math.min(p.citizenTrack + 5, 15) };
@@ -135,7 +130,7 @@ export function applyOngoingDevEffects(
   // Olympia dev 2: +1 troop +1 scroll on culture action
   if (actionType === 'CULTURE' && hasDevUnlocked(player, 'olympia-dev-2')) {
     state = updatePlayer(state, playerId, p => ({
-      ...p, troopTrack: Math.min(p.troopTrack + 1, 15), philosophyTokens: p.philosophyTokens + 1,
+      ...p, troopTrack: p.troopTrack + 1, philosophyTokens: p.philosophyTokens + 1,
     }));
   }
 
@@ -149,7 +144,7 @@ export function applyOngoingDevEffects(
   // Athens dev 3: When you play a card (politics action), gain 2 troops
   if (actionType === 'POLITICS' && hasDevUnlocked(player, 'athens-dev-3')) {
     state = updatePlayer(state, playerId, p => ({
-      ...p, troopTrack: Math.min(p.troopTrack + 2, 15),
+      ...p, troopTrack: p.troopTrack + 2,
     }));
   }
 

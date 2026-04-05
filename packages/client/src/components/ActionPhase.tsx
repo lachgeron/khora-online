@@ -58,6 +58,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
   const [buyToken, setBuyToken] = useState(false);
   const [tokenColor, setTokenColor] = useState<KnowledgeColor>('GREEN');
   const [exploreTokenId, setExploreTokenId] = useState('');
+  const [secondExploreTokenId, setSecondExploreTokenId] = useState('');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [useScrollsForCard, setUseScrollsForCard] = useState(false);
   const [useScrollsForDev, setUseScrollsForDev] = useState(false);
@@ -348,42 +349,90 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
       })()}
 
       {/* ── MILITARY ── */}
-      {actionType === 'MILITARY' && (
-        <div className="space-y-4">
-          <div className="rounded-lg bg-terracotta/10 border border-terracotta/30 p-3">
-            <p className="text-sm font-medium" style={{ color: '#b85c38' }}>
-              Gain <span className="font-bold">{playerMilitaryTrack ?? 0}</span> troops from Military track
-            </p>
-            <p className="text-xs text-sand-500 mt-0.5">
-              Troops: {playerTroopTrack ?? 0} → <span className="font-bold text-sand-800">{(playerTroopTrack ?? 0) + (playerMilitaryTrack ?? 0)}</span>
-            </p>
-          </div>
-
-          {centralBoardTokens && centralBoardTokens.length > 0 && (
-            <KnowledgeStore
-              tokens={centralBoardTokens}
-              selectedTokenId={exploreTokenId || undefined}
-              onSelectToken={(id) => setExploreTokenId(id ?? '')}
-              availableTroops={(playerTroopTrack ?? 0) + (playerMilitaryTrack ?? 0)}
-            />
-          )}
-
-          {exploreTokenId && (
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
-              Token selected — will be explored when you resolve
+      {actionType === 'MILITARY' && (() => {
+        const canExploreTwice = cityId === 'thebes' && (developmentLevel ?? 0) >= 3;
+        const troopsAfterGain = (playerTroopTrack ?? 0) + (playerMilitaryTrack ?? 0); // Can exceed 15 temporarily
+        // Calculate remaining troops after first exploration
+        const firstToken = (centralBoardTokens ?? []).find(t => t.id === exploreTokenId);
+        const troopsAfterFirst = exploreTokenId && firstToken
+          ? Math.max(0, troopsAfterGain - (firstToken.skullValue ?? 0))
+          : troopsAfterGain;
+        const exploreCount = (exploreTokenId ? 1 : 0) + (secondExploreTokenId ? 1 : 0);
+        return (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-terracotta/10 border border-terracotta/30 p-3">
+              <p className="text-sm font-medium" style={{ color: '#b85c38' }}>
+                Gain <span className="font-bold">{playerMilitaryTrack ?? 0}</span> troops from Military track
+              </p>
+              <p className="text-xs text-sand-500 mt-0.5">
+                Troops: {playerTroopTrack ?? 0} → <span className="font-bold text-sand-800">{troopsAfterGain}</span>
+                {troopsAfterGain > 15 && <span className="text-amber-600 ml-1">(capped to 15 after exploring)</span>}
+              </p>
             </div>
-          )}
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onResolve(actionType, exploreTokenId ? { explorationTokenId: exploreTokenId } : {})}
-            className="w-full py-3 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim transition-colors"
-          >
-            Resolve Military{exploreTokenId ? ' + Explore' : ''}
-          </motion.button>
-        </div>
-      )}
+            {centralBoardTokens && centralBoardTokens.length > 0 && (
+              <>
+                <div>
+                  <p className="text-xs font-medium text-sand-600 mb-1">
+                    {canExploreTwice ? 'Select token to explore (1st):' : 'Optionally explore a token:'}
+                  </p>
+                  <KnowledgeStore
+                    tokens={centralBoardTokens}
+                    selectedTokenId={exploreTokenId || undefined}
+                    onSelectToken={(id) => {
+                      if (id === exploreTokenId) {
+                        setExploreTokenId('');
+                        setSecondExploreTokenId('');
+                      } else {
+                        setExploreTokenId(id ?? '');
+                        // Clear second if it's the same as new first
+                        if (id === secondExploreTokenId) setSecondExploreTokenId('');
+                      }
+                    }}
+                    availableTroops={troopsAfterGain}
+                  />
+                </div>
+
+                {canExploreTwice && exploreTokenId && (
+                  <div>
+                    <p className="text-xs font-medium text-sand-600 mb-1">
+                      Select token to explore (2nd) — <span className="text-purple-600">Thebes: Explore Twice</span>:
+                    </p>
+                    <KnowledgeStore
+                      tokens={centralBoardTokens.filter(t => t.id !== exploreTokenId)}
+                      selectedTokenId={secondExploreTokenId || undefined}
+                      onSelectToken={(id) => {
+                        setSecondExploreTokenId(id === secondExploreTokenId ? '' : (id ?? ''));
+                      }}
+                      availableTroops={troopsAfterFirst}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {exploreCount > 0 && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
+                {exploreCount === 1 ? '1 token selected' : '2 tokens selected'} — will be explored when you resolve
+              </div>
+            )}
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                const choices: ActionChoices = {};
+                if (exploreTokenId) choices.explorationTokenId = exploreTokenId;
+                if (secondExploreTokenId) choices.secondExplorationTokenId = secondExploreTokenId;
+                onResolve(actionType, choices);
+              }}
+              className="w-full py-3 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim transition-colors"
+            >
+              Resolve Military{exploreCount > 0 ? ` + Explore${exploreCount > 1 ? ' ×2' : ''}` : ''}
+            </motion.button>
+          </div>
+        );
+      })()}
 
       {/* ── LEGISLATION ── */}
       {actionType === 'LEGISLATION' && (
@@ -636,7 +685,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             const militaryTrack = playerMilitaryTrack ?? 0;
             const troopTrack = playerTroopTrack ?? 0;
             // After gaining troops from 2 military actions, available troops
-            const troopsAfterGain = Math.min(troopTrack + militaryTrack * 2, 15);
+            const troopsAfterGain = troopTrack + militaryTrack * 2; // Can exceed 15 temporarily
             const boardTokens = centralBoardTokens ?? [];
             if (boardTokens.length === 0) return null;
             const toggleSpartaToken = (tokenId: string) => {
