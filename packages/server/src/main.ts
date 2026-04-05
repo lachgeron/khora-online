@@ -279,22 +279,51 @@ wss.on('connection', (ws, req) => {
         const handIdx = player.handCards.findIndex(c => c.id === message.handCardId);
         const deckIdx = currentState.politicsDeck.findIndex(c => c.id === message.deckCardId);
         if (handIdx === -1 || deckIdx === -1) return;
+
+        // Guard: the two cards must be different (no self-swap)
+        if (message.handCardId === message.deckCardId) return;
+
         const removedFromHand = player.handCards[handIdx];
         const removedFromDeck = currentState.politicsDeck[deckIdx];
         const newHandCards = [...player.handCards];
         newHandCards[handIdx] = removedFromDeck;
         const newDeck = [...currentState.politicsDeck];
         newDeck[deckIdx] = removedFromHand;
+
+        // Deduplicate: collect every card ID across all players' hands,
+        // played cards, and the deck. If a card appears more than once,
+        // remove extras from the deck to prevent duplicate draws.
+        const allCardIds = new Set<string>();
+        const updatedPlayers = currentState.players.map(p => {
+          const hand = p.playerId === playerId ? newHandCards : [...p.handCards];
+          for (const c of hand) allCardIds.add(c.id);
+          for (const c of p.playedCards) allCardIds.add(c.id);
+          return p.playerId === playerId ? { ...p, handCards: hand } : p;
+        });
+        const seenInDeck = new Set<string>();
+        const deduplicatedDeck = newDeck.filter(c => {
+          if (allCardIds.has(c.id) || seenInDeck.has(c.id)) {
+            console.warn(`[ADMIN_SWAP] Removing duplicate card "${c.id}" from deck`);
+            return false;
+          }
+          seenInDeck.add(c.id);
+          return true;
+        });
+
         const updatedState: typeof currentState = {
           ...currentState,
-          politicsDeck: newDeck,
-          players: currentState.players.map(p =>
-            p.playerId === playerId ? { ...p, handCards: newHandCards } : p,
-          ),
+          politicsDeck: deduplicatedDeck,
+          players: updatedPlayers,
           updatedAt: Date.now(),
         };
         games.set(gameId, updatedState);
         wsGateway.broadcastToGame(gameId, updatedState);
+
+        // Auto-send updated deck back so the admin modal refreshes immediately
+        wsGateway.sendToPlayer(gameId, playerId, {
+          type: 'ADMIN_DECK_RESPONSE',
+          deckCards: deduplicatedDeck,
+        });
         return;
       }
 

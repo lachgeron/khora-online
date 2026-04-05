@@ -459,7 +459,6 @@ export const App: React.FC = () => {
           deckCards={adminDeckCards}
           onSwap={(handCardId, deckCardId) => {
             sendMessage({ type: 'ADMIN_SWAP_CARD', handCardId, deckCardId });
-            sendMessage({ type: 'ADMIN_REQUEST_DECK' });
           }}
           onClose={deactivateAdmin}
         />

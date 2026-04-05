@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import type { PoliticsCard } from '../types';
 
 interface AdminSwapModalProps {
@@ -57,6 +57,7 @@ export const AdminSwapModal: React.FC<AdminSwapModalProps> = ({
   const [selectedHand, setSelectedHand] = useState<string | null>(null);
   const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const swappingRef = useRef(false);
 
   const filteredDeck = filter
     ? deckCards.filter(c =>
@@ -66,13 +67,16 @@ export const AdminSwapModal: React.FC<AdminSwapModalProps> = ({
       )
     : deckCards;
 
-  const handleSwap = () => {
-    if (selectedHand && selectedDeck) {
+  const handleSwap = useCallback(() => {
+    if (selectedHand && selectedDeck && !swappingRef.current) {
+      swappingRef.current = true;
       onSwap(selectedHand, selectedDeck);
       setSelectedHand(null);
       setSelectedDeck(null);
+      // Re-enable after a short delay to allow deck data to refresh
+      setTimeout(() => { swappingRef.current = false; }, 500);
     }
-  };
+  }, [selectedHand, selectedDeck, onSwap]);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
