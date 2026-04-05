@@ -40,7 +40,7 @@ export class OmenPhaseManager implements PhaseManager {
       pendingDecisions: [{
         playerId: '__display__',
         decisionType: 'PHASE_DISPLAY' as const,
-        timeoutAt: now + 5_000,
+        timeoutAt: now + 15_000,
         options: null as unknown,
       }],
     };

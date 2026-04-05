@@ -331,9 +331,12 @@ export class GameEngine {
         gloryTrack: p.gloryTrack,
         troopTrack: p.troopTrack,
         citizenTrack: p.citizenTrack,
+        coins: p.coins,
+        philosophyTokens: p.philosophyTokens,
+        knowledgeTokens: p.knowledgeTokens,
         handCardCount: p.handCards.length,
         playedCardCount: p.playedCards.length,
-        playedCardSummaries: p.playedCards.map(c => ({ name: c.name, type: c.type })),
+        playedCardSummaries: p.playedCards.map(c => ({ name: c.name, type: c.type, description: c.description })),
         knowledgeTokenCount: p.knowledgeTokens.length,
         developmentLevel: p.developmentLevel,
         victoryPoints: p.victoryPoints,
@@ -351,6 +354,7 @@ export class GameEngine {
       })),
       cityDraft: publicCityDraft,
       politicsDraft: publicPoliticsDraft,
+      finalScores: state.finalScores ?? null,
     };
 
     // Build private draft state for this player

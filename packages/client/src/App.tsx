@@ -22,6 +22,7 @@ import { WaitingPanel } from './components/WaitingPanel';
 import { ProgressPhase } from './components/ProgressPhase';
 import { AchievementPhase } from './components/AchievementPhase';
 import { GloryEventPanel } from './components/GloryEventPanel';
+import { StandingsRecap } from './components/StandingsRecap';
 import { GameSummary } from './components/GameSummary';
 import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
@@ -285,61 +286,64 @@ export const App: React.FC = () => {
               onActivateDev={(devId) => sendMessage({ type: 'ACTIVATE_DEV', devId })}
             >
               {gameState.currentPhase === 'OMEN' && gameState.currentEvent && (
-                <div className="text-center py-6">
-                  <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-4">Event Announcement</p>
-                  <motion.div
-                    layoutId="event-card"
-                    className="inline-block bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-5 py-4 shadow-lg"
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  >
-                    <p className="font-display text-lg font-bold text-sand-800">{gameState.currentEvent.name}</p>
-                    <p className="mt-2 font-display text-base font-semibold text-gold-dim leading-snug"
-                      style={{ textShadow: '0 0 12px rgba(201,168,76,0.25)' }}
+                <div className="py-6">
+                  <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-4 text-center">Event Announcement</p>
+                  <div className="flex justify-center">
+                    <motion.div
+                      layoutId="event-card"
+                      className="inline-block bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-5 py-4 shadow-lg"
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     >
-                      {gameState.currentEvent.gloryCondition.description}
-                    </p>
-                  </motion.div>
-                  <p className="text-xs text-sand-400 mt-5 animate-pulse">Continuing shortly...</p>
+                      <p className="font-display text-lg font-bold text-sand-800 text-center">{gameState.currentEvent.name}</p>
+                      <p className="mt-2 font-display text-base font-semibold text-gold-dim leading-snug text-center"
+                        style={{ textShadow: '0 0 12px rgba(201,168,76,0.25)' }}
+                      >
+                        {gameState.currentEvent.gloryCondition.description}
+                      </p>
+                    </motion.div>
+                  </div>
+                  <p className="text-xs text-sand-400 mt-5 text-center animate-pulse">Continuing shortly...</p>
+                  <StandingsRecap
+                    gameState={gameState}
+                    currentPlayerId={currentPlayerId}
+                    title={`Round ${gameState.roundNumber} Starting Positions`}
+                    baseDelay={0.8}
+                  />
                 </div>
               )}
 
-              {gameState.currentPhase === 'TAXATION' && (
-                <div className="py-4">
-                  <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Tax Collection</p>
-                  <div className="space-y-1.5">
-                    {gameState.players.map(p => {
-                      const entries = gameState.gameLog
-                        .filter(e => e.roundNumber === gameState.roundNumber && e.phase === 'TAXATION' && e.playerId === p.playerId);
-                      const taxIncome = (entries.find(e => e.details?.taxIncome != null)?.details?.taxIncome as number) ?? 0;
-                      const vpGain = (entries.find(e => e.details?.vpGain != null)?.details?.vpGain as number) ?? 0;
-                      const troopGain = (entries.find(e => e.details?.troopGain != null)?.details?.troopGain as number) ?? 0;
-                      const extraCoins = (entries.find(e => e.details?.extraCoins != null)?.details?.extraCoins as number) ?? 0;
-                      const citizenGain = (entries.find(e => e.details?.citizenGain != null)?.details?.citizenGain as number) ?? 0;
-                      const isMe = p.playerId === currentPlayerId;
-                      const hasBonuses = vpGain > 0 || troopGain > 0 || extraCoins > 0 || citizenGain > 0;
-                      return (
-                        <div key={p.playerId} className={`rounded-lg px-3 py-2 ${isMe ? 'bg-gold/10 border border-gold/30' : 'bg-sand-100'}`}>
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm ${isMe ? 'font-semibold text-sand-800' : 'text-sand-600'}`}>
-                              {p.playerName}{isMe ? ' (you)' : ''}
-                            </span>
-                            <span className="text-sm font-semibold text-amber-700">+{taxIncome} 💰</span>
-                          </div>
-                          {hasBonuses && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {vpGain > 0 && <span className="text-[0.65rem] font-medium text-emerald-700">+{vpGain} ★</span>}
-                              {troopGain > 0 && <span className="text-[0.65rem] font-medium text-sand-600">+{troopGain} ⚔️</span>}
-                              {extraCoins > 0 && <span className="text-[0.65rem] font-medium text-amber-600">+{extraCoins} 💰</span>}
-                              {citizenGain > 0 && <span className="text-[0.65rem] font-medium text-sky-700">+{citizenGain} 👤</span>}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+              {gameState.currentPhase === 'TAXATION' && (() => {
+                // Build per-player tax effects
+                const taxEffects: Record<string, { text: string; type: 'gain' | 'loss' | 'action' }[]> = {};
+                for (const p of gameState.players) {
+                  const entries = gameState.gameLog
+                    .filter(e => e.roundNumber === gameState.roundNumber && e.phase === 'TAXATION' && e.playerId === p.playerId);
+                  const effects: { text: string; type: 'gain' | 'loss' | 'action' }[] = [];
+                  const taxIncome = (entries.find(e => e.details?.taxIncome != null)?.details?.taxIncome as number) ?? 0;
+                  if (taxIncome > 0) effects.push({ text: `+${taxIncome} coins`, type: 'gain' });
+                  const vpGain = (entries.find(e => e.details?.vpGain != null)?.details?.vpGain as number) ?? 0;
+                  if (vpGain > 0) effects.push({ text: `+${vpGain} VP`, type: 'gain' });
+                  const troopGain = (entries.find(e => e.details?.troopGain != null)?.details?.troopGain as number) ?? 0;
+                  if (troopGain > 0) effects.push({ text: `+${troopGain} troops`, type: 'gain' });
+                  const extraCoins = (entries.find(e => e.details?.extraCoins != null)?.details?.extraCoins as number) ?? 0;
+                  if (extraCoins > 0) effects.push({ text: `+${extraCoins} coins (cards)`, type: 'gain' });
+                  const citizenGain = (entries.find(e => e.details?.citizenGain != null)?.details?.citizenGain as number) ?? 0;
+                  if (citizenGain > 0) effects.push({ text: `+${citizenGain} citizens`, type: 'gain' });
+                  if (effects.length > 0) taxEffects[p.playerId] = effects;
+                }
+                return (
+                  <div className="py-4">
+                    <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Tax Collection</p>
+                    <p className="text-xs text-sand-400 text-center animate-pulse">Continuing shortly...</p>
+                    <StandingsRecap
+                      gameState={gameState}
+                      currentPlayerId={currentPlayerId}
+                      playerEffects={taxEffects}
+                      title="After Taxes"
+                    />
                   </div>
-                  <p className="text-xs text-sand-400 mt-4 text-center animate-pulse">Continuing shortly...</p>
-                </div>
-              )}
+                );
+              })()}
 
               {gameState.currentPhase === 'GLORY' && gameState.currentEvent && (
                 <GloryEventPanel
@@ -427,8 +431,7 @@ export const App: React.FC = () => {
 
               {gameState.currentPhase === 'ACHIEVEMENT' && (
                 <AchievementPhase
-                  claimableAchievements={gameState.availableAchievements}
-                  pendingDecisions={gameState.pendingDecisions}
+                  gameState={gameState}
                   currentPlayerId={currentPlayerId}
                   onClaim={handleClaimAchievement}
                   onSkip={handleSkipPhase}

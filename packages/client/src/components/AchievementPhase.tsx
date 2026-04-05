@@ -1,23 +1,25 @@
 import React, { useState } from 'react';
-import type { AchievementToken } from '../types';
+import type { PublicGameState } from '../types';
 import { CountdownTimer } from './CountdownTimer';
+import { StandingsRecap } from './StandingsRecap';
+import type { PlayerEffect } from './StandingsRecap';
 
 export interface AchievementPhaseProps {
-  claimableAchievements: AchievementToken[];
-  pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number }[];
+  gameState: PublicGameState;
   currentPlayerId: string;
   onClaim: (achievementId: string, trackChoice: 'TAX' | 'GLORY') => void;
   onSkip: () => void;
 }
 
 export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
-  claimableAchievements,
-  pendingDecisions,
+  gameState,
   currentPlayerId,
   onClaim,
   onSkip,
 }) => {
   const [trackChoice, setTrackChoice] = useState<'TAX' | 'GLORY'>('TAX');
+
+  const { pendingDecisions, availableAchievements: claimableAchievements } = gameState;
 
   const myPending = pendingDecisions.filter(
     d => d.playerId === currentPlayerId && d.decisionType === 'ACHIEVEMENT_TRACK_CHOICE',
@@ -25,6 +27,19 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
   const othersWaiting = pendingDecisions.some(
     d => d.playerId !== currentPlayerId && d.decisionType === 'ACHIEVEMENT_TRACK_CHOICE',
   );
+  const showRecap = myPending.length === 0 && !othersWaiting;
+
+  // Build achievement effect badges from game log
+  const achievementEffects: Record<string, PlayerEffect[]> = {};
+  for (const entry of gameState.gameLog) {
+    if (entry.roundNumber === gameState.roundNumber && entry.phase === 'ACHIEVEMENT' && entry.playerId) {
+      if (!achievementEffects[entry.playerId]) achievementEffects[entry.playerId] = [];
+      if (entry.action.startsWith('Claimed achievement:')) {
+        const name = entry.action.replace('Claimed achievement: ', '');
+        achievementEffects[entry.playerId].push({ text: name, type: 'gain' });
+      }
+    }
+  }
 
   return (
     <div>
@@ -36,7 +51,7 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
       {myPending.length > 0 ? (
         <div className="space-y-3">
           <p className="text-sm text-sand-600">
-            🏆 You earned {myPending.length} achievement{myPending.length > 1 ? 's' : ''}! Choose a reward for each:
+            You earned {myPending.length} achievement{myPending.length > 1 ? 's' : ''}! Choose a reward for each:
           </p>
           <div className="rounded-xl border-2 border-gold bg-gold/5 p-5">
             <p className="text-xs font-display uppercase tracking-[0.12em] text-sand-500 mb-1">
@@ -52,7 +67,7 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
                     : 'border-sand-300 bg-sand-50 text-sand-600 hover:border-sand-400'
                 }`}
               >
-                💰 +1 Tax
+                +1 Tax
               </button>
               <button
                 onClick={() => setTrackChoice('GLORY')}
@@ -62,7 +77,7 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
                     : 'border-sand-300 bg-sand-50 text-sand-600 hover:border-sand-400'
                 }`}
               >
-                👑 +1 Glory
+                +1 Glory
               </button>
             </div>
             <button
@@ -110,6 +125,18 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
         >
           Continue
         </button>
+      )}
+
+      {showRecap && (
+        <>
+          <p className="text-xs text-sand-400 mt-4 text-center animate-pulse">Continuing shortly...</p>
+          <StandingsRecap
+            gameState={gameState}
+            currentPlayerId={currentPlayerId}
+            playerEffects={achievementEffects}
+            title={`End of Round ${gameState.roundNumber}`}
+          />
+        </>
       )}
     </div>
   );
