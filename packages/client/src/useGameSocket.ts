@@ -13,6 +13,7 @@ export interface GameSocketState {
   connected: boolean;
   adminDeckCards: PoliticsCard[] | null;
   adminEventCards: EventCard[] | null;
+  adminUnusedEvents: EventCard[] | null;
 }
 
 export function useGameSocket(gameId: string | null, playerId: string | null) {
@@ -25,6 +26,7 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
     connected: false,
     adminDeckCards: null,
     adminEventCards: null,
+    adminUnusedEvents: null,
   });
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
       } else if (msg.type === 'ADMIN_DECK_RESPONSE') {
         setState((s) => ({ ...s, adminDeckCards: msg.deckCards }));
       } else if (msg.type === 'ADMIN_EVENTS_RESPONSE') {
-        setState((s) => ({ ...s, adminEventCards: msg.eventCards }));
+        setState((s) => ({ ...s, adminEventCards: msg.eventCards, adminUnusedEvents: msg.unusedEvents }));
       } else if (msg.type === 'ERROR') {
         setState((s) => ({ ...s, error: msg.message }));
       }

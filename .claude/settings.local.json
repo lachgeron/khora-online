@@ -4,7 +4,8 @@
       "Bash(xargs head:*)",
       "Bash(python3 -c:*)",
       "Bash(node -e \":*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)"
     ]
   }
 }

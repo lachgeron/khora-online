@@ -10,6 +10,7 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage, GameState } from '@khora/shared';
 import { activateDev } from './city-dev-handlers';
+import { RANDOM_EVENTS, STARTING_EVENT, FINAL_EVENT } from './game-data';
 import { LobbyManager, generatePlayerId } from './lobby';
 import { RestApiHandler } from './api/rest-api';
 import { WebSocketGateway } from './api/websocket-gateway';
@@ -298,20 +299,32 @@ wss.on('connection', (ws, req) => {
       }
 
       if (message.type === 'ADMIN_REQUEST_EVENTS') {
+        // Collect all event IDs currently in the deck + already revealed (currentEvent)
+        const usedIds = new Set(currentState.eventDeck.map(c => c.id));
+        if (currentState.currentEvent) usedIds.add(currentState.currentEvent.id);
+        // Unused = random events not in the current deck or already played
+        const unusedEvents = RANDOM_EVENTS.filter(c => !usedIds.has(c.id));
         wsGateway.sendToPlayer(gameId, playerId, {
           type: 'ADMIN_EVENTS_RESPONSE',
           eventCards: currentState.eventDeck,
+          unusedEvents,
         });
         return;
       }
 
       if (message.type === 'ADMIN_REORDER_EVENTS') {
+        // Build a lookup from both the current deck and the full event pool
+        const allEvents = [...RANDOM_EVENTS, STARTING_EVENT, FINAL_EVENT];
+        const eventById = new Map(allEvents.map(c => [c.id, c]));
+        // Also include anything already in the deck (in case of custom events)
+        for (const c of currentState.eventDeck) eventById.set(c.id, c);
+
         const newOrder: typeof currentState.eventDeck = [];
         for (const id of message.eventOrder) {
-          const card = currentState.eventDeck.find(c => c.id === id);
+          const card = eventById.get(id);
           if (card) newOrder.push(card);
         }
-        // Only apply if all cards accounted for
+        // Only apply if the deck size stays the same (swaps, not additions/removals)
         if (newOrder.length === currentState.eventDeck.length) {
           const updatedState = { ...currentState, eventDeck: newOrder, updatedAt: Date.now() };
           games.set(gameId, updatedState);

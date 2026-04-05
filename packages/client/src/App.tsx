@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, LayoutGroup } from 'framer-motion';
 import { ACTION_NUMBERS } from './types';
 import type {
   PlayerInfo,
@@ -38,7 +39,7 @@ export const App: React.FC = () => {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
 
-  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards } =
+  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
     useGameSocket(gameId, currentPlayerId);
 
   const { adminPanel, deactivateAdmin } = useAdminMode();
@@ -274,6 +275,7 @@ export const App: React.FC = () => {
           )}
 
           {gameState.currentPhase !== 'CITY_SELECTION' && gameState.currentPhase !== 'DRAFT_POLITICS' && (
+            <LayoutGroup>
             <GameBoard
               gameState={gameState}
               privateState={privateState}
@@ -283,11 +285,21 @@ export const App: React.FC = () => {
               onActivateDev={(devId) => sendMessage({ type: 'ACTIVATE_DEV', devId })}
             >
               {gameState.currentPhase === 'OMEN' && gameState.currentEvent && (
-                <div className="text-center py-4">
-                  <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3">Event Announcement</p>
-                  <p className="font-display text-lg font-bold text-sand-800">{gameState.currentEvent.name}</p>
-                  <p className="text-sm text-sand-600 mt-2">{gameState.currentEvent.gloryCondition.description}</p>
-                  <p className="text-xs text-sand-400 mt-4 animate-pulse">Continuing shortly...</p>
+                <div className="text-center py-6">
+                  <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-4">Event Announcement</p>
+                  <motion.div
+                    layoutId="event-card"
+                    className="inline-block bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-5 py-4 shadow-lg"
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  >
+                    <p className="font-display text-lg font-bold text-sand-800">{gameState.currentEvent.name}</p>
+                    <p className="mt-2 font-display text-base font-semibold text-gold-dim leading-snug"
+                      style={{ textShadow: '0 0 12px rgba(201,168,76,0.25)' }}
+                    >
+                      {gameState.currentEvent.gloryCondition.description}
+                    </p>
+                  </motion.div>
+                  <p className="text-xs text-sand-400 mt-5 animate-pulse">Continuing shortly...</p>
                 </div>
               )}
 
@@ -423,6 +435,7 @@ export const App: React.FC = () => {
                 />
               )}
             </GameBoard>
+            </LayoutGroup>
           )}
         </div>
         );
@@ -443,9 +456,11 @@ export const App: React.FC = () => {
       {adminPanel === 'events' && adminEventCards && (
         <AdminEventModal
           eventCards={adminEventCards}
+          unusedEvents={adminUnusedEvents ?? []}
           currentRound={gameState?.roundNumber ?? 1}
           onReorder={(eventOrder) => {
             sendMessage({ type: 'ADMIN_REORDER_EVENTS', eventOrder });
+            sendMessage({ type: 'ADMIN_REQUEST_EVENTS' });
           }}
           onClose={deactivateAdmin}
         />

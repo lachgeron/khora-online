@@ -52,7 +52,7 @@ export type ServerMessage =
   | { type: 'GAME_OVER'; finalScores: FinalScoreBoard }
   | { type: 'ERROR'; code: string; message: string }
   | { type: 'ADMIN_DECK_RESPONSE'; deckCards: PoliticsCard[] }
-  | { type: 'ADMIN_EVENTS_RESPONSE'; eventCards: EventCard[] };
+  | { type: 'ADMIN_EVENTS_RESPONSE'; eventCards: EventCard[]; unusedEvents: EventCard[] };
 
 // ---------------------------------------------------------------------------
 // Visibility-filtered state

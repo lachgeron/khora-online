@@ -139,12 +139,16 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
 
       {/* ── Right sidebar: Event, Players, Achievements ── */}
       <div className="row-span-2 flex flex-col gap-3 overflow-y-auto">
-        {/* Event */}
-        {gameState.currentEvent && (
-          <div className="bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-4 py-3">
+        {/* Event — hidden during OMEN so the announcement's layoutId animates here on phase change */}
+        {gameState.currentEvent && gameState.currentPhase !== 'OMEN' && (
+          <motion.div
+            layoutId="event-card"
+            className="bg-gradient-to-br from-sand-200 to-sand-100 border-2 border-gold rounded-lg px-4 py-3"
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          >
             <p className="font-display text-sm font-semibold text-sand-800">{gameState.currentEvent.name}</p>
             <p className="text-xs text-sand-600 mt-0.5">{gameState.currentEvent.gloryCondition.description}</p>
-          </div>
+          </motion.div>
         )}
 
         {/* Info panels */}
