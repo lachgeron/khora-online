@@ -44,6 +44,8 @@ export interface ActionChoices {
   ostracismReturnCardId?: string;
   /** Argos dev 2 reward choice: 'troops' | 'coins' | 'vp' | 'citizens'. */
   argosDevReward?: 'troops' | 'coins' | 'vp' | 'citizens';
+  /** Token IDs to explore during Sparta dev-3 (Take 2 military actions). Up to 2. */
+  spartaMilitaryTokenIds?: string[];
 }
 
 /** A decision the server is waiting on from a specific player. */

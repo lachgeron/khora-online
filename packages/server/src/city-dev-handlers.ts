@@ -8,6 +8,7 @@
 
 import type { GameState, PlayerState } from '@khora/shared';
 import type { ActionChoices } from '@khora/shared';
+import { explore } from './knowledge-tokens';
 
 function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) => PlayerState): GameState {
   const idx = state.players.findIndex(p => p.playerId === playerId);
@@ -49,10 +50,26 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     });
   },
 
-  // Sparta dev 3: Take 2 military actions — gain troops equal to military track * 2
-  'sparta-dev-3': (s, pid) => updatePlayer(s, pid, p => ({
-    ...p, troopTrack: Math.min(p.troopTrack + p.militaryTrack * 2, 15),
-  })),
+  // Sparta dev 3: Take 2 military actions — gain troops equal to military track * 2,
+  // then optionally explore up to 2 knowledge tokens
+  'sparta-dev-3': (s, pid, choices) => {
+    // Step 1: Gain troops = militaryTrack * 2 (two military actions worth)
+    let state = updatePlayer(s, pid, p => ({
+      ...p, troopTrack: Math.min(p.troopTrack + p.militaryTrack * 2, 15),
+    }));
+
+    // Step 2: Optionally explore up to 2 knowledge tokens
+    const tokenIds = choices?.spartaMilitaryTokenIds ?? [];
+    for (const tokenId of tokenIds.slice(0, 2)) {
+      if (!tokenId) continue;
+      const result = explore(state, pid, tokenId);
+      if (result.ok) {
+        state = result.value;
+      }
+    }
+
+    return state;
+  },
 
   // Olympia dev 4: Take 3 culture actions — gain VP equal to culture track * 3
   'olympia-dev-4': (s, pid) => updatePlayer(s, pid, p => ({

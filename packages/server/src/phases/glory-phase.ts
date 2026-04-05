@@ -349,11 +349,18 @@ export class GloryPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'INVALID_DECISION', message: `Unknown action type: ${decision.actionType}` } };
     }
 
-    const result = resolver.resolve(state, playerId, decision.choices);
-    if (!result.ok) return result;
+    try {
+      const result = resolver.resolve(state, playerId, decision.choices);
+      if (!result.ok) return result;
 
-    let s = appendLogEntry(result.value, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: `Conquest: took ${decision.actionType} action`, details: { actionType: decision.actionType } });
-    return { ok: true, value: finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId)) };
+      let s = appendLogEntry(result.value, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: `Conquest: took ${decision.actionType} action`, details: { actionType: decision.actionType } });
+      return { ok: true, value: finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId)) };
+    } catch (err) {
+      console.error(`[GloryPhase] Conquest action ${decision.actionType} threw:`, err);
+      // Gracefully skip if the resolver crashes
+      const remaining = state.pendingDecisions.filter(d => d.playerId !== playerId);
+      return { ok: true, value: finishOrDisplay(state, remaining) };
+    }
   }
 
   isComplete(state: GameState): boolean {

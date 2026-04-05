@@ -148,6 +148,16 @@ export function getStateForPlayer(
     }
   }
 
+  // Also provide legislation draw during GLORY phase for Conquest of Persians
+  if (player && state.currentPhase === 'GLORY' && state.politicsDeck.length > 0) {
+    const hasConquestDecision = state.pendingDecisions.some(
+      d => d.playerId === playerId && d.decisionType === 'CONQUEST_ACTION',
+    );
+    if (hasConquestDecision) {
+      legislationDraw = state.politicsDeck.slice(0, Math.min(2, state.politicsDeck.length));
+    }
+  }
+
   const privateState: PrivatePlayerState = player
     ? {
         ...buildPrivatePlayerState(player),

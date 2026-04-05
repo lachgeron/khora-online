@@ -11,7 +11,8 @@ import type {
 import { KnowledgeStore } from './KnowledgeStore';
 import { CountdownTimer } from './CountdownTimer';
 
-const MINOR_KNOWLEDGE_COST = 5;
+const BASE_MINOR_KNOWLEDGE_COST = 5;
+const CORINTHIAN_COLUMNS_COST = 3;
 
 const ACTION_INFO: Record<ActionType, { icon: string; label: string; color: string }> = {
   PHILOSOPHY: { icon: '📜', label: 'Philosophy', color: '#9060a0' },
@@ -64,6 +65,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
   const [scholarlyColor, setScholarlyColor] = useState<KnowledgeColor>('GREEN');
   const [ostracismReturnId, setOstracismReturnId] = useState<string | null>(null);
   const [argosReward, setArgosReward] = useState<'troops' | 'coins' | 'vp' | 'citizens'>('vp');
+  const [spartaExploreTokenIds, setSpartaExploreTokenIds] = useState<string[]>([]);
 
   const coins = playerCoins ?? 0;
   const scrolls = philTokens ?? 0;
@@ -277,7 +279,10 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
       )}
 
       {/* ── TRADE ── */}
-      {actionType === 'TRADE' && (
+      {actionType === 'TRADE' && (() => {
+        const hasCorinthianColumns = playedCards?.some(c => c.id === 'corinthian-columns') ?? false;
+        const minorCost = hasCorinthianColumns ? CORINTHIAN_COLUMNS_COST : BASE_MINOR_KNOWLEDGE_COST;
+        return (
         <div className="space-y-4">
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
             <p className="text-sm text-amber-800 font-medium">
@@ -294,7 +299,10 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
               >
                 {buyToken && <span className="text-sand-900 text-xs font-bold">✓</span>}
               </div>
-              <span className="text-sm font-medium text-sand-800">Buy a Minor Knowledge token ({MINOR_KNOWLEDGE_COST} 💰)</span>
+              <span className="text-sm font-medium text-sand-800">
+                Buy a Minor Knowledge token ({minorCost} 💰)
+                {hasCorinthianColumns && <span className="text-emerald-600 text-xs ml-1">(Corinthian Columns)</span>}
+              </span>
             </label>
 
             <AnimatePresence>
@@ -336,7 +344,8 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             Resolve Trade
           </button>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── MILITARY ── */}
       {actionType === 'MILITARY' && (
@@ -617,6 +626,64 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             );
           })()}
 
+          {/* Sparta dev 3: explore up to 2 tokens */}
+          {actionType === 'DEVELOPMENT' && (() => {
+            const devLevel = developmentLevel ?? 0;
+            const devs = cityDevelopments ?? [];
+            const nextDev = devs[devLevel];
+            const isSpartaDev3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
+            if (!isSpartaDev3 || devLevel >= 4) return null;
+            const militaryTrack = playerMilitaryTrack ?? 0;
+            const troopTrack = playerTroopTrack ?? 0;
+            // After gaining troops from 2 military actions, available troops
+            const troopsAfterGain = Math.min(troopTrack + militaryTrack * 2, 15);
+            const boardTokens = centralBoardTokens ?? [];
+            if (boardTokens.length === 0) return null;
+            const toggleSpartaToken = (tokenId: string) => {
+              setSpartaExploreTokenIds(prev => {
+                if (prev.includes(tokenId)) return prev.filter(id => id !== tokenId);
+                if (prev.length >= 2) return [prev[1], tokenId];
+                return [...prev, tokenId];
+              });
+            };
+            // Calculate remaining troops after first exploration
+            let troopsRemaining = troopsAfterGain;
+            for (const tid of spartaExploreTokenIds) {
+              const t = boardTokens.find(tok => tok.id === tid);
+              if (t) troopsRemaining = Math.max(0, troopsRemaining - (t.skullValue ?? 0));
+            }
+            return (
+              <div className="rounded-lg border border-sand-200 p-3">
+                <p className="text-xs font-medium text-sand-600 mb-1">
+                  You'll gain <span className="font-bold">{militaryTrack * 2}</span> troops. Optionally explore up to 2 tokens:
+                </p>
+                <p className="text-[0.65rem] text-sand-400 mb-2">
+                  Troops after gain: {troopsAfterGain} | Selected: {spartaExploreTokenIds.length}/2
+                </p>
+                <KnowledgeStore
+                  tokens={boardTokens}
+                  selectedTokenId={spartaExploreTokenIds[spartaExploreTokenIds.length - 1] || undefined}
+                  onSelectToken={(id) => id ? toggleSpartaToken(id) : setSpartaExploreTokenIds([])}
+                  availableTroops={troopsRemaining}
+                  compact
+                />
+                {spartaExploreTokenIds.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {spartaExploreTokenIds.map((tid, i) => {
+                      const t = boardTokens.find(tok => tok.id === tid);
+                      return t ? (
+                        <span key={tid} className="text-[0.65rem] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full">
+                          Token {i + 1}: {t.color} ({t.militaryRequirement} req, -{t.skullValue ?? 0} troops)
+                          <button onClick={() => setSpartaExploreTokenIds(prev => prev.filter(id => id !== tid))} className="ml-1 text-red-400 hover:text-red-600">×</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -628,10 +695,12 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const isMiletusDev2 = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1);
                 const isArgosDev2 = nextDev?.id === 'argos-dev-2' || (cityId === 'argos' && devLevel === 1);
                 const shortfall = nextDev ? getKnowledgeShortfall(nextDev.knowledgeRequirement) : 0;
+                const isSpartaDev3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
                 const resolveChoices: ActionChoices = {};
                 if (useScrollsForDev && shortfall > 0) resolveChoices.philosophyPairsToUse = shortfall;
                 if (isMiletusDev2 && devTrackChoices.length === 2) resolveChoices.devTrackChoices = devTrackChoices;
                 if (isArgosDev2) resolveChoices.argosDevReward = argosReward;
+                if (isSpartaDev3 && spartaExploreTokenIds.length > 0) resolveChoices.spartaMilitaryTokenIds = spartaExploreTokenIds;
                 onResolve(actionType, resolveChoices);
               } else {
                 onResolve(actionType, {});
