@@ -442,68 +442,137 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
           <p className="text-xs text-sand-400 mt-4 text-center animate-pulse">Continuing shortly...</p>
 
           {/* Game state recap */}
-          <div className="mt-5 border-t border-sand-200 pt-4">
-            <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Round {gameState.roundNumber} Standings</p>
-            <div className="space-y-2">
+          <div className="mt-5 pt-4 relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-sand-300" />
+              <p className="font-display text-[0.65rem] uppercase tracking-[0.14em] text-sand-400">Round {gameState.roundNumber} Standings</p>
+              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-sand-300" />
+            </div>
+            <div className="space-y-2.5">
               {[...gameState.players]
                 .sort((a, b) => b.victoryPoints - a.victoryPoints)
                 .map((p, idx) => {
                   const isMe = p.playerId === currentPlayerId;
                   const city = gameState.cityCards?.[p.cityId];
+                  const effects = summaries[p.playerId]?.effects ?? [];
+                  const playerGains = effects.filter(e => e.startsWith('+'));
+                  const playerLosses = effects.filter(e => e.startsWith('-'));
+                  const playerActions = effects.filter(e => !e.startsWith('+') && !e.startsWith('-') && !e.endsWith('...'));
+
+                  const TRACK_MAX = 7;
+                  const tracks = [
+                    { label: 'Econ', value: p.economyTrack, color: 'bg-amber-400' },
+                    { label: 'Culture', value: p.cultureTrack, color: 'bg-purple-400' },
+                    { label: 'Military', value: p.militaryTrack, color: 'bg-red-400' },
+                  ];
+
                   return (
                     <motion.div
                       key={p.playerId}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.6 + idx * 0.12 }}
-                      className={`rounded-lg px-3 py-2.5 ${isMe ? 'bg-sand-200 border border-sand-300' : 'bg-sand-100'}`}
+                      transition={{ delay: 0.5 + idx * 0.15, type: 'spring', stiffness: 200, damping: 24 }}
+                      className={`relative rounded-xl overflow-hidden ${
+                        isMe
+                          ? 'bg-gradient-to-br from-sand-100 to-sand-200 border-2 border-gold/40 shadow-md'
+                          : 'bg-gradient-to-br from-sand-50 to-sand-100 border border-sand-200 shadow-sm'
+                      }`}
                     >
-                      {/* Name + VP */}
-                      <div className="flex items-center justify-between mb-1.5">
+                      {/* Header bar */}
+                      <div className={`flex items-center justify-between px-3.5 py-2 ${
+                        isMe ? 'bg-gold/10' : 'bg-sand-200/50'
+                      }`}>
                         <div className="flex items-center gap-2">
-                          <span className="text-[0.6rem] font-bold text-sand-400 w-4">{idx + 1}.</span>
-                          <span className={`text-sm ${isMe ? 'font-semibold text-sand-800' : 'text-sand-700'}`}>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[0.55rem] font-bold ${
+                            idx === 0 ? 'bg-gold text-sand-900' : 'bg-sand-300 text-sand-600'
+                          }`}>{idx + 1}</span>
+                          <span className={`text-sm ${isMe ? 'font-bold text-sand-900' : 'font-semibold text-sand-700'}`}>
                             {p.playerName}{isMe ? ' (you)' : ''}
                           </span>
-                          {city && <span className="text-[0.6rem] text-sand-400">{city.name}</span>}
+                          {city && <span className="text-[0.6rem] text-sand-400 italic">{city.name}</span>}
                         </div>
-                        <span className="text-sm font-bold text-sand-800">{p.victoryPoints} VP</span>
-                      </div>
-                      {/* Stats grid */}
-                      <div className="grid grid-cols-4 gap-x-2 gap-y-0.5 text-[0.6rem]">
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Econ</span>
-                          <span className="font-semibold text-sand-600">{p.economyTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Cult</span>
-                          <span className="font-semibold text-sand-600">{p.cultureTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Mil</span>
-                          <span className="font-semibold text-sand-600">{p.militaryTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Troops</span>
-                          <span className="font-semibold text-sand-600">{p.troopTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Coins</span>
-                          <span className="font-semibold text-sand-600">{p.coins}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Tax</span>
-                          <span className="font-semibold text-sand-600">{p.taxTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Glory</span>
-                          <span className="font-semibold text-sand-600">{p.gloryTrack}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sand-400">Dev</span>
-                          <span className="font-semibold text-sand-600">{p.developmentLevel}</span>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-base font-bold ${idx === 0 ? 'text-gold-dim' : 'text-sand-700'}`}>{p.victoryPoints}</span>
+                          <span className="text-[0.55rem] font-semibold text-sand-400 uppercase">vp</span>
                         </div>
                       </div>
+
+                      <div className="px-3.5 py-2.5">
+                        {/* Track bars */}
+                        <div className="space-y-1.5 mb-2">
+                          {tracks.map(t => (
+                            <div key={t.label} className="flex items-center gap-2">
+                              <span className="text-[0.55rem] font-semibold text-sand-400 w-10 text-right">{t.label}</span>
+                              <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
+                                <motion.div
+                                  className={`h-full rounded-full ${t.color}`}
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${(t.value / TRACK_MAX) * 100}%` }}
+                                  transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
+                                />
+                              </div>
+                              <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Resource row */}
+                        <div className="flex gap-3 text-[0.6rem]">
+                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.coins}</span> coins</span>
+                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.troopTrack}</span> troops</span>
+                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.taxTrack}</span> tax</span>
+                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.gloryTrack}</span> glory</span>
+                          <span className="text-sand-400">dev <span className="font-semibold text-sand-600">{p.developmentLevel}</span></span>
+                        </div>
+                      </div>
+
+                      {/* Event effect badges — fly down from above */}
+                      {(playerGains.length > 0 || playerLosses.length > 0 || playerActions.length > 0) && (
+                        <div className="px-3.5 pb-2.5 flex flex-wrap gap-1.5">
+                          {playerGains.map((g, i) => (
+                            <motion.span
+                              key={`g${i}`}
+                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
+                              animate={{ y: 0, opacity: 1, scale: 1 }}
+                              transition={{
+                                delay: 1.2 + idx * 0.15 + i * 0.08,
+                                type: 'spring', stiffness: 260, damping: 18,
+                              }}
+                              className="px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-[0.6rem] font-bold text-emerald-700 shadow-sm"
+                            >
+                              {g}
+                            </motion.span>
+                          ))}
+                          {playerLosses.map((l, i) => (
+                            <motion.span
+                              key={`l${i}`}
+                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
+                              animate={{ y: 0, opacity: 1, scale: 1 }}
+                              transition={{
+                                delay: 1.2 + idx * 0.15 + (playerGains.length + i) * 0.08,
+                                type: 'spring', stiffness: 260, damping: 18,
+                              }}
+                              className="px-2 py-0.5 rounded-full bg-red-100 border border-red-300 text-[0.6rem] font-bold text-red-700 shadow-sm"
+                            >
+                              {l}
+                            </motion.span>
+                          ))}
+                          {playerActions.map((a, i) => (
+                            <motion.span
+                              key={`a${i}`}
+                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
+                              animate={{ y: 0, opacity: 1, scale: 1 }}
+                              transition={{
+                                delay: 1.2 + idx * 0.15 + (playerGains.length + playerLosses.length + i) * 0.08,
+                                type: 'spring', stiffness: 260, damping: 18,
+                              }}
+                              className="px-2 py-0.5 rounded-full bg-sand-200 border border-sand-300 text-[0.6rem] font-semibold text-sand-600 shadow-sm"
+                            >
+                              {a}
+                            </motion.span>
+                          ))}
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}
