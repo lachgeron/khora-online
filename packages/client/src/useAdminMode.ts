@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 
+export type AdminPanel = 'cards' | 'events' | null;
+
 /**
- * Detects the secret admin key sequence: ' pressed 5 times, then 1.
- * Returns whether admin mode is active and a function to deactivate it.
+ * Detects secret admin key sequences:
+ *   ' x5 then 1 → card swap panel
+ *   ' x5 then 2 → event reorder panel
+ *
+ * Completely invisible to players — no UI hint that this exists.
  */
 export function useAdminMode() {
-  const [active, setActive] = useState(false);
+  const [activePanel, setActivePanel] = useState<AdminPanel>(null);
   const sequenceRef = useRef<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -42,11 +47,15 @@ export function useAdminMode() {
         seq[1] === "'" &&
         seq[2] === "'" &&
         seq[3] === "'" &&
-        seq[4] === "'" &&
-        seq[5] === '1'
+        seq[4] === "'"
       ) {
-        setActive(true);
-        sequenceRef.current = [];
+        if (seq[5] === '1') {
+          setActivePanel('cards');
+          sequenceRef.current = [];
+        } else if (seq[5] === '2') {
+          setActivePanel('events');
+          sequenceRef.current = [];
+        }
       }
     };
 
@@ -57,7 +66,7 @@ export function useAdminMode() {
     };
   }, []);
 
-  const deactivate = () => setActive(false);
+  const deactivate = () => setActivePanel(null);
 
-  return { adminMode: active, deactivateAdmin: deactivate };
+  return { adminPanel: activePanel, deactivateAdmin: deactivate };
 }

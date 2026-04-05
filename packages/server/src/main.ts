@@ -297,6 +297,29 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      if (message.type === 'ADMIN_REQUEST_EVENTS') {
+        wsGateway.sendToPlayer(gameId, playerId, {
+          type: 'ADMIN_EVENTS_RESPONSE',
+          eventCards: currentState.eventDeck,
+        });
+        return;
+      }
+
+      if (message.type === 'ADMIN_REORDER_EVENTS') {
+        const newOrder: typeof currentState.eventDeck = [];
+        for (const id of message.eventOrder) {
+          const card = currentState.eventDeck.find(c => c.id === id);
+          if (card) newOrder.push(card);
+        }
+        // Only apply if all cards accounted for
+        if (newOrder.length === currentState.eventDeck.length) {
+          const updatedState = { ...currentState, eventDeck: newOrder, updatedAt: Date.now() };
+          games.set(gameId, updatedState);
+          // No broadcast needed — event deck is not visible to players until revealed
+        }
+        return;
+      }
+
       if (message.type === 'ACTIVATE_DEV') {
         const updatedState = activateDev(currentState, playerId, message.devId);
         if (updatedState !== currentState) {

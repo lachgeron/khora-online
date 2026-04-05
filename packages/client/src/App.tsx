@@ -23,6 +23,7 @@ import { AchievementPhase } from './components/AchievementPhase';
 import { GloryEventPanel } from './components/GloryEventPanel';
 import { GameSummary } from './components/GameSummary';
 import { AdminSwapModal } from './components/AdminSwapModal';
+import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
 
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME';
@@ -37,19 +38,20 @@ export const App: React.FC = () => {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
 
-  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards } =
+  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards } =
     useGameSocket(gameId, currentPlayerId);
 
-  const { adminMode, deactivateAdmin } = useAdminMode();
-  const [showAdminSwap, setShowAdminSwap] = useState(false);
+  const { adminPanel, deactivateAdmin } = useAdminMode();
 
-  // When admin mode activates, request deck and show swap modal
+  // When an admin panel activates, request the relevant data
   useEffect(() => {
-    if (adminMode && gameId) {
+    if (!gameId || !adminPanel) return;
+    if (adminPanel === 'cards') {
       sendMessage({ type: 'ADMIN_REQUEST_DECK' });
-      setShowAdminSwap(true);
+    } else if (adminPanel === 'events') {
+      sendMessage({ type: 'ADMIN_REQUEST_EVENTS' });
     }
-  }, [adminMode, gameId, sendMessage]);
+  }, [adminPanel, gameId, sendMessage]);
 
   // Poll lobby for player list updates while in LOBBY screen
   useLobbyPolling(
@@ -426,7 +428,7 @@ export const App: React.FC = () => {
         );
       })()}
 
-      {showAdminSwap && adminMode && privateState && adminDeckCards && (
+      {adminPanel === 'cards' && privateState && adminDeckCards && (
         <AdminSwapModal
           handCards={privateState.handCards}
           deckCards={adminDeckCards}
@@ -434,10 +436,18 @@ export const App: React.FC = () => {
             sendMessage({ type: 'ADMIN_SWAP_CARD', handCardId, deckCardId });
             sendMessage({ type: 'ADMIN_REQUEST_DECK' });
           }}
-          onClose={() => {
-            setShowAdminSwap(false);
-            deactivateAdmin();
+          onClose={deactivateAdmin}
+        />
+      )}
+
+      {adminPanel === 'events' && adminEventCards && (
+        <AdminEventModal
+          eventCards={adminEventCards}
+          currentRound={gameState?.roundNumber ?? 1}
+          onReorder={(eventOrder) => {
+            sendMessage({ type: 'ADMIN_REORDER_EVENTS', eventOrder });
           }}
+          onClose={deactivateAdmin}
         />
       )}
     </div>
