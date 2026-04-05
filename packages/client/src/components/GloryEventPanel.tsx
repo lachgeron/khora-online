@@ -459,11 +459,16 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
                   const playerLosses = effects.filter(e => e.startsWith('-'));
                   const playerActions = effects.filter(e => !e.startsWith('+') && !e.startsWith('-') && !e.endsWith('...'));
 
-                  const TRACK_MAX = 7;
-                  const tracks = [
-                    { label: 'Econ', value: p.economyTrack, color: 'bg-amber-400' },
-                    { label: 'Culture', value: p.cultureTrack, color: 'bg-purple-400' },
-                    { label: 'Military', value: p.militaryTrack, color: 'bg-red-400' },
+                  const progressTracks = [
+                    { label: 'Economy', value: p.economyTrack, max: 7, gradient: 'linear-gradient(90deg, #c9a84c, #e0c060)' },
+                    { label: 'Culture', value: p.cultureTrack, max: 7, gradient: 'linear-gradient(90deg, #7a9450, #96b868)' },
+                    { label: 'Military', value: p.militaryTrack, max: 7, gradient: 'linear-gradient(90deg, #b85c38, #d47050)' },
+                  ];
+                  const statusTracks = [
+                    { label: 'Tax', value: p.taxTrack, max: 10, gradient: 'linear-gradient(90deg, #8b6914, #a88020)' },
+                    { label: 'Glory', value: p.gloryTrack, max: 10, gradient: 'linear-gradient(90deg, #9060a0, #b080c0)' },
+                    { label: 'Troops', value: p.troopTrack, max: 15, gradient: 'linear-gradient(90deg, #606878, #808890)' },
+                    { label: 'Citizens', value: p.citizenTrack, max: 15, gradient: 'linear-gradient(90deg, #4a7a9e, #60a0c8)' },
                   ];
 
                   const hasAnyEffects = playerGains.length > 0 || playerLosses.length > 0 || playerActions.length > 0;
@@ -507,30 +512,50 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
                         </div>
 
                         <div className="px-3.5 py-2.5">
-                          {/* Track bars */}
-                          <div className="space-y-1.5 mb-2">
-                            {tracks.map(t => (
-                              <div key={t.label} className="flex items-center gap-2">
-                                <span className="text-[0.55rem] font-semibold text-sand-400 w-10 text-right">{t.label}</span>
-                                <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
-                                  <motion.div
-                                    className={`h-full rounded-full ${t.color}`}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${(t.value / TRACK_MAX) * 100}%` }}
-                                    transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
-                                  />
+                          <div className="grid grid-cols-2 gap-x-4">
+                            {/* Left: Progress tracks */}
+                            <div className="space-y-1.5">
+                              <p className="text-[0.5rem] font-bold uppercase tracking-wider text-sand-400 mb-1">Progress</p>
+                              {progressTracks.map(t => (
+                                <div key={t.label} className="flex items-center gap-1.5">
+                                  <span className="text-[0.55rem] font-semibold text-sand-400 w-11 text-right">{t.label}</span>
+                                  <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
+                                    <motion.div
+                                      className="h-full rounded-full"
+                                      style={{ background: t.gradient }}
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${(t.value / t.max) * 100}%` }}
+                                      transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
+                                    />
+                                  </div>
+                                  <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
                                 </div>
-                                <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                            {/* Right: Status tracks */}
+                            <div className="space-y-1.5">
+                              <p className="text-[0.5rem] font-bold uppercase tracking-wider text-sand-400 mb-1">Status</p>
+                              {statusTracks.map(t => (
+                                <div key={t.label} className="flex items-center gap-1.5">
+                                  <span className="text-[0.55rem] font-semibold text-sand-400 w-11 text-right">{t.label}</span>
+                                  <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
+                                    <motion.div
+                                      className="h-full rounded-full"
+                                      style={{ background: t.gradient }}
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${(t.value / t.max) * 100}%` }}
+                                      transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
+                                    />
+                                  </div>
+                                  <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
 
-                          {/* Resource row */}
-                          <div className="flex gap-3 text-[0.6rem]">
+                          {/* Coins + Dev row */}
+                          <div className="flex gap-4 mt-2 text-[0.6rem]">
                             <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.coins}</span> coins</span>
-                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.troopTrack}</span> troops</span>
-                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.taxTrack}</span> tax</span>
-                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.gloryTrack}</span> glory</span>
                             <span className="text-sand-400">dev <span className="font-semibold text-sand-600">{p.developmentLevel}</span></span>
                           </div>
 
