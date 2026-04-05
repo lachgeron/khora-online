@@ -40,7 +40,7 @@ function makeDisplayDecision(): GameState['pendingDecisions'] {
   return [{
     playerId: '__display__',
     decisionType: 'PHASE_DISPLAY' as const,
-    timeoutAt: Date.now() + 5_000,
+    timeoutAt: Date.now() + 15_000,
     options: null as unknown,
   }];
 }
