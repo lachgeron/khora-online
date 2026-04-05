@@ -18,6 +18,7 @@ import { PoliticsDraft } from './components/PoliticsDraft';
 import { GameBoard } from './components/GameBoard';
 import { DicePhase } from './components/DicePhase';
 import { ActionPhase } from './components/ActionPhase';
+import { ActionOverview } from './components/ActionOverview';
 import { WaitingPanel } from './components/WaitingPanel';
 import { ProgressPhase } from './components/ProgressPhase';
 import { AchievementPhase } from './components/AchievementPhase';
@@ -385,7 +386,12 @@ export const App: React.FC = () => {
 
                 return (
                   <div className="space-y-4">
+                    {/* Persistent action timeline */}
+                    <ActionOverview gameState={gameState} currentPlayerId={currentPlayerId} />
+
+                    {/* Action controls (when it's your turn) */}
                     {nextSlot && (
+                      <div className="border-t border-sand-200 pt-4">
                       <ActionPhase
                         actionType={nextSlot.actionType}
                         handCards={privateState.handCards}
@@ -405,10 +411,11 @@ export const App: React.FC = () => {
                         onSkip={handleSkipPhase}
                         timeoutAt={gameState.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'RESOLVE_ACTION')?.timeoutAt}
                       />
+                      </div>
                     )}
-                    <div className={nextSlot ? 'border-t border-sand-200 pt-4' : ''}>
+                    {!nextSlot && (
                       <WaitingPanel gameState={gameState} privateState={privateState} currentPlayerId={currentPlayerId} />
-                    </div>
+                    )}
                   </div>
                 );
               })()}

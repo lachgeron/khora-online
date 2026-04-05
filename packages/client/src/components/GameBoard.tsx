@@ -7,7 +7,6 @@ import { KnowledgeStore } from './KnowledgeStore';
 import { AchievementsDisplay } from './AchievementsDisplay';
 import { GameLog } from './GameLog';
 import { CardDisplay } from './CardDisplay';
-import { ActionOverview } from './ActionOverview';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface GameBoardProps {
@@ -150,13 +149,6 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
             <p className="font-display text-sm font-semibold text-sand-800">{gameState.currentEvent.name}</p>
             <p className="text-xs text-sand-600 mt-0.5">{gameState.currentEvent.gloryCondition.description}</p>
           </motion.div>
-        )}
-
-        {/* Action Overview — visible during ACTIONS phase */}
-        {gameState.currentPhase === 'ACTIONS' && (
-          <div className="rounded-xl bg-sand-100 border border-sand-300 p-3">
-            <ActionOverview gameState={gameState} currentPlayerId={currentPlayerId} />
-          </div>
         )}
 
         {/* Info panels */}
