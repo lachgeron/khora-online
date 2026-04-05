@@ -466,109 +466,101 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
                     { label: 'Military', value: p.militaryTrack, color: 'bg-red-400' },
                   ];
 
+                  const hasAnyEffects = playerGains.length > 0 || playerLosses.length > 0 || playerActions.length > 0;
+                  const allEffects = [
+                    ...playerGains.map(e => ({ text: e, type: 'gain' as const })),
+                    ...playerLosses.map(e => ({ text: e, type: 'loss' as const })),
+                    ...playerActions.map(e => ({ text: e, type: 'action' as const })),
+                  ];
+
                   return (
                     <motion.div
                       key={p.playerId}
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5 + idx * 0.15, type: 'spring', stiffness: 200, damping: 24 }}
-                      className={`relative rounded-xl overflow-hidden ${
+                      className="relative"
+                    >
+                      {/* The card itself */}
+                      <div className={`rounded-xl overflow-hidden ${
                         isMe
                           ? 'bg-gradient-to-br from-sand-100 to-sand-200 border-2 border-gold/40 shadow-md'
                           : 'bg-gradient-to-br from-sand-50 to-sand-100 border border-sand-200 shadow-sm'
-                      }`}
-                    >
-                      {/* Header bar */}
-                      <div className={`flex items-center justify-between px-3.5 py-2 ${
-                        isMe ? 'bg-gold/10' : 'bg-sand-200/50'
                       }`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[0.55rem] font-bold ${
-                            idx === 0 ? 'bg-gold text-sand-900' : 'bg-sand-300 text-sand-600'
-                          }`}>{idx + 1}</span>
-                          <span className={`text-sm ${isMe ? 'font-bold text-sand-900' : 'font-semibold text-sand-700'}`}>
-                            {p.playerName}{isMe ? ' (you)' : ''}
-                          </span>
-                          {city && <span className="text-[0.6rem] text-sand-400 italic">{city.name}</span>}
+                        {/* Header bar */}
+                        <div className={`flex items-center justify-between px-3.5 py-2 ${
+                          isMe ? 'bg-gold/10' : 'bg-sand-200/50'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[0.55rem] font-bold ${
+                              idx === 0 ? 'bg-gold text-sand-900' : 'bg-sand-300 text-sand-600'
+                            }`}>{idx + 1}</span>
+                            <span className={`text-sm ${isMe ? 'font-bold text-sand-900' : 'font-semibold text-sand-700'}`}>
+                              {p.playerName}{isMe ? ' (you)' : ''}
+                            </span>
+                            {city && <span className="text-[0.6rem] text-sand-400 italic">{city.name}</span>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-base font-bold ${idx === 0 ? 'text-gold-dim' : 'text-sand-700'}`}>{p.victoryPoints}</span>
+                            <span className="text-[0.55rem] font-semibold text-sand-400 uppercase">vp</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className={`text-base font-bold ${idx === 0 ? 'text-gold-dim' : 'text-sand-700'}`}>{p.victoryPoints}</span>
-                          <span className="text-[0.55rem] font-semibold text-sand-400 uppercase">vp</span>
-                        </div>
-                      </div>
 
-                      <div className="px-3.5 py-2.5">
-                        {/* Track bars */}
-                        <div className="space-y-1.5 mb-2">
-                          {tracks.map(t => (
-                            <div key={t.label} className="flex items-center gap-2">
-                              <span className="text-[0.55rem] font-semibold text-sand-400 w-10 text-right">{t.label}</span>
-                              <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
-                                <motion.div
-                                  className={`h-full rounded-full ${t.color}`}
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${(t.value / TRACK_MAX) * 100}%` }}
-                                  transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
-                                />
+                        <div className="px-3.5 py-2.5">
+                          {/* Track bars */}
+                          <div className="space-y-1.5 mb-2">
+                            {tracks.map(t => (
+                              <div key={t.label} className="flex items-center gap-2">
+                                <span className="text-[0.55rem] font-semibold text-sand-400 w-10 text-right">{t.label}</span>
+                                <div className="flex-1 h-1.5 bg-sand-200 rounded-full overflow-hidden">
+                                  <motion.div
+                                    className={`h-full rounded-full ${t.color}`}
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(t.value / TRACK_MAX) * 100}%` }}
+                                    transition={{ delay: 0.8 + idx * 0.15, duration: 0.6, ease: 'easeOut' }}
+                                  />
+                                </div>
+                                <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
                               </div>
-                              <span className="text-[0.55rem] font-bold text-sand-500 w-3 text-right">{t.value}</span>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
 
-                        {/* Resource row */}
-                        <div className="flex gap-3 text-[0.6rem]">
-                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.coins}</span> coins</span>
-                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.troopTrack}</span> troops</span>
-                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.taxTrack}</span> tax</span>
-                          <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.gloryTrack}</span> glory</span>
-                          <span className="text-sand-400">dev <span className="font-semibold text-sand-600">{p.developmentLevel}</span></span>
+                          {/* Resource row */}
+                          <div className="flex gap-3 text-[0.6rem]">
+                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.coins}</span> coins</span>
+                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.troopTrack}</span> troops</span>
+                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.taxTrack}</span> tax</span>
+                            <span className="text-sand-400"><span className="font-semibold text-sand-600">{p.gloryTrack}</span> glory</span>
+                            <span className="text-sand-400">dev <span className="font-semibold text-sand-600">{p.developmentLevel}</span></span>
+                          </div>
+
+                          {/* Landing zone for badges (reserves space) */}
+                          {hasAnyEffects && <div className="h-7" />}
                         </div>
                       </div>
 
-                      {/* Event effect badges — fly down from above */}
-                      {(playerGains.length > 0 || playerLosses.length > 0 || playerActions.length > 0) && (
-                        <div className="px-3.5 pb-2.5 flex flex-wrap gap-1.5">
-                          {playerGains.map((g, i) => (
+                      {/* Event effect badges — absolutely positioned over the card bottom, NOT clipped by overflow-hidden */}
+                      {hasAnyEffects && (
+                        <div className="absolute bottom-2 left-3.5 right-3.5 flex flex-wrap gap-1.5 z-10">
+                          {allEffects.map((e, i) => (
                             <motion.span
-                              key={`g${i}`}
-                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
+                              key={i}
+                              initial={{ y: -120 - idx * 50, opacity: 0, scale: 1.5 }}
                               animate={{ y: 0, opacity: 1, scale: 1 }}
                               transition={{
-                                delay: 1.2 + idx * 0.15 + i * 0.08,
-                                type: 'spring', stiffness: 260, damping: 18,
+                                delay: 1.4 + idx * 0.2 + i * 0.1,
+                                type: 'spring', stiffness: 200, damping: 16,
                               }}
-                              className="px-2 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-[0.6rem] font-bold text-emerald-700 shadow-sm"
+                              className={`px-2 py-0.5 rounded-full text-[0.6rem] font-bold shadow-sm ${
+                                e.type === 'gain'
+                                  ? 'bg-emerald-100 border border-emerald-300 text-emerald-700'
+                                  : e.type === 'loss'
+                                  ? 'bg-red-100 border border-red-300 text-red-700'
+                                  : 'bg-sand-200 border border-sand-300 text-sand-600'
+                              }`}
+                              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
                             >
-                              {g}
-                            </motion.span>
-                          ))}
-                          {playerLosses.map((l, i) => (
-                            <motion.span
-                              key={`l${i}`}
-                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
-                              animate={{ y: 0, opacity: 1, scale: 1 }}
-                              transition={{
-                                delay: 1.2 + idx * 0.15 + (playerGains.length + i) * 0.08,
-                                type: 'spring', stiffness: 260, damping: 18,
-                              }}
-                              className="px-2 py-0.5 rounded-full bg-red-100 border border-red-300 text-[0.6rem] font-bold text-red-700 shadow-sm"
-                            >
-                              {l}
-                            </motion.span>
-                          ))}
-                          {playerActions.map((a, i) => (
-                            <motion.span
-                              key={`a${i}`}
-                              initial={{ y: -60 - idx * 40, opacity: 0, scale: 1.4 }}
-                              animate={{ y: 0, opacity: 1, scale: 1 }}
-                              transition={{
-                                delay: 1.2 + idx * 0.15 + (playerGains.length + playerLosses.length + i) * 0.08,
-                                type: 'spring', stiffness: 260, damping: 18,
-                              }}
-                              className="px-2 py-0.5 rounded-full bg-sand-200 border border-sand-300 text-[0.6rem] font-semibold text-sand-600 shadow-sm"
-                            >
-                              {a}
+                              {e.text}
                             </motion.span>
                           ))}
                         </div>
