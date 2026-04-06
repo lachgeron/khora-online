@@ -69,7 +69,7 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
                     return (
                       <div
                         key={t.id}
-                        onClick={() => isSelectable && canAfford && !isExplored && onSelectToken(isSelected ? null : t.id)}
+                        onClick={() => isSelectable && !isExplored && (isSelected || canAfford) && onSelectToken(isSelected ? null : t.id)}
                         title={[
                           `${isMajor ? 'Major' : 'Minor'} Token`,
                           `Requirement: ${t.militaryRequirement} troops`,
@@ -81,8 +81,8 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
                         className={`relative flex items-center justify-center transition-all ${
                           isExplored ? 'opacity-30 grayscale cursor-default' :
                           isSelectable ? (
-                            !canAfford ? 'opacity-30 cursor-not-allowed' :
                             isSelected ? 'ring-2 ring-gold cursor-pointer' :
+                            !canAfford ? 'opacity-30 cursor-not-allowed' :
                             'hover:scale-110 cursor-pointer'
                           ) : ''
                         }`}
@@ -110,12 +110,12 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
                   return (
                     <div
                       key={t.id}
-                      onClick={() => isSelectable && canAfford && !isExplored && onSelectToken(isSelected ? null : t.id)}
+                      onClick={() => isSelectable && !isExplored && (isSelected || canAfford) && onSelectToken(isSelected ? null : t.id)}
                       className={`flex items-center gap-2 rounded-lg px-2.5 py-2 transition-all ${
                         isExplored ? 'opacity-30 grayscale cursor-default' :
                         isSelectable ? (
-                          !canAfford ? 'opacity-30 cursor-not-allowed' :
                           isSelected ? 'ring-2 ring-gold bg-gold/10 cursor-pointer shadow-sm' :
+                          !canAfford ? 'opacity-30 cursor-not-allowed' :
                           'hover:bg-sand-100 cursor-pointer'
                         ) : ''
                       }`}
@@ -174,12 +174,12 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
         const persepolisAffordable = !persepolisExplored && (availableTroops === undefined || availableTroops >= 15);
         return (
         <div
-          onClick={() => isSelectable && persepolisAffordable && onSelectToken?.(selectedTokenId === persepolis.id ? null : persepolis.id)}
+          onClick={() => isSelectable && (selectedTokenId === persepolis.id || persepolisAffordable) && onSelectToken?.(selectedTokenId === persepolis.id ? null : persepolis.id)}
           className={`mt-4 rounded-xl border-2 p-4 transition-all ${
             persepolisExplored ? 'opacity-30 grayscale border-sand-200 cursor-default' :
             isSelectable ? (
-              !persepolisAffordable ? 'opacity-30 cursor-not-allowed border-sand-200' :
               selectedTokenId === persepolis.id ? 'ring-2 ring-gold bg-gold/10 border-gold cursor-pointer shadow-md' :
+              !persepolisAffordable ? 'opacity-30 cursor-not-allowed border-sand-200' :
               'border-sand-300 hover:border-sand-500 cursor-pointer'
             ) : 'border-sand-300'
           }`}

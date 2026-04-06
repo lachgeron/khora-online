@@ -160,6 +160,7 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
   gameState, privateState, currentPlayerId, currentPlayer, onResolveAction, onSkip, sendMessage,
 }) => {
   const [discardSelection, setDiscardSelection] = useState<string[]>([]);
+  const [conquestAction, setConquestAction] = useState<ActionType | null>(null);
 
   if (!gameState.currentEvent) return null;
 
@@ -398,7 +399,6 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
           { type: 'POLITICS', icon: '🏛', label: 'Politics' },
           { type: 'DEVELOPMENT', icon: '🔨', label: 'Development' },
         ];
-        const [conquestAction, setConquestAction] = React.useState<ActionType | null>(null);
         return (
           <div className="mt-4 border-t border-sand-200 pt-4">
             <p className="font-display text-xs uppercase tracking-[0.12em] text-gold mb-2 text-center">Conquest of the Persians — Take Any Non-Military Action</p>

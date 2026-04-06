@@ -733,6 +733,17 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             );
           })()}
 
+          {/* Check if Miletus dev 2 needs track selection before resolving */}
+          {(() => {
+            const devLevel = developmentLevel ?? 0;
+            const devs = cityDevelopments ?? [];
+            const nextDev = devs[devLevel];
+            const isMiletusDev2 = actionType === 'DEVELOPMENT' && (nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)) && devLevel < 4;
+            const needsTrackSelection = isMiletusDev2 && devTrackChoices.length < 2;
+            return needsTrackSelection ? (
+              <p className="text-xs text-amber-600 text-center mb-1">Select 2 tracks above to resolve</p>
+            ) : null;
+          })()}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -745,6 +756,8 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const isArgosDev2 = nextDev?.id === 'argos-dev-2' || (cityId === 'argos' && devLevel === 1);
                 const shortfall = nextDev ? getKnowledgeShortfall(nextDev.knowledgeRequirement) : 0;
                 const isSpartaDev3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
+                // Block resolve if Miletus dev 2 tracks not fully selected
+                if (isMiletusDev2 && devTrackChoices.length < 2) return;
                 const resolveChoices: ActionChoices = {};
                 if (useScrollsForDev && shortfall > 0) resolveChoices.philosophyPairsToUse = shortfall;
                 if (isMiletusDev2 && devTrackChoices.length === 2) resolveChoices.devTrackChoices = devTrackChoices;
@@ -755,7 +768,15 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 onResolve(actionType, {});
               }
             }}
-            className="w-full py-3 rounded-lg font-semibold text-sm text-white shadow-md transition-colors"
+            className={`w-full py-3 rounded-lg font-semibold text-sm text-white shadow-md transition-colors ${
+              (() => {
+                const devLevel = developmentLevel ?? 0;
+                const devs = cityDevelopments ?? [];
+                const nextDev = devs[devLevel];
+                const isMiletusDev2 = actionType === 'DEVELOPMENT' && (nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)) && devLevel < 4;
+                return isMiletusDev2 && devTrackChoices.length < 2 ? 'opacity-50 cursor-not-allowed' : '';
+              })()
+            }`}
             style={{ background: info.color }}
           >
             Resolve {info.label}{actionType === 'DEVELOPMENT' && useScrollsForDev ? (() => {
