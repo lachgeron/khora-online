@@ -81,6 +81,7 @@ export class AchievementPhaseManager implements PhaseManager {
           phase: 'ACHIEVEMENT',
           playerId,
           action: 'Chose +1 Tax',
+          details: {},
         });
       }
       const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
@@ -110,6 +111,7 @@ export class AchievementPhaseManager implements PhaseManager {
       phase: 'ACHIEVEMENT',
       playerId,
       action: `Chose +1 ${trackChoice === 'TAX' ? 'Tax' : 'Glory'}`,
+      details: {},
     });
 
     // Remove just the first matching pending decision for this player
@@ -168,6 +170,7 @@ export class AchievementPhaseManager implements PhaseManager {
         phase: 'ACHIEVEMENT',
         playerId,
         action: 'Chose +1 Tax',
+          details: {},
       });
     }
     const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);

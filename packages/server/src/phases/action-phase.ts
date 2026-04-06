@@ -30,7 +30,7 @@ const ACTION_TIMEOUTS: Record<string, number> = {
   TRADE: 30_000,
   MILITARY: 60_000,
   POLITICS: 60_000,
-  DEVELOPMENT: 20_000,
+  DEVELOPMENT: 60_000,
 };
 
 /** Actions that cannot be skipped by the player. */
