@@ -145,7 +145,24 @@ export class ActionPhaseManager implements PhaseManager {
     // Log the resolved action with detailed changes
     const playerBefore = state.players.find(p => p.playerId === playerId);
     const playerAfter = updatedState.players.find(p => p.playerId === playerId);
-    updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'ACTIONS', playerId, action: `Resolved ${decision.actionType}`, details: { actionType: decision.actionType } });
+
+    // For POLITICS actions, include the name of the card that was played
+    let actionLabel = `Resolved ${decision.actionType}`;
+    const logDetails: Record<string, unknown> = { actionType: decision.actionType };
+    if (decision.actionType === 'POLITICS' && decision.choices.targetCardId && playerBefore) {
+      const playedCard = playerBefore.handCards.find(c => c.id === decision.choices.targetCardId);
+      if (playedCard) {
+        actionLabel = `Played ${playedCard.name}`;
+        logDetails.cardId = playedCard.id;
+        logDetails.cardName = playedCard.name;
+        logDetails.cardType = playedCard.type;
+        logDetails.cardDescription = playedCard.description;
+        logDetails.cardCost = playedCard.cost;
+        logDetails.cardKnowledgeRequirement = playedCard.knowledgeRequirement;
+      }
+    }
+
+    updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'ACTIONS', playerId, action: actionLabel, details: logDetails });
     if (playerBefore && playerAfter) {
       updatedState = logPlayerDiff(updatedState, playerBefore, playerAfter, { roundNumber: state.roundNumber, phase: 'ACTIONS', source: decision.actionType });
     }

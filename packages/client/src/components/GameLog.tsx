@@ -3,6 +3,12 @@ import type { GameLogEntry } from '../types';
 
 const PLAYER_COLORS = ['#e06030', '#3080d0', '#40a050', '#9060b0'];
 
+const CARD_TYPE_STYLE: Record<string, string> = {
+  IMMEDIATE: 'bg-amber-100 text-amber-800',
+  ONGOING: 'bg-emerald-100 text-emerald-800',
+  END_GAME: 'bg-purple-100 text-purple-800',
+};
+
 export interface GameLogProps {
   entries: GameLogEntry[];
   playerNames?: Record<string, string>;
@@ -44,15 +50,36 @@ export const GameLog: React.FC<GameLogProps> = ({ entries, playerNames, playerOr
         {entries.map((entry, i) => {
           const name = getName(entry.playerId);
           const color = getColor(entry.playerId);
+          const cardName = entry.details?.cardName as string | undefined;
+          const cardType = entry.details?.cardType as string | undefined;
+          const isCardPlay = !!(cardName && cardType);
+
           return (
-            <div key={i} className="text-[0.7rem] leading-snug text-sand-600">
+            <div
+              key={i}
+              className={`leading-snug ${
+                isCardPlay
+                  ? 'text-[0.75rem] text-sand-800 bg-sand-100 rounded px-1.5 py-1 my-0.5'
+                  : 'text-[0.7rem] text-sand-600'
+              }`}
+            >
               <span className="text-sand-400 mr-1">R{entry.roundNumber}</span>
               {name && (
                 <span className="font-semibold mr-1" style={{ color }}>
                   {name}:
                 </span>
               )}
-              {entry.action}
+              {isCardPlay ? (
+                <>
+                  <span>Played </span>
+                  <span className="font-bold">{cardName}</span>
+                  <span className={`ml-1.5 px-1 py-0.5 rounded text-[0.5rem] font-bold uppercase ${CARD_TYPE_STYLE[cardType!] ?? ''}`}>
+                    {cardType!.replace('_', ' ')}
+                  </span>
+                </>
+              ) : (
+                entry.action
+              )}
             </div>
           );
         })}

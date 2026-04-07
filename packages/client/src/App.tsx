@@ -25,6 +25,7 @@ import { AchievementPhase } from './components/AchievementPhase';
 import { GloryEventPanel } from './components/GloryEventPanel';
 import { StandingsRecap } from './components/StandingsRecap';
 import { GameSummary } from './components/GameSummary';
+import { CardPlayAnnouncement } from './components/CardPlayAnnouncement';
 import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
@@ -390,6 +391,13 @@ export const App: React.FC = () => {
                   <div className="space-y-4">
                     {/* Persistent action timeline */}
                     <ActionOverview gameState={gameState} currentPlayerId={currentPlayerId} />
+
+                    {/* Card play announcement */}
+                    <CardPlayAnnouncement
+                      gameLog={gameState.gameLog}
+                      roundNumber={gameState.roundNumber}
+                      playerNames={playerNames}
+                    />
 
                     {/* Action controls (when it's your turn) */}
                     {nextSlot && (
