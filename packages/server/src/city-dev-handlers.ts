@@ -9,7 +9,8 @@
 import type { GameState, PlayerState } from '@khora/shared';
 import type { ActionChoices } from '@khora/shared';
 import { explore } from './knowledge-tokens';
-import { advanceTrack } from './resources';
+import { advanceTrack, addVP } from './resources';
+import { applyOngoingEffects } from './card-handlers';
 
 function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) => PlayerState): GameState {
   const idx = state.players.findIndex(p => p.playerId === playerId);
@@ -28,6 +29,22 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
   'corinth-dev-2': (s, pid) => updatePlayer(s, pid, p => ({
     ...p, taxTrack: p.taxTrack + p.knowledgeTokens.length,
   })),
+
+  // Corinth dev 3: Progress 2 levels on chosen tracks, 1 less drachma each (free here since it's the dev effect)
+  'corinth-dev-3': (s, pid, choices) => {
+    const tracks = choices?.devTrackChoices;
+    if (!tracks || tracks.length !== 2) {
+      // Fallback: advance economy and culture
+      return updatePlayer(s, pid, p => advanceTrack(advanceTrack(p, 'ECONOMY', 1), 'CULTURE', 1));
+    }
+    return updatePlayer(s, pid, p => {
+      let updated = p;
+      for (const track of tracks) {
+        updated = advanceTrack(updated, track, 1);
+      }
+      return updated;
+    });
+  },
 
   // Miletus dev 2: Choose 2 tracks, move up 1 each free (with milestone rewards)
   'miletus-dev-2': (s, pid, choices) => {
@@ -95,10 +112,28 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     return state;
   },
 
-  // Olympia dev 4: Take 3 culture actions — gain VP equal to culture track * 3
-  'olympia-dev-4': (s, pid) => updatePlayer(s, pid, p => ({
-    ...p, victoryPoints: p.victoryPoints + p.cultureTrack * 3,
-  })),
+  // Olympia dev 4: Take 3 culture actions (resolved separately).
+  // Each action: gain VP = culture track, then apply ongoing card/dev effects for CULTURE.
+  'olympia-dev-4': (s, pid) => {
+    let state = s;
+
+    for (let i = 0; i < 3; i++) {
+      // Gain VP equal to culture track
+      const player = state.players.find(p => p.playerId === pid);
+      if (!player) break;
+      state = updatePlayer(state, pid, p => addVP(p, p.cultureTrack));
+
+      // Apply ongoing card effects triggered by CULTURE action
+      // (e.g. Stoa Poikile: +2 drachma, Persians: +2 troops)
+      state = applyOngoingEffects(state, pid, { type: 'ON_ACTION', actionType: 'CULTURE' });
+
+      // Apply ongoing dev effects triggered by CULTURE action
+      // (e.g. Olympia dev 2: +1 troop +1 scroll)
+      state = applyOngoingDevEffects(state, pid, 'CULTURE');
+    }
+
+    return state;
+  },
 
   // Argos dev 2: Gain 2 troops, or 3 Drachma, or 4 VP, or 5 citizens
   'argos-dev-2': (s, pid, choices) => {

@@ -19,6 +19,8 @@ import { advanceTrack, subtractCoins } from '../resources';
 import { applyEffectToAllPlayers } from '../effects';
 import { applyEventEffect, getHighestTroops, getLowestTroops } from '../event-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
+import { applyOngoingEffects } from '../card-handlers';
+import { applyOngoingDevEffects } from '../city-dev-handlers';
 import { PoliticsResolver } from '../actions/politics-resolver';
 import { PhilosophyResolver } from '../actions/philosophy-resolver';
 import { LegislationResolver } from '../actions/legislation-resolver';
@@ -231,7 +233,35 @@ export class GloryPhaseManager implements PhaseManager {
     }
     const result = this.politicsResolver.resolve(state, playerId, decision.choices);
     if (!result.ok) return result;
-    let s = appendLogEntry(result.value, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: 'Played a politics card via Prosperity', details: { cardId: decision.choices.targetCardId } });
+
+    // Apply ongoing card effects triggered by POLITICS action
+    let s = applyOngoingEffects(result.value, playerId, { type: 'ON_ACTION', actionType: 'POLITICS' });
+
+    // Apply ongoing city development effects triggered by POLITICS action (e.g. Athens dev-2/3)
+    s = applyOngoingDevEffects(s, playerId, 'POLITICS');
+
+    // Log with card details
+    const playerBefore = state.players.find(p => p.playerId === playerId);
+    const logDetails: Record<string, unknown> = { cardId: decision.choices.targetCardId };
+    let actionLabel = 'Played a politics card via Prosperity';
+    if (playerBefore) {
+      const playedCard = playerBefore.handCards.find(c => c.id === decision.choices.targetCardId);
+      if (playedCard) {
+        actionLabel = `Prosperity: played ${playedCard.name}`;
+        logDetails.cardName = playedCard.name;
+        logDetails.cardType = playedCard.type;
+        logDetails.cardDescription = playedCard.description;
+        logDetails.cardCost = playedCard.cost;
+        logDetails.cardKnowledgeRequirement = playedCard.knowledgeRequirement;
+      }
+    }
+
+    const playerAfter = s.players.find(p => p.playerId === playerId);
+    s = appendLogEntry(s, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: actionLabel, details: logDetails });
+    if (playerBefore && playerAfter) {
+      s = logPlayerDiff(s, playerBefore, playerAfter, { roundNumber: state.roundNumber, phase: 'GLORY', source: 'Prosperity:POLITICS' });
+    }
+
     return { ok: true, value: finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId)) };
   }
 
@@ -353,7 +383,38 @@ export class GloryPhaseManager implements PhaseManager {
       const result = resolver.resolve(state, playerId, decision.choices);
       if (!result.ok) return result;
 
-      let s = appendLogEntry(result.value, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: `Conquest: took ${decision.actionType} action`, details: { actionType: decision.actionType } });
+      // Apply ongoing card effects triggered by this action (e.g. Stoa Poikile on CULTURE)
+      let s = applyOngoingEffects(result.value, playerId, { type: 'ON_ACTION', actionType: decision.actionType });
+
+      // Apply ongoing city development effects triggered by this action (e.g. Athens dev-2 on POLITICS)
+      s = applyOngoingDevEffects(s, playerId, decision.actionType);
+
+      // Log the conquest action with detailed changes
+      const playerBefore = state.players.find(p => p.playerId === playerId);
+      const playerAfter = s.players.find(p => p.playerId === playerId);
+
+      let actionLabel = `Conquest: took ${decision.actionType} action`;
+      const logDetails: Record<string, unknown> = { actionType: decision.actionType };
+
+      // For POLITICS actions, include the card name
+      if (decision.actionType === 'POLITICS' && decision.choices.targetCardId && playerBefore) {
+        const playedCard = playerBefore.handCards.find(c => c.id === decision.choices.targetCardId);
+        if (playedCard) {
+          actionLabel = `Conquest: played ${playedCard.name}`;
+          logDetails.cardId = playedCard.id;
+          logDetails.cardName = playedCard.name;
+          logDetails.cardType = playedCard.type;
+          logDetails.cardDescription = playedCard.description;
+          logDetails.cardCost = playedCard.cost;
+          logDetails.cardKnowledgeRequirement = playedCard.knowledgeRequirement;
+        }
+      }
+
+      s = appendLogEntry(s, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: actionLabel, details: logDetails });
+      if (playerBefore && playerAfter) {
+        s = logPlayerDiff(s, playerBefore, playerAfter, { roundNumber: state.roundNumber, phase: 'GLORY', source: `Conquest:${decision.actionType}` });
+      }
+
       return { ok: true, value: finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId)) };
     } catch (err) {
       console.error(`[GloryPhase] Conquest action ${decision.actionType} threw:`, err);
