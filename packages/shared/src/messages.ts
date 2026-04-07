@@ -83,6 +83,7 @@ export interface PublicGameState {
     draftRound: number;
     waitingFor: string[];
     totalRounds: number;
+    passOrder: string[];
   } | null;
   finalScores: FinalScoreBoard | null;
 }

@@ -105,6 +105,7 @@ export function buildPublicGameState(state: GameState): PublicGameState {
           draftRound: politicsDraft.draftRound,
           waitingFor: politicsDraft.waitingFor,
           totalRounds: 5,
+          passOrder: politicsDraft.passOrder,
         }
       : null,
     finalScores: state.finalScores ?? null,

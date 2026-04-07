@@ -263,6 +263,7 @@ export const App: React.FC = () => {
               draftRound={gameState.politicsDraft.draftRound}
               totalRounds={gameState.politicsDraft.totalRounds}
               waitingFor={gameState.politicsDraft.waitingFor}
+              passOrder={gameState.politicsDraft.passOrder}
               currentPlayerId={currentPlayerId}
               playerNames={playerNames}
               pendingDecisions={gameState.pendingDecisions}

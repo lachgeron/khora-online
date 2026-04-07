@@ -291,8 +291,8 @@ wss.on('connection', (ws, req) => {
         newDeck[deckIdx] = removedFromHand;
 
         // Deduplicate: collect every card ID across all players' hands,
-        // played cards, and the deck. If a card appears more than once,
-        // remove extras from the deck to prevent duplicate draws.
+        // played cards, draft packs, and drafted selections. If a card
+        // appears more than once, remove extras from the deck.
         const allCardIds = new Set<string>();
         const updatedPlayers = currentState.players.map(p => {
           const hand = p.playerId === playerId ? newHandCards : [...p.handCards];
@@ -300,6 +300,18 @@ wss.on('connection', (ws, req) => {
           for (const c of p.playedCards) allCardIds.add(c.id);
           return p.playerId === playerId ? { ...p, handCards: hand } : p;
         });
+
+        // Also account for cards in active draft state (packs + selected)
+        const politicsDraft = currentState.draftState?.politicsDraft;
+        if (politicsDraft) {
+          for (const pack of Object.values(politicsDraft.packs)) {
+            for (const c of pack) allCardIds.add(c.id);
+          }
+          for (const selected of Object.values(politicsDraft.selectedCards)) {
+            for (const c of selected) allCardIds.add(c.id);
+          }
+        }
+
         const seenInDeck = new Set<string>();
         const deduplicatedDeck = newDeck.filter(c => {
           if (allCardIds.has(c.id) || seenInDeck.has(c.id)) {
@@ -317,13 +329,15 @@ wss.on('connection', (ws, req) => {
           updatedAt: Date.now(),
         };
         games.set(gameId, updatedState);
-        wsGateway.broadcastToGame(gameId, updatedState);
 
-        // Auto-send updated deck back so the admin modal refreshes immediately
+        // Send updated deck BEFORE the broadcast so the admin modal
+        // refreshes in the same React batch as the state update,
+        // preventing a frame where stale hand data shows duplicates.
         wsGateway.sendToPlayer(gameId, playerId, {
           type: 'ADMIN_DECK_RESPONSE',
           deckCards: deduplicatedDeck,
         });
+        wsGateway.broadcastToGame(gameId, updatedState);
         return;
       }
 

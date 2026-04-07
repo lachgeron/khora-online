@@ -45,27 +45,48 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     });
   },
 
-  // Sparta dev 3: Take 2 military actions — gain troops equal to military track * 2,
-  // then optionally explore up to 2 knowledge tokens.
+  // Sparta dev 3: Take 2 military actions (resolved separately).
+  // Each action: gain troops = military track, then optionally explore a knowledge token.
   // Since Sparta dev 2 gives +1 tax per military action, this also grants +2 taxes.
   'sparta-dev-3': (s, pid, choices) => {
     const player = s.players.find(p => p.playerId === pid);
+    const tokenIds = choices?.spartaMilitaryTokenIds ?? [];
 
-    // Step 1: Gain troops = militaryTrack * 2 (two military actions worth)
+    // Resolve two military actions separately: troops → explore → troops → explore
+
+    // --- First military action ---
+    // Gain troops = militaryTrack
     let state = updatePlayer(s, pid, p => ({
-      ...p, troopTrack: p.troopTrack + p.militaryTrack * 2,
+      ...p, troopTrack: p.troopTrack + p.militaryTrack,
     }));
 
-    // Step 2: Apply Sparta dev 2 ongoing bonus (+1 tax per military action × 2)
+    // Apply Sparta dev 2 ongoing bonus (+1 tax per military action)
     if (player && hasDevUnlocked(player, 'sparta-dev-2')) {
-      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: p.taxTrack + 2 }));
+      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: p.taxTrack + 1 }));
     }
 
-    // Step 3: Optionally explore up to 2 knowledge tokens
-    const tokenIds = choices?.spartaMilitaryTokenIds ?? [];
-    for (const tokenId of tokenIds.slice(0, 2)) {
-      if (!tokenId) continue;
-      const result = explore(state, pid, tokenId);
+    // Optionally explore first knowledge token
+    if (tokenIds[0]) {
+      const result = explore(state, pid, tokenIds[0]);
+      if (result.ok) {
+        state = result.value;
+      }
+    }
+
+    // --- Second military action ---
+    // Gain troops = militaryTrack again
+    state = updatePlayer(state, pid, p => ({
+      ...p, troopTrack: p.troopTrack + p.militaryTrack,
+    }));
+
+    // Apply Sparta dev 2 ongoing bonus again (+1 tax)
+    if (player && hasDevUnlocked(player, 'sparta-dev-2')) {
+      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: p.taxTrack + 1 }));
+    }
+
+    // Optionally explore second knowledge token
+    if (tokenIds[1]) {
+      const result = explore(state, pid, tokenIds[1]);
       if (result.ok) {
         state = result.value;
       }

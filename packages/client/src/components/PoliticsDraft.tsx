@@ -9,12 +9,12 @@ export interface PoliticsDraftProps {
   draftRound: number;
   totalRounds: number;
   waitingFor: string[];
+  passOrder: string[];
   currentPlayerId: string;
   playerNames: Record<string, string>;
   pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
   onDraftCard: (cardId: string) => void;
   cityCard: CityCard | null;
-  /** Other players' city selections: playerId → CityCard */
   otherPlayerCities: { playerId: string; playerName: string; city: CityCard }[];
 }
 
@@ -24,20 +24,59 @@ const TYPE_STYLE: Record<string, string> = {
   END_GAME: 'bg-purple-100 text-purple-800',
 };
 
+/** Renders the developments grid for a city card */
+const CityDevelopments: React.FC<{ city: CityCard }> = ({ city }) => (
+  <div className="grid grid-cols-2 gap-2">
+    {city.developments.map((dev) => {
+      const devTypeStyle: Record<string, string> = {
+        IMMEDIATE: 'bg-amber-100 text-amber-800',
+        ONGOING: 'bg-emerald-100 text-emerald-800',
+        END_GAME: 'bg-purple-100 text-purple-800',
+      };
+      return (
+        <div key={dev.id} className="rounded-lg bg-white border border-sand-200 p-3">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <span className="font-display text-xs font-bold text-sand-700">Lv {dev.level}</span>
+            <span className={`shrink-0 px-1.5 py-0.5 rounded text-[0.55rem] font-bold uppercase ${devTypeStyle[dev.effectType] ?? ''}`}>
+              {dev.effectType.replace('_', ' ')}
+            </span>
+          </div>
+          <p className="text-[0.65rem] text-sand-600 leading-snug mb-1">{dev.name}</p>
+          <div className="flex items-center gap-2 text-[0.6rem] text-sand-400">
+            {dev.drachmaCost > 0 && <span>{dev.drachmaCost} 💰</span>}
+            {dev.knowledgeRequirement.red > 0 && <span>{dev.knowledgeRequirement.red} 🔴</span>}
+            {dev.knowledgeRequirement.blue > 0 && <span>{dev.knowledgeRequirement.blue} 🔵</span>}
+            {dev.knowledgeRequirement.green > 0 && <span>{dev.knowledgeRequirement.green} 🟢</span>}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
 export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
   draftPack, draftedCards, draftRound, totalRounds,
-  waitingFor, currentPlayerId, playerNames, pendingDecisions, onDraftCard, cityCard,
+  waitingFor, passOrder, currentPlayerId, playerNames, pendingDecisions, onDraftCard, cityCard,
   otherPlayerCities,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showCity, setShowCity] = useState(false);
+  const [expandedCities, setExpandedCities] = useState<Record<string, boolean>>({});
   const hasAlreadyPicked = !waitingFor.includes(currentPlayerId);
   const waitingNames = waitingFor.filter(id => id !== currentPlayerId).map(id => playerNames[id] ?? id);
 
+  const toggleCity = (playerId: string) => {
+    setExpandedCities(prev => ({ ...prev, [playerId]: !prev[playerId] }));
+  };
+
+  // Determine who the current player passes to
+  const myIndex = passOrder.indexOf(currentPlayerId);
+  const passToIndex = myIndex !== -1 ? (myIndex + 1) % passOrder.length : -1;
+  const passToId = passToIndex !== -1 ? passOrder[passToIndex] : null;
+
   return (
-    <div className="col-span-full max-w-4xl mx-auto py-6">
-      {/* Header */}
-      <div className="text-center mb-6">
+    <div className="col-span-full max-w-5xl mx-auto py-6 space-y-6">
+      {/* ── Header ── */}
+      <div className="text-center">
         <h2 className="font-display text-2xl font-bold text-sand-800">Card Draft</h2>
         <div className="flex items-center justify-center gap-3 mt-2">
           {Array.from({ length: totalRounds }, (_, i) => (
@@ -64,69 +103,96 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
         })()}
       </div>
 
-      {/* City info toggle */}
-      {cityCard && (
-        <div className="mb-6">
-          <button
-            onClick={() => setShowCity(!showCity)}
-            className="flex items-center gap-2 text-sm text-sand-500 hover:text-sand-700 transition-colors"
-          >
-            <span className="text-xs">{showCity ? '▾' : '▸'}</span>
-            <span className="font-display font-semibold">{cityCard.name}</span>
-            <span className="text-xs text-sand-400">— your city &amp; developments</span>
-          </button>
-          {showCity && (
-            <div className="mt-2 rounded-lg bg-sand-50 border border-sand-200 p-4">
-              <div className="grid grid-cols-2 gap-2">
-                {cityCard.developments.map((dev) => {
-                  const DEV_TYPE_STYLE: Record<string, string> = {
-                    IMMEDIATE: 'bg-amber-100 text-amber-800',
-                    ONGOING: 'bg-emerald-100 text-emerald-800',
-                    END_GAME: 'bg-purple-100 text-purple-800',
-                  };
-                  return (
-                    <div key={dev.id} className="rounded-lg bg-white border border-sand-200 p-3">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <span className="font-display text-xs font-bold text-sand-700">Lv {dev.level}</span>
-                        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[0.55rem] font-bold uppercase ${DEV_TYPE_STYLE[dev.effectType] ?? ''}`}>
-                          {dev.effectType.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <p className="text-[0.65rem] text-sand-600 leading-snug mb-1">{dev.name}</p>
-                      <div className="flex items-center gap-2 text-[0.6rem] text-sand-400">
-                        {dev.drachmaCost > 0 && <span>{dev.drachmaCost} 💰</span>}
-                        {dev.knowledgeRequirement.red > 0 && <span>{dev.knowledgeRequirement.red} 🔴</span>}
-                        {dev.knowledgeRequirement.blue > 0 && <span>{dev.knowledgeRequirement.blue} 🔵</span>}
-                        {dev.knowledgeRequirement.green > 0 && <span>{dev.knowledgeRequirement.green} 🟢</span>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+      {/* ── Draft Order ── */}
+      {passOrder.length > 1 && (
+        <div className="rounded-xl bg-sand-50 border border-sand-200 p-4">
+          <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-500 mb-3">Pass order</p>
+          <div className="flex items-center justify-center gap-1 flex-wrap">
+            {passOrder.map((pid, i) => {
+              const isMe = pid === currentPlayerId;
+              const isPassTarget = pid === passToId;
+              return (
+                <React.Fragment key={pid}>
+                  <div
+                    className={`px-3 py-1.5 rounded-lg text-sm font-display font-semibold transition-colors ${
+                      isMe
+                        ? 'bg-sand-800 text-sand-100'
+                        : isPassTarget
+                          ? 'bg-gold/20 text-sand-800 ring-1 ring-gold'
+                          : 'bg-white text-sand-600 border border-sand-200'
+                    }`}
+                  >
+                    {isMe ? 'You' : (playerNames[pid] ?? pid)}
+                  </div>
+                  {i < passOrder.length - 1 && (
+                    <span className="text-sand-300 text-lg mx-1">→</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {/* Wrap-around arrow back to first */}
+            <span className="text-sand-300 text-lg mx-1">→</span>
+            <span className="text-xs text-sand-400 italic">
+              {passOrder[0] === currentPlayerId ? 'You' : (playerNames[passOrder[0]] ?? passOrder[0])}
+            </span>
+          </div>
+          {passToId && (
+            <p className="text-center text-xs text-sand-500 mt-2">
+              After you pick, your remaining cards pass to <span className="font-semibold text-sand-700">{passToId === currentPlayerId ? 'yourself' : (playerNames[passToId] ?? passToId)}</span>
+            </p>
           )}
         </div>
       )}
 
-      {/* Other players' city selections */}
-      {otherPlayerCities.length > 0 && (
-        <div className="mb-6">
-          <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-500 mb-2">Other players' cities</p>
-          <div className="flex flex-wrap gap-2">
-            {otherPlayerCities.map(({ playerId, playerName, city }) => (
-              <div key={playerId} className="rounded-lg bg-sand-50 border border-sand-200 px-3 py-2 text-sm">
-                <span className="font-display font-semibold text-sand-700">{playerName}</span>
-                <span className="text-sand-400 mx-1">—</span>
-                <span className="text-sand-600">{city.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── City Reference (sidebar-style panel) ── */}
+      <div className="rounded-xl bg-sand-50 border border-sand-200 p-4 space-y-3">
+        <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-500">City abilities</p>
 
-      {/* Already drafted cards — full details */}
+        {/* Own city — always expanded */}
+        {cityCard && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-display text-sm font-bold text-sand-800">{cityCard.name}</span>
+              <span className="px-1.5 py-0.5 rounded bg-sand-800 text-sand-100 text-[0.55rem] font-bold uppercase">You</span>
+            </div>
+            <CityDevelopments city={cityCard} />
+          </div>
+        )}
+
+        {/* Other players' cities — collapsible */}
+        {otherPlayerCities.length > 0 && (
+          <div className="border-t border-sand-200 pt-3 space-y-2">
+            {otherPlayerCities.map(({ playerId, playerName, city }) => {
+              const isExpanded = expandedCities[playerId] ?? false;
+              return (
+                <div key={playerId}>
+                  <button
+                    onClick={() => toggleCity(playerId)}
+                    className="flex items-center gap-2 w-full text-left group"
+                  >
+                    <span className="text-xs text-sand-400 group-hover:text-sand-600 transition-colors">
+                      {isExpanded ? '▾' : '▸'}
+                    </span>
+                    <span className="font-display text-sm font-semibold text-sand-700 group-hover:text-sand-900 transition-colors">
+                      {playerName}
+                    </span>
+                    <span className="text-xs text-sand-400">— {city.name}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="mt-2 ml-4">
+                      <CityDevelopments city={city} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Already drafted cards ── */}
       {draftedCards && draftedCards.length > 0 && (
-        <div className="mb-6">
+        <div>
           <p className="font-display text-[0.65rem] uppercase tracking-[0.12em] text-sand-500 mb-2">Your drafted cards ({draftedCards.length})</p>
           <div className="grid grid-cols-2 gap-2">
             {draftedCards.map(card => {
@@ -154,7 +220,7 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
         </div>
       )}
 
-      {/* Waiting state */}
+      {/* ── Waiting state ── */}
       {hasAlreadyPicked && (
         <div className="text-center py-8">
           <p className="text-sand-600">You've picked your card this round.</p>
@@ -164,7 +230,7 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
         </div>
       )}
 
-      {/* Pack to pick from */}
+      {/* ── Pack to pick from ── */}
       {!hasAlreadyPicked && draftPack && draftPack.length > 0 && (
         <div>
           <p className="text-sm text-sand-600 mb-3">Pick one card ({draftPack.length} available):</p>
