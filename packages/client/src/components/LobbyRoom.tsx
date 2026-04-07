@@ -5,12 +5,14 @@ export interface LobbyRoomProps {
   players: PlayerInfo[];
   currentPlayerId: string;
   hostPlayerId: string;
+  recordStats: boolean;
+  onToggleRecordStats: (value: boolean) => void;
   onStartGame: () => void;
   onBack: () => void;
 }
 
 export const LobbyRoom: React.FC<LobbyRoomProps> = ({
-  players, currentPlayerId, hostPlayerId, onStartGame, onBack,
+  players, currentPlayerId, hostPlayerId, recordStats, onToggleRecordStats, onStartGame, onBack,
 }) => {
   const isHost = currentPlayerId === hostPlayerId;
 
@@ -33,6 +35,16 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
             </div>
           ))}
         </div>
+
+        <label className="flex items-center justify-center gap-2 mb-4 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={recordStats}
+            onChange={e => onToggleRecordStats(e.target.checked)}
+            className="w-4 h-4 accent-gold rounded"
+          />
+          <span className="text-sm text-sand-600">Record stats for this game</span>
+        </label>
 
         {isHost && (
           <button

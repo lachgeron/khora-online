@@ -8,7 +8,7 @@ import type {
   ActionType,
   ActionChoices,
 } from './types';
-import { createLobby, joinLobby, startGame, takeSeat } from './api';
+import { createLobby, joinLobby, startGame, takeSeat, updateLobbySettings } from './api';
 import { useGameSocket } from './useGameSocket';
 import { useLobbyPolling } from './useLobbyPolling';
 import { GameBrowser } from './components/GameBrowser';
@@ -29,8 +29,11 @@ import { CardPlayAnnouncement } from './components/CardPlayAnnouncement';
 import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
+import { StatsPage } from './components/StatsPage';
 
-type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME';
+type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
+
+const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 
 export const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('NAME');
@@ -41,6 +44,7 @@ export const App: React.FC = () => {
   const [lobbyPlayers, setLobbyPlayers] = useState<PlayerInfo[]>([]);
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
+  const [recordStats, setRecordStats] = useState(true);
 
   const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
     useGameSocket(gameId, currentPlayerId);
@@ -61,8 +65,9 @@ export const App: React.FC = () => {
   useLobbyPolling(
     screen === 'LOBBY' ? lobbyId : null,
     2000,
-    ({ players, started, gameId: detectedGameId }) => {
+    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats }) => {
       setLobbyPlayers(players);
+      setRecordStats(lobbyRecordStats);
       if (started && detectedGameId && !gameId) {
         setGameId(detectedGameId);
         setScreen('GAME');
@@ -116,6 +121,13 @@ export const App: React.FC = () => {
     } catch { setLobbyError('Failed to start game'); }
   };
 
+  const handleToggleRecordStats = async (value: boolean) => {
+    setRecordStats(value);
+    if (lobbyId) {
+      await updateLobbySettings(lobbyId, { recordStats: value });
+    }
+  };
+
   const handleBackToBrowse = () => {
     setLobbyId('');
     setLobbyPlayers([]);
@@ -154,20 +166,23 @@ export const App: React.FC = () => {
           <div className="max-w-sm w-full text-center px-6">
             <h1 className="font-display text-4xl font-bold text-sand-800 mb-1">Khora</h1>
             <p className="text-sand-500 italic mb-10">Rise of an Empire</p>
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && playerName.trim() && setScreen('BROWSE')}
-              className="w-full px-4 py-2.5 bg-sand-50 border border-sand-300 rounded-lg text-sm text-center focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20"
-            />
+            <p className="text-sand-600 text-sm mb-4">Who are you?</p>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {PLAYER_NAMES.map(name => (
+                <button
+                  key={name}
+                  onClick={() => { setPlayerName(name); setScreen('BROWSE'); }}
+                  className="px-4 py-3 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim transition-colors"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
             <button
-              onClick={() => playerName.trim() && setScreen('BROWSE')}
-              disabled={!playerName.trim()}
-              className="mt-4 w-full px-4 py-2.5 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              onClick={() => setScreen('STATS')}
+              className="w-full px-4 py-2.5 bg-sand-200 text-sand-700 rounded-lg font-semibold text-sm hover:bg-sand-300 transition-colors"
             >
-              Continue
+              View Stats
             </button>
           </div>
         </div>
@@ -189,11 +204,17 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {screen === 'STATS' && (
+        <StatsPage onBack={() => setScreen('NAME')} />
+      )}
+
       {screen === 'LOBBY' && (
         <LobbyRoom
           players={lobbyPlayers}
           currentPlayerId={currentPlayerId}
           hostPlayerId={hostPlayerId}
+          recordStats={recordStats}
+          onToggleRecordStats={handleToggleRecordStats}
           onStartGame={handleStartGame}
           onBack={handleBackToBrowse}
         />

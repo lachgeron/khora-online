@@ -14,6 +14,7 @@ export interface Lobby {
   hostPlayerName: string;
   players: PlayerInfo[];
   started: boolean;
+  recordStats: boolean;
   createdAt: number;
 }
 
@@ -65,6 +66,7 @@ export class LobbyManager {
       hostPlayerName,
       players: [{ playerId: hostPlayerId, playerName: hostPlayerName }],
       started: false,
+      recordStats: true,
       createdAt: Date.now(),
     };
 

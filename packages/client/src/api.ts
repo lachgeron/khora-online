@@ -54,3 +54,19 @@ export async function getCities() {
   const res = await fetch(`${BASE_URL}/cities`);
   return res.json();
 }
+
+/** Update lobby settings (e.g. recordStats toggle). */
+export async function updateLobbySettings(lobbyId: string, settings: { recordStats: boolean }) {
+  const res = await fetch(`${BASE_URL}/lobbies/${lobbyId}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  return res.json();
+}
+
+/** Fetch player stats. */
+export async function getStats() {
+  const res = await fetch(`${BASE_URL}/stats`);
+  return res.json();
+}

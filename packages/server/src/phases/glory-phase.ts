@@ -183,12 +183,13 @@ export class GloryPhaseManager implements PhaseManager {
     let s = state;
     const remaining = s.pendingDecisions.filter(d => d.playerId !== playerId);
 
-    // Thirty Tyrants skip: auto-discard last 2 cards
+    // Thirty Tyrants skip: auto-discard last 2 cards to bottom of deck
     if (decisionType === 'THIRTY_TYRANTS_DISCARD') {
       const player = s.players.find(p => p.playerId === playerId);
       if (player && player.handCards.length > 0) {
         const toDiscard = Math.min(2, player.handCards.length);
-        s = { ...s, players: s.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p) };
+        const discardedCards = player.handCards.slice(player.handCards.length - toDiscard);
+        s = { ...s, players: s.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p), politicsDeck: [...s.politicsDeck, ...discardedCards] };
         s = appendLogEntry(s, { roundNumber: s.roundNumber, phase: 'GLORY', playerId, action: `Thirty Tyrants: discarded ${toDiscard} cards (auto)`, details: {} });
       }
     }
@@ -359,8 +360,13 @@ export class GloryPhaseManager implements PhaseManager {
       }
     }
 
+    const discardedCards = player.handCards.filter(c => discardSet.has(c.id));
     const newHand = player.handCards.filter(c => !discardSet.has(c.id));
-    let s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: newHand } : p) };
+    let s: GameState = {
+      ...state,
+      players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: newHand } : p),
+      politicsDeck: [...state.politicsDeck, ...discardedCards],
+    };
     s = appendLogEntry(s, { roundNumber: state.roundNumber, phase: 'GLORY', playerId, action: `Thirty Tyrants: discarded ${toDiscard} cards`, details: { cardIds: decision.cardIds } });
     return { ok: true, value: finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId)) };
   }
@@ -444,12 +450,13 @@ export class GloryPhaseManager implements PhaseManager {
       }
     }
 
-    // Thirty Tyrants: auto-discard last 2 cards
+    // Thirty Tyrants: auto-discard last 2 cards to bottom of deck
     if (pending?.decisionType === 'THIRTY_TYRANTS_DISCARD') {
       const player = state.players.find(p => p.playerId === playerId);
       if (player && player.handCards.length > 0) {
         const toDiscard = Math.min(2, player.handCards.length);
-        let s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p) };
+        const discardedCards = player.handCards.slice(player.handCards.length - toDiscard);
+        let s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p), politicsDeck: [...state.politicsDeck, ...discardedCards] };
         return finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId));
       }
     }

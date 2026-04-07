@@ -1,9 +1,9 @@
 /**
  * DraftPoliticsPhaseManager — handles the politics card drafting sub-phase.
  *
- * Each player receives a pile of 7 cards. They pick one card, then pass
+ * Each player receives a pile of 5 cards. They pick one card, then pass
  * the remaining cards to the next player. After 5 rounds of picking,
- * the remaining 2 cards per pile are discarded.
+ * all cards have been drafted.
  */
 
 import type {
@@ -16,7 +16,7 @@ import type {
 } from '@khora/shared';
 import type { PhaseManager } from './omen-phase';
 
-const CARDS_PER_PILE = 7;
+const CARDS_PER_PILE = 5;
 const PICKS_PER_PLAYER = 5;
 
 /**

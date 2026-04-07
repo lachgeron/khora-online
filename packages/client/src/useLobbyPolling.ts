@@ -10,6 +10,7 @@ export interface LobbyPollResult {
   players: PlayerInfo[];
   started: boolean;
   gameId: string | null;
+  recordStats: boolean;
 }
 
 export function useLobbyPolling(
@@ -35,6 +36,7 @@ export function useLobbyPolling(
             players: data.players ?? [],
             started: data.started ?? false,
             gameId: data.gameId ?? null,
+            recordStats: data.recordStats ?? true,
           });
         }
       } catch {

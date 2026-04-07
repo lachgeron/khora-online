@@ -61,7 +61,7 @@ export interface PendingDecision {
 /** Info about a disconnected player's reconnection window. */
 export interface DisconnectionInfo {
   disconnectedAt: number;
-  expiresAt: number;           // disconnectedAt + 300_000ms
+  expiresAt: number;           // disconnectedAt + 120_000ms (2 minutes)
 }
 
 /** A single entry in the game log. */

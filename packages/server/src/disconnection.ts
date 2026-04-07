@@ -1,15 +1,16 @@
 /**
  * Disconnection and reconnection handling for Khora Online.
  *
- * Manages player disconnect/reconnect lifecycle with a 300-second
- * reconnection window. Auto-resolves pending decisions for disconnected
- * players by skipping optional actions and making no purchases.
+ * Manages player disconnect/reconnect lifecycle with a 120-second
+ * reconnection window. During the window the game continues as if the
+ * player is still present (decisions auto-resolve on timeout). After
+ * the window expires the player is removed from the game completely.
  */
 
 import type { GameState } from '@khora/shared';
 import type { DisconnectionInfo } from '@khora/shared';
 
-const DISCONNECT_WINDOW_MS = 300_000; // 300 seconds
+const DISCONNECT_WINDOW_MS = 120_000; // 120 seconds (2 minutes)
 
 /**
  * Handle a player disconnecting.
@@ -88,4 +89,34 @@ export function autoResolveForDisconnected(
   });
 
   return { ...state, players, pendingDecisions };
+}
+
+/**
+ * Completely remove a player from the game after their reconnection
+ * window has expired. Strips them from players, turnOrder,
+ * pendingDecisions, and disconnectedPlayers. Achievements they claimed
+ * are kept so they remain unavailable to other players.
+ */
+export function removePlayer(state: GameState, playerId: string): GameState {
+  const players = state.players.filter(p => p.playerId !== playerId);
+  const turnOrder = state.turnOrder.filter(id => id !== playerId);
+  const pendingDecisions = state.pendingDecisions.filter(d => d.playerId !== playerId);
+
+  const disconnectedPlayers = new Map(state.disconnectedPlayers);
+  disconnectedPlayers.delete(playerId);
+
+  // Update startPlayerId if the removed player was the start player
+  const startPlayerId = state.startPlayerId === playerId
+    ? (turnOrder[0] ?? '')
+    : state.startPlayerId;
+
+  return {
+    ...state,
+    players,
+    turnOrder,
+    pendingDecisions,
+    disconnectedPlayers,
+    startPlayerId,
+    updatedAt: Date.now(),
+  };
 }
