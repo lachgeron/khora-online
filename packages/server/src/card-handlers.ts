@@ -81,8 +81,9 @@ export const ONGOING_HANDLERS: OngoingCardHandler[] = [
     apply: (s, _pid) => s }, // Modifier checked by progress phase
 
   // Old Guard: +4 VP if you don't move up on any track during progress phase
+  // Conditional logic handled in progress-phase.ts (only fires on skip/auto-resolve)
   { cardId: 'old-guard', trigger: { type: 'ON_PROGRESS_PHASE' },
-    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, victoryPoints: p.victoryPoints + 4 })) },
+    apply: (s, _pid) => s }, // Handled by progress phase
 
   // Oracle: +4 VP on development action
   { cardId: 'oracle', trigger: { type: 'ON_ACTION', actionType: 'DEVELOPMENT' },

@@ -522,6 +522,35 @@ wss.on('connection', (ws, req) => {
   });
 });
 
+// Start heartbeat monitoring — detect zombie connections every 15 seconds
+wsGateway.onDisconnect((gameId, playerId) => {
+  console.log(`[HEARTBEAT] Player ${playerId} heartbeat expired in game ${gameId}`);
+  const currentState = games.get(gameId);
+  if (currentState && currentState.currentPhase !== 'GAME_OVER') {
+    const updatedState = handleDisconnect(currentState, playerId);
+    games.set(gameId, updatedState);
+    wsGateway.broadcastToGame(gameId, updatedState);
+
+    const info = updatedState.disconnectedPlayers.get(playerId);
+    if (info) {
+      const delay = Math.max(1000, info.expiresAt - Date.now());
+      scheduleAbandonTimer(gameId, playerId, delay);
+    }
+  }
+  // Also close the raw WS connection if it still exists
+  for (const [ws, meta] of wsClients) {
+    if (meta.gameId === gameId && meta.playerId === playerId) {
+      wsClients.delete(ws);
+      try { ws.close(); } catch { /* already closed */ }
+      break;
+    }
+  }
+});
+
+setInterval(() => {
+  wsGateway.checkHeartbeats();
+}, 15_000);
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Khora Online server running on http://localhost:${PORT}`);
   console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
