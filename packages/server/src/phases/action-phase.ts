@@ -24,14 +24,15 @@ import { capTroops } from '../resources';
 
 /** Per-action timeout durations in milliseconds. */
 const ACTION_TIMEOUTS: Record<string, number> = {
-  PHILOSOPHY: 10_000,
   LEGISLATION: 30_000,
-  CULTURE: 5_000,
   TRADE: 30_000,
   MILITARY: 60_000,
   POLITICS: 60_000,
   DEVELOPMENT: 60_000,
 };
+
+/** Actions that auto-resolve immediately and show a 5s display instead. */
+const AUTO_RESOLVE_ACTIONS = new Set<string>(['PHILOSOPHY', 'CULTURE']);
 
 /** Actions that cannot be skipped by the player. */
 const NO_SKIP_ACTIONS = new Set(['PHILOSOPHY', 'CULTURE', 'TRADE', 'MILITARY']);
@@ -205,7 +206,13 @@ export class ActionPhaseManager implements PhaseManager {
   autoResolve(state: GameState, playerId: string): GameState {
     // Clear the display pause when it times out
     if (playerId === '__display__') {
-      return { ...state, pendingDecisions: [] };
+      const decision = state.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
+      const cleared = { ...state, pendingDecisions: [] };
+      // If this was a mid-action display (Philosophy/Culture), rebuild pending for next action
+      if (decision?.options && typeof decision.options === 'object' && (decision.options as Record<string, unknown>).midAction) {
+        return this.buildPendingForActivePlayer(cleared);
+      }
+      return cleared;
     }
     let updatedState = this.autoResolveSingleAction(state, playerId);
     return this.buildPendingForActivePlayer(updatedState);
@@ -331,25 +338,53 @@ export class ActionPhaseManager implements PhaseManager {
       };
     }
 
-    // Determine the next action type for this player to set the correct timeout
+    // Determine the next action type for this player
     const player = state.players.find(p => p.playerId === activeId);
-    let timeout = 30_000; // default fallback
     if (player) {
       const unresolvedSlots = player.actionSlots
         .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
         .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType]);
+
+      // Auto-resolve Philosophy and Culture immediately with a 5s display pause
+      if (unresolvedSlots.length > 0 && AUTO_RESOLVE_ACTIONS.has(unresolvedSlots[0].actionType)) {
+        let updatedState = this.autoResolveSingleAction(state, activeId);
+        const now = Date.now();
+        return {
+          ...updatedState,
+          pendingDecisions: [{
+            playerId: '__display__',
+            decisionType: 'PHASE_DISPLAY' as const,
+            timeoutAt: now + 5_000,
+            options: { midAction: true, actionType: unresolvedSlots[0].actionType } as unknown,
+          }],
+        };
+      }
+
+      let timeout = 30_000; // default fallback
       if (unresolvedSlots.length > 0) {
         timeout = ACTION_TIMEOUTS[unresolvedSlots[0].actionType] ?? 30_000;
       }
+
+      const now = Date.now();
+      return {
+        ...state,
+        pendingDecisions: [{
+          playerId: activeId,
+          decisionType: 'RESOLVE_ACTION' as const,
+          timeoutAt: now + timeout,
+          options: null as unknown,
+        }],
+      };
     }
 
+    // Fallback: no player found (shouldn't happen)
     const now = Date.now();
     return {
       ...state,
       pendingDecisions: [{
         playerId: activeId,
         decisionType: 'RESOLVE_ACTION' as const,
-        timeoutAt: now + timeout,
+        timeoutAt: now + 30_000,
         options: null as unknown,
       }],
     };

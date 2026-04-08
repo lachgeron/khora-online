@@ -21,7 +21,7 @@ export interface DicePhaseProps {
   currentPlayerId: string;
   startPlayerId: string;
   actionSlots: [ActionSlot | null, ActionSlot | null, ActionSlot | null];
-  pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number }[];
+  pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number; usingTimeBank?: boolean }[];
   onRoll: () => void;
   onAssign: (assignments: DiceAssignment[], philosophyTokensToSpend?: number) => void;
   onUnassign: () => void;
@@ -179,7 +179,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
         <h3 className="font-display text-lg font-bold text-sand-800 mb-2">🎲 Dice Phase</h3>
         {rollDecision && (
           <div className="flex justify-center mb-3">
-            <CountdownTimer timeoutAt={rollDecision.timeoutAt} />
+            <CountdownTimer timeoutAt={rollDecision.timeoutAt} usingTimeBank={rollDecision.usingTimeBank} />
           </div>
         )}
         {players.some(p => p.playerId !== currentPlayerId && p.diceRoll != null) && (
@@ -224,6 +224,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
     const assignPending = pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE');
     const waitingPlayers = players.filter(p => assignPending.some(d => d.playerId === p.playerId));
     const timeoutAt = assignPending[0]?.timeoutAt ?? 0;
+    const tbFlag = assignPending[0]?.usingTimeBank;
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h3 className="font-display text-lg font-bold text-sand-800 mb-3">🎲 Actions Locked In</h3>
@@ -239,7 +240,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
         </div>
         {waitingPlayers.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 mb-3">
-            <CountdownTimer timeoutAt={timeoutAt} />
+            <CountdownTimer timeoutAt={timeoutAt} usingTimeBank={tbFlag} />
             <p className="text-xs text-sand-600 mt-2 font-medium">Waiting for:</p>
             <div className="flex flex-wrap gap-1.5 mt-1">
               {waitingPlayers.map(p => (
@@ -285,7 +286,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
       {/* Countdown */}
       {pendingDecisions.filter(d => d.decisionType === 'ASSIGN_DICE').length > 0 && (
         <div className="mb-3">
-          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} />
+          <CountdownTimer timeoutAt={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')!.timeoutAt} usingTimeBank={pendingDecisions.find(d => d.decisionType === 'ASSIGN_DICE')?.usingTimeBank} />
         </div>
       )}
 

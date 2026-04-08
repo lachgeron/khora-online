@@ -176,7 +176,7 @@ export const GloryEventPanel: React.FC<GloryEventPanelProps> = ({
       {/* Timer for interactive decisions */}
       {myDecision && hasInteractive && (
         <div className="mb-4">
-          <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+          <CountdownTimer timeoutAt={myDecision.timeoutAt} usingTimeBank={myDecision.usingTimeBank} />
         </div>
       )}
       <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-3 text-center">Event Resolution</p>

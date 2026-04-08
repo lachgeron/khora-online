@@ -40,6 +40,7 @@ export function makeTestPlayer(overrides: Partial<PlayerState> = {}): PlayerStat
     developmentLevel: 1,
     diceRoll: null,
     actionSlots: [null, null, null],
+    timeBankMs: 120_000,
     ...overrides,
   };
 }

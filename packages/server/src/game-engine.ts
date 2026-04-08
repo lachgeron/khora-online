@@ -123,6 +123,7 @@ export class GameEngine {
       actionSlots: [null, null, null],
       victoryPoints: 0,
       isConnected: true,
+      timeBankMs: 120_000,
     }));
 
     const eventDeck = [...eventCards];
@@ -345,12 +346,14 @@ export class GameEngine {
           .filter((s): s is NonNullable<typeof s> => s !== null)
           .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
         isConnected: p.isConnected,
+        timeBankMs: p.timeBankMs,
       })),
       gameLog: state.gameLog,
       pendingDecisions: state.pendingDecisions.map((d) => ({
         playerId: d.playerId,
         decisionType: d.decisionType,
         timeoutAt: d.timeoutAt,
+        usingTimeBank: d.usingTimeBank,
       })),
       cityDraft: publicCityDraft,
       politicsDraft: publicPoliticsDraft,
@@ -440,6 +443,7 @@ function initializePlayerState(info: PlayerInfo, city: CityCard): PlayerState {
     actionSlots: [null, null, null],
     victoryPoints: 0,
     isConnected: true,
+    timeBankMs: 120_000,
   };
 
   // Apply the 1st development's immediate effect (already active at game start)

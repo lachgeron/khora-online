@@ -35,6 +35,8 @@ const lobbyGameIds = new Map<string, string>();
 const gameTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // Track per-player abandonment timers: key = `${gameId}:${playerId}`
 const abandonTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Track per-player time bank usage start times: key = `${gameId}:${playerId}`
+const timeBankUsage = new Map<string, number>();
 // Track which games have already had stats recorded (prevent double-recording)
 const statsRecorded = new Set<string>();
 // Games where stats recording was disabled in the lobby
@@ -132,6 +134,36 @@ function manageGameTimer(gameId: string, state: GameState): void {
       resolved = false;
       const expired = currentState.pendingDecisions.find(d => d.timeoutAt <= now);
       if (!expired) break;
+
+      // Time bank interception: when a player's normal timer expires, switch to time bank
+      if (expired.decisionType !== 'PHASE_DISPLAY' && !expired.usingTimeBank) {
+        const player = currentState.players.find(p => p.playerId === expired.playerId);
+        if (player && player.timeBankMs > 0) {
+          console.log(`[TIMER] Normal timer expired for ${expired.playerId} in game ${gameId}, switching to time bank (${player.timeBankMs}ms remaining)`);
+          timeBankUsage.set(`${gameId}:${expired.playerId}`, now);
+          currentState = {
+            ...currentState,
+            pendingDecisions: currentState.pendingDecisions.map(d =>
+              d === expired
+                ? { ...d, timeoutAt: now + player.timeBankMs, usingTimeBank: true }
+                : d
+            ),
+          };
+          break; // Reschedule timer for time bank deadline
+        }
+      }
+
+      // If time bank expired, zero it out
+      if (expired.usingTimeBank) {
+        console.log(`[TIMER] Time bank exhausted for ${expired.playerId} in game ${gameId}`);
+        timeBankUsage.delete(`${gameId}:${expired.playerId}`);
+        currentState = {
+          ...currentState,
+          players: currentState.players.map(p =>
+            p.playerId === expired.playerId ? { ...p, timeBankMs: 0 } : p
+          ),
+        };
+      }
 
       const pid = expired.decisionType === 'PHASE_DISPLAY' ? '__display__' : expired.playerId;
       console.log(`[TIMER] Auto-resolving ${expired.decisionType} for ${pid} in game ${gameId}`);
@@ -475,18 +507,35 @@ wss.on('connection', (ws, req) => {
 
       const result = gameEngine.handlePlayerDecision(currentState, playerId, message);
       if (result.ok) {
-        games.set(gameId, result.value);
-        wsGateway.broadcastToGame(gameId, result.value);
-        manageGameTimer(gameId, result.value);
+        let updatedState = result.value;
+
+        // Deduct time bank if the player was using it
+        const tbKey = `${gameId}:${playerId}`;
+        const tbStart = timeBankUsage.get(tbKey);
+        if (tbStart) {
+          const elapsed = Date.now() - tbStart;
+          timeBankUsage.delete(tbKey);
+          updatedState = {
+            ...updatedState,
+            players: updatedState.players.map(p =>
+              p.playerId === playerId ? { ...p, timeBankMs: Math.max(0, p.timeBankMs - elapsed) } : p
+            ),
+          };
+          console.log(`[TIMER] Deducted ${elapsed}ms from time bank for ${playerId} in game ${gameId} (${updatedState.players.find(p => p.playerId === playerId)?.timeBankMs}ms remaining)`);
+        }
+
+        games.set(gameId, updatedState);
+        wsGateway.broadcastToGame(gameId, updatedState);
+        manageGameTimer(gameId, updatedState);
 
         // Send dedicated GAME_OVER message when game ends
-        if (result.value.currentPhase === 'GAME_OVER' && result.value.finalScores) {
-          recordGameStats(gameId, result.value);
+        if (updatedState.currentPhase === 'GAME_OVER' && updatedState.finalScores) {
+          recordGameStats(gameId, updatedState);
           const gameConns = wsGateway.getConnectedPlayers(gameId);
           for (const pid of gameConns) {
             wsGateway.sendToPlayer(gameId, pid, {
               type: 'GAME_OVER',
-              finalScores: result.value.finalScores,
+              finalScores: updatedState.finalScores,
             });
           }
         }

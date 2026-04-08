@@ -441,6 +441,7 @@ export const App: React.FC = () => {
                         onResolve={handleResolveAction}
                         onSkip={handleSkipPhase}
                         timeoutAt={gameState.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'RESOLVE_ACTION')?.timeoutAt}
+                        usingTimeBank={gameState.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'RESOLVE_ACTION')?.usingTimeBank}
                       />
                       </div>
                     )}

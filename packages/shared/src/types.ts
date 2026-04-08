@@ -56,6 +56,7 @@ export interface PendingDecision {
   decisionType: DecisionType;
   timeoutAt: number;           // Unix timestamp
   options: unknown;            // Phase-specific options
+  usingTimeBank?: boolean;     // True when normal timer expired and time bank is being consumed
 }
 
 /** Info about a disconnected player's reconnection window. */

@@ -71,7 +71,7 @@ export interface PublicGameState {
   startPlayerId: string;
   turnOrder: string[];
   gameLog: GameLogEntry[];
-  pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number }[];
+  pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number; usingTimeBank?: boolean }[];
   // Draft phase fields (null when not in a draft phase)
   cityDraft: {
     pickOrder: string[];
@@ -116,6 +116,7 @@ export interface PublicPlayerState {
   diceRoll: number[] | null;
   actionSlots: { actionType: ActionType; resolved: boolean }[];
   isConnected: boolean;
+  timeBankMs: number;
 }
 
 /** Private info sent only to the owning player. */

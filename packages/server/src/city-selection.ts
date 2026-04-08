@@ -134,6 +134,7 @@ export class CitySelectionManager {
       victoryPoints: 0,
 
       isConnected: true,
+      timeBankMs: 120_000,
     };
 
     // Apply the 1st development's immediate effect (already active at game start)

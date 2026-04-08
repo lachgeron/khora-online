@@ -63,6 +63,9 @@ export interface PlayerState {
 
   // Connection
   isConnected: boolean;
+
+  // Time bank (milliseconds remaining; starts at 120_000)
+  timeBankMs: number;
 }
 
 /** An event card revealed during the Omen phase. */

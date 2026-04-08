@@ -11,7 +11,7 @@ export interface CitySelectionProps {
   allCities: CityCard[];
   currentPlayerId: string;
   playerNames: Record<string, string>;
-  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
+  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number; usingTimeBank?: boolean }[];
   onSelectCity: (cityId: string) => void;
 }
 
@@ -42,7 +42,7 @@ export const CitySelection: React.FC<CitySelectionProps> = ({
         const myDecision = pendingDecisions?.find(d => d.playerId === currentPlayerId);
         return myDecision ? (
           <div className="max-w-xs mx-auto mb-6">
-            <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+            <CountdownTimer timeoutAt={myDecision.timeoutAt} usingTimeBank={myDecision.usingTimeBank} />
           </div>
         ) : null;
       })()}

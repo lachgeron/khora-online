@@ -48,12 +48,13 @@ export interface ActionPhaseProps {
   onResolve: (actionType: ActionType, choices: ActionChoices) => void;
   onSkip: () => void;
   timeoutAt?: number;
+  usingTimeBank?: boolean;
 }
 
 export const ActionPhase: React.FC<ActionPhaseProps> = ({
   actionType, handCards, playerCoins, playerEconomyTrack, playerMilitaryTrack, playerTroopTrack,
   playerKnowledgeTokens, philosophyTokens: philTokens, developmentLevel, cityId, cityDevelopments,
-  centralBoardTokens, legislationDraw, playedCards, onResolve, onSkip, timeoutAt,
+  centralBoardTokens, legislationDraw, playedCards, onResolve, onSkip, timeoutAt, usingTimeBank,
 }) => {
   const [buyToken, setBuyToken] = useState(false);
   const [tokenColor, setTokenColor] = useState<KnowledgeColor>('GREEN');
@@ -124,7 +125,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
         </div>
         {timeoutAt && (
           <div className="mt-3">
-            <CountdownTimer timeoutAt={timeoutAt} />
+            <CountdownTimer timeoutAt={timeoutAt} usingTimeBank={usingTimeBank} />
           </div>
         )}
       </div>

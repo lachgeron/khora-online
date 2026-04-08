@@ -12,7 +12,7 @@ export interface PoliticsDraftProps {
   passOrder: string[];
   currentPlayerId: string;
   playerNames: Record<string, string>;
-  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number }[];
+  pendingDecisions?: { playerId: string; decisionType: string; timeoutAt: number; usingTimeBank?: boolean }[];
   onDraftCard: (cardId: string) => void;
   cityCard: CityCard | null;
   otherPlayerCities: { playerId: string; playerName: string; city: CityCard }[];
@@ -97,7 +97,7 @@ export const PoliticsDraft: React.FC<PoliticsDraftProps> = ({
           const myDecision = pendingDecisions?.find(d => d.playerId === currentPlayerId);
           return myDecision ? (
             <div className="max-w-xs mx-auto mt-3">
-              <CountdownTimer timeoutAt={myDecision.timeoutAt} />
+              <CountdownTimer timeoutAt={myDecision.timeoutAt} usingTimeBank={myDecision.usingTimeBank} />
             </div>
           ) : null;
         })()}

@@ -45,6 +45,7 @@ export function buildPublicPlayerState(player: PlayerState): PublicPlayerState {
       .filter((s): s is NonNullable<typeof s> => s !== null)
       .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
     isConnected: player.isConnected,
+    timeBankMs: player.timeBankMs,
   };
 }
 

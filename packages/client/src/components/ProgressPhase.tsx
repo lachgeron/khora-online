@@ -12,7 +12,7 @@ export interface ProgressPhaseProps {
   militaryTrack: number;
   coins: number;
   philosophyTokens: number;
-  pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number }[];
+  pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number; usingTimeBank?: boolean }[];
   currentPlayerId: string;
   playedCardIds?: string[];
   onAdvance: (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[], bonusTracks?: TrackAdvancement[]) => void;
@@ -179,7 +179,7 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
         <h3 className="font-display text-lg font-bold text-sand-800">📈 Progress Phase</h3>
         {hasPending && (() => {
           const myDecision = pendingDecisions.find(d => d.playerId === currentPlayerId);
-          return myDecision ? <div className="mt-2"><CountdownTimer timeoutAt={myDecision.timeoutAt} /></div> : null;
+          return myDecision ? <div className="mt-2"><CountdownTimer timeoutAt={myDecision.timeoutAt} usingTimeBank={myDecision.usingTimeBank} /></div> : null;
         })()}
       </div>
 

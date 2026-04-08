@@ -85,7 +85,7 @@ export const AchievementPhase: React.FC<AchievementPhaseProps> = ({
     <div>
       <div className="flex items-center gap-3 mb-3">
         <h3 className="font-display text-base font-semibold text-sand-800">Achievement Phase</h3>
-        {myPending.length > 0 && <CountdownTimer timeoutAt={myPending[0].timeoutAt} />}
+        {myPending.length > 0 && <CountdownTimer timeoutAt={myPending[0].timeoutAt} usingTimeBank={myPending[0].usingTimeBank} />}
       </div>
 
       {myPending.length > 0 ? (

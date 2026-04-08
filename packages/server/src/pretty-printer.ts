@@ -137,6 +137,7 @@ export function parseGameState(text: string): GameState {
       developmentLevel: parseInt(getPlayerVal('DevelopmentLevel: '), 10) || 0,
       diceRoll: null,
       actionSlots: [null, null, null],
+      timeBankMs: 120_000,
     });
   }
 
