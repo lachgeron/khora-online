@@ -128,30 +128,42 @@ function manageGameTimer(gameId: string, state: GameState): void {
 
     const now = Date.now();
 
-    // Auto-resolve one expired decision at a time, re-checking state after each
+    // First pass: extend ALL time-bank-eligible expired decisions simultaneously.
+    // This handles simultaneous decisions (e.g. ASSIGN_DICE for all players)
+    // without staggering each player's time bank start by 1 second.
+    const timeBankPlayers: string[] = [];
+    for (const d of currentState.pendingDecisions) {
+      if (d.timeoutAt <= now && d.decisionType !== 'PHASE_DISPLAY' && !d.usingTimeBank) {
+        const player = currentState.players.find(p => p.playerId === d.playerId);
+        if (player && player.timeBankMs > 0) {
+          timeBankPlayers.push(d.playerId);
+          timeBankUsage.set(`${gameId}:${d.playerId}`, now);
+        }
+      }
+    }
+
+    if (timeBankPlayers.length > 0 && currentState) {
+      const tbSet = new Set(timeBankPlayers);
+      const players = currentState.players;
+      console.log(`[TIMER] Normal timer expired for ${timeBankPlayers.join(', ')} in game ${gameId}, switching to time bank`);
+      currentState = {
+        ...currentState,
+        pendingDecisions: currentState.pendingDecisions.map(d => {
+          if (d.timeoutAt <= now && tbSet.has(d.playerId) && d.decisionType !== 'PHASE_DISPLAY' && !d.usingTimeBank) {
+            const player = players.find(p => p.playerId === d.playerId);
+            return { ...d, timeoutAt: now + (player?.timeBankMs ?? 0), usingTimeBank: true };
+          }
+          return d;
+        }),
+      };
+    }
+
+    // Second pass: auto-resolve remaining expired decisions one at a time
     let resolved = true;
     while (resolved) {
       resolved = false;
       const expired = currentState.pendingDecisions.find(d => d.timeoutAt <= now);
       if (!expired) break;
-
-      // Time bank interception: when a player's normal timer expires, switch to time bank
-      if (expired.decisionType !== 'PHASE_DISPLAY' && !expired.usingTimeBank) {
-        const player = currentState.players.find(p => p.playerId === expired.playerId);
-        if (player && player.timeBankMs > 0) {
-          console.log(`[TIMER] Normal timer expired for ${expired.playerId} in game ${gameId}, switching to time bank (${player.timeBankMs}ms remaining)`);
-          timeBankUsage.set(`${gameId}:${expired.playerId}`, now);
-          currentState = {
-            ...currentState,
-            pendingDecisions: currentState.pendingDecisions.map(d =>
-              d === expired
-                ? { ...d, timeoutAt: now + player.timeBankMs, usingTimeBank: true }
-                : d
-            ),
-          };
-          break; // Reschedule timer for time bank deadline
-        }
-      }
 
       // If time bank expired, zero it out
       if (expired.usingTimeBank) {
