@@ -5,6 +5,8 @@ interface KnowledgeStoreProps {
   tokens: KnowledgeToken[];
   /** If set, tokens become selectable and this is the currently selected token ID */
   selectedTokenId?: string;
+  /** Multiple selected token IDs (for multi-select like Sparta dev-3) */
+  selectedTokenIds?: string[];
   /** Called when a token is clicked in selection mode */
   onSelectToken?: (tokenId: string | null) => void;
   /** Troops available for exploration (used to determine which tokens are affordable) */
@@ -20,8 +22,10 @@ const COL = {
 } as const;
 
 export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
-  tokens, selectedTokenId, onSelectToken, availableTroops, compact,
+  tokens, selectedTokenId, selectedTokenIds, onSelectToken, availableTroops, compact,
 }) => {
+  const isTokenSelected = (id: string) =>
+    selectedTokenId === id || (selectedTokenIds?.includes(id) ?? false);
   if (tokens.length === 0) return null;
   const isSelectable = !!onSelectToken;
 
@@ -60,7 +64,7 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
               <div className={compact ? 'flex flex-wrap gap-1.5' : 'space-y-1'}>
                 {colorTokens.map(t => {
                   const isMajor = t.tokenType === 'MAJOR';
-                  const isSelected = selectedTokenId === t.id;
+                  const isSelected = isTokenSelected(t.id);
                   const isExplored = t.explored === true;
                   const canAfford = !isExplored && (availableTroops !== undefined ? availableTroops >= (t.militaryRequirement ?? 0) : true);
                   const hasBonus = (t.bonusCoins ?? 0) > 0 || (t.bonusVP ?? 0) > 0;
@@ -174,16 +178,16 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
         const persepolisAffordable = !persepolisExplored && (availableTroops === undefined || availableTroops >= 15);
         return (
         <div
-          onClick={() => isSelectable && (selectedTokenId === persepolis.id || persepolisAffordable) && onSelectToken?.(selectedTokenId === persepolis.id ? null : persepolis.id)}
+          onClick={() => isSelectable && (isTokenSelected(persepolis.id) || persepolisAffordable) && onSelectToken?.(isTokenSelected(persepolis.id) ? null : persepolis.id)}
           className={`mt-4 rounded-xl border-2 p-4 transition-all ${
             persepolisExplored ? 'opacity-30 grayscale border-sand-200 cursor-default' :
             isSelectable ? (
-              selectedTokenId === persepolis.id ? 'ring-2 ring-gold bg-gold/10 border-gold cursor-pointer shadow-md' :
+              isTokenSelected(persepolis.id) ? 'ring-2 ring-gold bg-gold/10 border-gold cursor-pointer shadow-md' :
               !persepolisAffordable ? 'opacity-30 cursor-not-allowed border-sand-200' :
               'border-sand-300 hover:border-sand-500 cursor-pointer'
             ) : 'border-sand-300'
           }`}
-          style={{ background: persepolisExplored ? '#e8e4df' : selectedTokenId === persepolis.id ? undefined : 'linear-gradient(135deg, rgba(196,64,64,0.06), rgba(64,96,196,0.06), rgba(64,160,80,0.06))' }}
+          style={{ background: persepolisExplored ? '#e8e4df' : isTokenSelected(persepolis.id) ? undefined : 'linear-gradient(135deg, rgba(196,64,64,0.06), rgba(64,96,196,0.06), rgba(64,160,80,0.06))' }}
         >
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
@@ -197,9 +201,9 @@ export const KnowledgeStore: React.FC<KnowledgeStoreProps> = ({
             </div>
             {isSelectable && persepolisAffordable && (
               <span className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                selectedTokenId === persepolis.id ? 'bg-gold border-gold text-sand-900 text-[0.5rem] font-bold' : 'border-sand-300'
+                isTokenSelected(persepolis.id) ? 'bg-gold border-gold text-sand-900 text-[0.5rem] font-bold' : 'border-sand-300'
               }`}>
-                {selectedTokenId === persepolis.id && '✓'}
+                {isTokenSelected(persepolis.id) && '✓'}
               </span>
             )}
           </div>

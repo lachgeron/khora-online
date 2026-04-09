@@ -68,6 +68,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
   const [ostracismReturnId, setOstracismReturnId] = useState<string | null>(null);
   const [argosReward, setArgosReward] = useState<'troops' | 'coins' | 'vp' | 'citizens'>('vp');
   const [spartaExploreTokenIds, setSpartaExploreTokenIds] = useState<string[]>([]);
+  const [spartaStep, setSpartaStep] = useState<1 | 2>(1);
 
   const coins = playerCoins ?? 0;
   const scrolls = philTokens ?? 0;
@@ -677,7 +678,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             );
           })()}
 
-          {/* Sparta dev 3: explore up to 2 tokens */}
+          {/* Sparta dev 3: 2 military actions, one at a time */}
           {actionType === 'DEVELOPMENT' && (() => {
             const devLevel = developmentLevel ?? 0;
             const devs = cityDevelopments ?? [];
@@ -686,50 +687,143 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             if (!isSpartaDev3 || devLevel >= 4) return null;
             const militaryTrack = playerMilitaryTrack ?? 0;
             const troopTrack = playerTroopTrack ?? 0;
-            // After gaining troops from 2 military actions, available troops
-            const troopsAfterGain = troopTrack + militaryTrack * 2; // Can exceed 15 temporarily
             const boardTokens = centralBoardTokens ?? [];
-            if (boardTokens.length === 0) return null;
-            const toggleSpartaToken = (tokenId: string) => {
+
+            // Troop reduction from Helepole and Sparta dev 1
+            const hasHelepole = (playedCards ?? []).some(c => c.id === 'helepole');
+            const hasSpartaDev1 = cityId === 'sparta' && (developmentLevel ?? 0) >= 1;
+            const troopReduction = (hasHelepole ? 1 : 0) + (hasSpartaDev1 ? 1 : 0);
+            const reductionSources = [
+              ...(hasSpartaDev1 ? ['Sparta dev'] : []),
+              ...(hasHelepole ? ['Helepole'] : []),
+            ];
+
+            // Simulate troop state for the current step
+            // Step 1: start with current troops + 1st military gain
+            const troopsAfterGain1 = troopTrack + militaryTrack;
+            // After step 1 exploration
+            const token1 = spartaExploreTokenIds[0] ? boardTokens.find(t => t.id === spartaExploreTokenIds[0]) : null;
+            const token1Cost = token1 ? Math.max(0, (token1.skullValue ?? 0) - troopReduction) : 0;
+            const troopsAfterStep1 = Math.max(0, troopsAfterGain1 - token1Cost);
+            // Step 2: troops after step 1 + 2nd military gain
+            const troopsAfterGain2 = troopsAfterStep1 + militaryTrack;
+            const token2 = spartaExploreTokenIds[1] ? boardTokens.find(t => t.id === spartaExploreTokenIds[1]) : null;
+            const token2Cost = token2 ? Math.max(0, (token2.skullValue ?? 0) - troopReduction) : 0;
+
+            const currentStepTroops = spartaStep === 1 ? troopsAfterGain1 : troopsAfterGain2;
+            const currentTokenId = spartaExploreTokenIds[spartaStep - 1] ?? null;
+            const currentToken = spartaStep === 1 ? token1 : token2;
+            const currentCost = spartaStep === 1 ? token1Cost : token2Cost;
+            const troopsAfterExplore = Math.max(0, currentStepTroops - (currentToken ? currentCost : 0));
+
+            // Tokens already taken in step 1 shouldn't be selectable in step 2
+            const step1TokenId = spartaExploreTokenIds[0] ?? null;
+
+            const handleSelectToken = (id: string | null) => {
               setSpartaExploreTokenIds(prev => {
-                if (prev.includes(tokenId)) return prev.filter(id => id !== tokenId);
-                if (prev.length >= 2) return [prev[1], tokenId];
-                return [...prev, tokenId];
+                const idx = spartaStep - 1;
+                const updated = [...prev];
+                if (id === null) {
+                  // Deselect current step's token
+                  if (idx < updated.length) updated.splice(idx, 1);
+                } else if (idx < updated.length && updated[idx] === id) {
+                  // Toggle off
+                  updated.splice(idx, 1);
+                } else {
+                  // Set token for current step
+                  updated[idx] = id;
+                }
+                return updated;
               });
             };
-            // Calculate remaining troops after first exploration
-            let troopsRemaining = troopsAfterGain;
-            for (const tid of spartaExploreTokenIds) {
-              const t = boardTokens.find(tok => tok.id === tid);
-              if (t) troopsRemaining = Math.max(0, troopsRemaining - (t.skullValue ?? 0));
-            }
+
+            const renderTroopMath = (troopsStart: number, token: KnowledgeToken | null | undefined, cost: number) => {
+              if (!token) return (
+                <p className="text-[0.65rem] text-sand-500">
+                  Troops: <span className="font-bold text-sand-700">{troopsStart}</span> (no token selected)
+                </p>
+              );
+              const skull = token.skullValue ?? 0;
+              const tokenLabel = token.isPersepolis ? 'Persepolis' : token.color;
+              return (
+                <div className="text-[0.65rem] text-sand-500 space-y-0.5">
+                  <p>
+                    Troops: <span className="font-bold text-sand-700">{troopsStart}</span>
+                    {cost > 0 && <>{' '}- <span className="font-bold text-red-600">{cost}</span>{' '}
+                    = <span className="font-bold text-sand-700">{Math.max(0, troopsStart - cost)}</span></>}
+                  </p>
+                  <p className="ml-2 text-sand-400">
+                    {tokenLabel}: {skull} skull
+                    {troopReduction > 0 && skull > 0 && <>{' '}- {troopReduction} ({reductionSources.join(' + ')}) = {cost} lost</>}
+                  </p>
+                </div>
+              );
+            };
+
+            // Filter out tokens already picked in step 1 for step 2's store
+            const availableTokens = spartaStep === 2 && step1TokenId
+              ? boardTokens.map(t => t.id === step1TokenId ? { ...t, explored: true } : t)
+              : boardTokens;
+
             return (
               <div className="rounded-lg border border-sand-200 p-3">
-                <p className="text-xs font-medium text-sand-600 mb-1">
-                  You'll gain <span className="font-bold">{militaryTrack * 2}</span> troops. Optionally explore up to 2 tokens:
-                </p>
-                <p className="text-[0.65rem] text-sand-400 mb-2">
-                  Troops after gain: {troopsAfterGain} | Selected: {spartaExploreTokenIds.length}/2
-                </p>
-                <KnowledgeStore
-                  tokens={boardTokens}
-                  selectedTokenId={spartaExploreTokenIds[spartaExploreTokenIds.length - 1] || undefined}
-                  onSelectToken={(id) => id ? toggleSpartaToken(id) : setSpartaExploreTokenIds([])}
-                  availableTroops={troopsRemaining}
-                  compact
-                />
-                {spartaExploreTokenIds.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {spartaExploreTokenIds.map((tid, i) => {
-                      const t = boardTokens.find(tok => tok.id === tid);
-                      return t ? (
-                        <span key={tid} className="text-[0.65rem] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full">
-                          Token {i + 1}: {t.color} ({t.militaryRequirement} req, -{t.skullValue ?? 0} troops)
-                          <button onClick={() => setSpartaExploreTokenIds(prev => prev.filter(id => id !== tid))} className="ml-1 text-red-400 hover:text-red-600">×</button>
-                        </span>
-                      ) : null;
-                    })}
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs font-medium text-sand-600">
+                    Military Action <span className="font-bold text-sand-800">{spartaStep}</span> of 2
+                  </p>
+                  <span className="text-[0.6rem] bg-sand-100 text-sand-500 px-2 py-0.5 rounded-full">
+                    +{militaryTrack} troops
+                  </span>
+                </div>
+
+                {/* Step 1 summary when on step 2 */}
+                {spartaStep === 2 && (
+                  <div className="text-[0.6rem] text-sand-400 bg-sand-50 rounded px-2 py-1.5 mb-2 border border-sand-100">
+                    Action 1 result: +{militaryTrack} troops{token1 ? `, explored ${token1.isPersepolis ? 'Persepolis' : token1.color} (-${token1Cost} troops)` : ', no exploration'}
                   </div>
+                )}
+
+                {renderTroopMath(currentStepTroops, currentToken, currentCost)}
+
+                {boardTokens.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[0.6rem] text-sand-400 mb-1">Optionally explore a token:</p>
+                    <KnowledgeStore
+                      tokens={availableTokens}
+                      selectedTokenIds={currentTokenId ? [currentTokenId] : []}
+                      onSelectToken={handleSelectToken}
+                      availableTroops={currentStepTroops}
+                      compact
+                    />
+                  </div>
+                )}
+
+                {currentTokenId && currentToken && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <span className="text-[0.65rem] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full">
+                      {currentToken.isPersepolis ? 'Persepolis' : currentToken.color} ({currentToken.militaryRequirement} req, -{currentCost} troops)
+                      <button onClick={() => handleSelectToken(null)} className="ml-1 text-red-400 hover:text-red-600">×</button>
+                    </span>
+                  </div>
+                )}
+
+                {spartaStep === 1 && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setSpartaStep(2)}
+                    className="mt-2 w-full py-1.5 rounded-lg bg-sand-700 text-white text-xs font-semibold hover:bg-sand-800 transition-colors"
+                  >
+                    {currentTokenId ? 'Confirm & Next Action' : 'Skip & Next Action'} →
+                  </motion.button>
+                )}
+                {spartaStep === 2 && (
+                  <button
+                    onClick={() => setSpartaStep(1)}
+                    className="mt-1 text-[0.6rem] text-sand-400 hover:text-sand-600 underline"
+                  >
+                    ← Back to Action 1
+                  </button>
                 )}
               </div>
             );
@@ -748,6 +842,15 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
               <p className="text-xs text-amber-600 text-center mb-1">Select 2 tracks above to resolve</p>
             ) : null;
           })()}
+          {(() => {
+            const devLevel = developmentLevel ?? 0;
+            const devs = cityDevelopments ?? [];
+            const nextDev = devs[devLevel];
+            const isSpartaDev3 = actionType === 'DEVELOPMENT' && devLevel < 4 && (nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2));
+            return isSpartaDev3 && spartaStep < 2 ? (
+              <p className="text-xs text-amber-600 text-center mb-1">Complete both military actions above to resolve</p>
+            ) : null;
+          })()}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -763,6 +866,8 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const isSpartaDev3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
                 // Block resolve if track selection not fully selected
                 if (needsTrackPick && devTrackChoices.length < 2) return;
+                // Block resolve if Sparta dev-3 hasn't completed both steps
+                if (isSpartaDev3 && devLevel < 4 && spartaStep < 2) return;
                 const resolveChoices: ActionChoices = {};
                 if (useScrollsForDev && shortfall > 0) resolveChoices.philosophyPairsToUse = shortfall;
                 if (needsTrackPick && devTrackChoices.length === 2) resolveChoices.devTrackChoices = devTrackChoices;
@@ -781,7 +886,11 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const needsTrackPick = actionType === 'DEVELOPMENT' && devLevel < 4 && (
                   nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)
                   || nextDev?.id === 'corinth-dev-3' || (cityId === 'corinth' && devLevel === 2));
-                return needsTrackPick && devTrackChoices.length < 2 ? 'opacity-50 cursor-not-allowed' : '';
+                const isSpartaDev3Blocking = (() => {
+                  const sd3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
+                  return sd3 && devLevel < 4 && spartaStep < 2;
+                })();
+                return (needsTrackPick && devTrackChoices.length < 2) || isSpartaDev3Blocking ? 'opacity-50 cursor-not-allowed' : '';
               })()
             }`}
             style={{ background: info.color }}

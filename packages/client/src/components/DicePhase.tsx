@@ -159,8 +159,11 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
   // Fire auto-submit 3 seconds BEFORE server timeout to win the race.
   // The server auto-resolves at timeoutAt and would ignore partial assignments,
   // so we submit the client's current state early to preserve player choices.
+  // Only do this when already using time bank — if on normal timer, let the
+  // server handle the timeout so it can transition to time bank first.
   useEffect(() => {
     if (!assignDecision || !diceRoll || diceRoll.length === 0) return;
+    if (!assignDecision.usingTimeBank) return; // let server transition to time bank
     const earlyMs = assignDecision.timeoutAt - Date.now() - 3000;
     if (earlyMs <= 0) {
       // Already past the early-submit window — fire immediately
@@ -169,7 +172,7 @@ export const DicePhase: React.FC<DicePhaseProps> = ({
     }
     const timer = setTimeout(handleAssignExpire, earlyMs);
     return () => clearTimeout(timer);
-  }, [assignDecision?.timeoutAt, diceRoll, handleAssignExpire]);
+  }, [assignDecision?.timeoutAt, assignDecision?.usingTimeBank, diceRoll, handleAssignExpire]);
 
   // ── ROLL STEP ──
   if (!hasRolled) {
