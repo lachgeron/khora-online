@@ -422,12 +422,25 @@ wss.on('connection', (ws, req) => {
         const newDeck = [...currentState.politicsDeck];
         newDeck[deckIdx] = removedFromHand;
 
+        // Deduplicate hands: remove any card ID that appears more than
+        // once in the swapping player's hand (guards against prior state
+        // corruption where a card exists in both deck and hand).
+        const seenInHand = new Set<string>();
+        const deduplicatedHand = newHandCards.filter(c => {
+          if (seenInHand.has(c.id)) {
+            console.warn(`[ADMIN_SWAP] Removing duplicate card "${c.id}" from hand`);
+            return false;
+          }
+          seenInHand.add(c.id);
+          return true;
+        });
+
         // Deduplicate: collect every card ID across all players' hands,
         // played cards, draft packs, and drafted selections. If a card
         // appears more than once, remove extras from the deck.
         const allCardIds = new Set<string>();
         const updatedPlayers = currentState.players.map(p => {
-          const hand = p.playerId === playerId ? newHandCards : [...p.handCards];
+          const hand = p.playerId === playerId ? deduplicatedHand : [...p.handCards];
           for (const c of hand) allCardIds.add(c.id);
           for (const c of p.playedCards) allCardIds.add(c.id);
           return p.playerId === playerId ? { ...p, handCards: hand } : p;

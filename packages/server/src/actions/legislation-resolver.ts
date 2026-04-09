@@ -58,10 +58,19 @@ export class LegislationResolver implements ActionResolver {
         chosenCard = drawnCards[0];
       }
 
-      player = addToHand(player, chosenCard);
+      // Guard against duplicates: if the chosen card is already in the
+      // player's hand (state corruption), skip adding and return it to deck.
+      const alreadyInHand = player.handCards.some(c => c.id === chosenCard.id);
+      if (!alreadyInHand) {
+        player = addToHand(player, chosenCard);
+      } else {
+        console.warn(`[LEGISLATION] Card "${chosenCard.id}" already in hand, returning to deck`);
+      }
 
-      // Put unchosen cards on the bottom of the deck
-      const unchosenCards = drawnCards.filter(c => c.id !== chosenCard.id);
+      // Put unchosen cards (and the duplicate, if any) on the bottom of the deck
+      const unchosenCards = alreadyInHand
+        ? drawnCards
+        : drawnCards.filter(c => c.id !== chosenCard.id);
       const updatedDeck = [...updatedState.politicsDeck, ...unchosenCards];
       updatedState = { ...updatedState, politicsDeck: updatedDeck };
     }
