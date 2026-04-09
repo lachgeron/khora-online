@@ -255,8 +255,17 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, ch
   // Council: draw 2 cards from the deck
   'council': (s, pid) => {
     if (s.politicsDeck.length === 0) return s;
-    const drawn = s.politicsDeck.slice(0, 2);
-    const remainingDeck = s.politicsDeck.slice(2);
+    // Guard against state corruption: skip cards already owned by any player
+    const owned = new Set<string>();
+    for (const p of s.players) {
+      for (const c of p.handCards) owned.add(c.id);
+      for (const c of p.playedCards) owned.add(c.id);
+    }
+    const candidates = s.politicsDeck.filter(c => !owned.has(c.id));
+    const drawn = candidates.slice(0, 2);
+    if (drawn.length === 0) return s;
+    const drawnIds = new Set(drawn.map(c => c.id));
+    const remainingDeck = s.politicsDeck.filter(c => !drawnIds.has(c.id));
     return {
       ...updatePlayer(s, pid, p => ({ ...p, handCards: [...p.handCards, ...drawn] })),
       politicsDeck: remainingDeck,

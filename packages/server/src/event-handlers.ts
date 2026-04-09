@@ -31,6 +31,20 @@ export function getLowestTroops(state: GameState): PlayerState[] {
 }
 
 /**
+ * Collects all card IDs currently in any player's hand or played area.
+ * Used to guard against state corruption where a card exists in both
+ * the deck and a player's hand simultaneously.
+ */
+function getOwnedCardIds(state: GameState): Set<string> {
+  const ids = new Set<string>();
+  for (const p of state.players) {
+    for (const c of p.handCards) ids.add(c.id);
+    for (const c of p.playedCards) ids.add(c.id);
+  }
+  return ids;
+}
+
+/**
  * Apply the full event effect including troop-comparison logic.
  * Called from the omen phase after the event card is revealed.
  */
@@ -116,9 +130,16 @@ const EVENT_HANDLERS: Record<string, (state: GameState) => GameState> = {
   'thirty-tyrants': (s) => {
     let state = s;
     for (const p of getHighestTroops(state)) {
-      const drawn = state.politicsDeck.slice(0, 2);
-      state = { ...state, politicsDeck: state.politicsDeck.slice(2) };
-      state = updatePlayer(state, p.playerId, pl => ({ ...pl, handCards: [...pl.handCards, ...drawn] }));
+      const owned = getOwnedCardIds(state);
+      const candidates = state.politicsDeck.filter(c => !owned.has(c.id));
+      const drawn = candidates.slice(0, 2);
+      // Remove ALL drawn cards from the deck (they may not be contiguous
+      // after filtering, so remove by ID rather than slicing from the top)
+      const drawnIds = new Set(drawn.map(c => c.id));
+      state = { ...state, politicsDeck: state.politicsDeck.filter(c => !drawnIds.has(c.id)) };
+      if (drawn.length > 0) {
+        state = updatePlayer(state, p.playerId, pl => ({ ...pl, handCards: [...pl.handCards, ...drawn] }));
+      }
     }
     // Discard for lowest troops is handled interactively in Glory phase
     return state;

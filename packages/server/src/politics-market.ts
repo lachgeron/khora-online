@@ -10,14 +10,25 @@ import type { GameState, PoliticsCard, PlayerState } from '@khora/shared';
 
 /**
  * Draws the top N cards from the politics deck.
+ * Guards against state corruption by skipping any card that already
+ * exists in a player's hand or played area.
  * Returns the drawn cards and updated deck.
  */
 export function drawCards(
   state: GameState,
   count: number,
 ): { cards: PoliticsCard[]; updatedState: GameState } {
-  const drawn = state.politicsDeck.slice(0, count);
-  const remaining = state.politicsDeck.slice(count);
+  // Collect all card IDs owned by players to guard against duplicates
+  const owned = new Set<string>();
+  for (const p of state.players) {
+    for (const c of p.handCards) owned.add(c.id);
+    for (const c of p.playedCards) owned.add(c.id);
+  }
+  const candidates = state.politicsDeck.filter(c => !owned.has(c.id));
+  const drawn = candidates.slice(0, count);
+  const drawnIds = new Set(drawn.map(c => c.id));
+  // Remove drawn cards AND any corrupted duplicates from the deck
+  const remaining = state.politicsDeck.filter(c => !drawnIds.has(c.id) && !owned.has(c.id));
   return {
     cards: drawn,
     updatedState: { ...state, politicsDeck: remaining },
