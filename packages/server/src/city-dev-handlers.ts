@@ -30,22 +30,6 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     ...p, taxTrack: p.taxTrack + p.knowledgeTokens.length,
   })),
 
-  // Corinth dev 3: Progress 2 levels on chosen tracks, 1 less drachma each (free here since it's the dev effect)
-  'corinth-dev-3': (s, pid, choices) => {
-    const tracks = choices?.devTrackChoices;
-    if (!tracks || tracks.length !== 2) {
-      // Fallback: advance economy and culture
-      return updatePlayer(s, pid, p => advanceTrack(advanceTrack(p, 'ECONOMY', 1), 'CULTURE', 1));
-    }
-    return updatePlayer(s, pid, p => {
-      let updated = p;
-      for (const track of tracks) {
-        updated = advanceTrack(updated, track, 1);
-      }
-      return updated;
-    });
-  },
-
   // Miletus dev 2: Choose 2 tracks, move up 1 each free (with milestone rewards)
   'miletus-dev-2': (s, pid, choices) => {
     const tracks = choices?.devTrackChoices;

@@ -15,6 +15,8 @@ export interface ProgressPhaseProps {
   pendingDecisions: { playerId: string; decisionType: string; timeoutAt: number; usingTimeBank?: boolean }[];
   currentPlayerId: string;
   playedCardIds?: string[];
+  cityId?: string;
+  developmentLevel?: number;
   onAdvance: (advancement: TrackAdvancement, extraTracks?: TrackAdvancement[], bonusTracks?: TrackAdvancement[]) => void;
   onUndo: () => void;
   onSkip: () => void;
@@ -38,7 +40,7 @@ const TRACK_INFO: { type: ProgressTrackType; label: string; icon: string; color:
 
 export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
   gameState, economyTrack, cultureTrack, militaryTrack, coins, philosophyTokens,
-  pendingDecisions, currentPlayerId, playedCardIds, onAdvance, onUndo, onSkip,
+  pendingDecisions, currentPlayerId, playedCardIds, cityId, developmentLevel, onAdvance, onUndo, onSkip,
 }) => {
   const isDisplayPhase = pendingDecisions.length === 1 && pendingDecisions[0].decisionType === 'PHASE_DISPLAY';
   const hasPending = !isDisplayPhase && pendingDecisions.some(d => d.playerId === currentPlayerId);
@@ -49,6 +51,8 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
   const hasMint = playedCardIds?.includes('constructing-the-mint') ?? false;
   const hasReformists = playedCardIds?.includes('reformists') ?? false;
   const hasGradualism = playedCardIds?.includes('gradualism') ?? false;
+  const hasCorinthDev3 = cityId === 'corinth' && (developmentLevel ?? 0) >= 3;
+  const hasBonusAdvancement = hasReformists || hasCorinthDev3;
 
   const getLevel = (t: ProgressTrackType) => t === 'ECONOMY' ? economyTrack : t === 'CULTURE' ? cultureTrack : militaryTrack;
 
@@ -70,6 +74,7 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
     if (t === 'ECONOMY' && hasMint) return 0;
     let cost = (TRACK_COSTS[t] ?? {})[level] ?? 99;
     if (cost > 0 && hasGradualism) cost = Math.max(0, cost - 1);
+    if (cost > 0 && hasCorinthDev3) cost = Math.max(0, cost - 1);
     return cost;
   };
 
@@ -204,10 +209,10 @@ export const ProgressPhase: React.FC<ProgressPhaseProps> = ({
         ))}
       </div>
 
-      {/* Reformists bonus advancement (free, no philosophy token) */}
-      {hasReformists && primary && (
+      {/* Bonus advancement: Reformists or Corinth dev 3 (no philosophy token) */}
+      {hasBonusAdvancement && primary && (
         <div className="mb-4 pl-3 border-l-2 border-gold">
-          <p className="text-xs font-medium text-gold-dim mb-2">Reformists — bonus advancement (free):</p>
+          <p className="text-xs font-medium text-gold-dim mb-2">{hasCorinthDev3 ? 'Corinth III' : 'Reformists'} — bonus advancement:</p>
           <div className="space-y-1.5">
             {TRACK_INFO.map(t => {
               const lvl = getEffectiveForBonus(t.type);

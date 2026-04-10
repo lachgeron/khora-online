@@ -596,13 +596,12 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             );
           })()}
 
-          {/* Dev track selection (Miletus dev 2, Corinth dev 3) */}
+          {/* Dev track selection (Miletus dev 2) */}
           {actionType === 'DEVELOPMENT' && (() => {
             const devLevel = developmentLevel ?? 0;
             const devs = cityDevelopments ?? [];
             const nextDev = devs[devLevel];
-            const needsTrackPick = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)
-              || nextDev?.id === 'corinth-dev-3' || (cityId === 'corinth' && devLevel === 2);
+            const needsTrackPick = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1);
             if (!needsTrackPick || devLevel >= 4) return null;
             const TRACKS: ProgressTrackType[] = ['ECONOMY', 'CULTURE', 'MILITARY'];
             const toggleTrack = (t: ProgressTrackType) => {
@@ -835,8 +834,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
             const devs = cityDevelopments ?? [];
             const nextDev = devs[devLevel];
             const needsTrackPick = actionType === 'DEVELOPMENT' && devLevel < 4 && (
-              nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)
-              || nextDev?.id === 'corinth-dev-3' || (cityId === 'corinth' && devLevel === 2));
+              nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1));
             const needsTrackSelection = needsTrackPick && devTrackChoices.length < 2;
             return needsTrackSelection ? (
               <p className="text-xs text-amber-600 text-center mb-1">Select 2 tracks above to resolve</p>
@@ -859,8 +857,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const devLevel = developmentLevel ?? 0;
                 const devs = cityDevelopments ?? [];
                 const nextDev = devs[devLevel];
-                const needsTrackPick = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)
-                  || nextDev?.id === 'corinth-dev-3' || (cityId === 'corinth' && devLevel === 2);
+                const needsTrackPick = nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1);
                 const isArgosDev2 = nextDev?.id === 'argos-dev-2' || (cityId === 'argos' && devLevel === 1);
                 const shortfall = nextDev ? getKnowledgeShortfall(nextDev.knowledgeRequirement) : 0;
                 const isSpartaDev3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
@@ -884,8 +881,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
                 const devs = cityDevelopments ?? [];
                 const nextDev = devs[devLevel];
                 const needsTrackPick = actionType === 'DEVELOPMENT' && devLevel < 4 && (
-                  nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1)
-                  || nextDev?.id === 'corinth-dev-3' || (cityId === 'corinth' && devLevel === 2));
+                  nextDev?.id === 'miletus-dev-2' || (cityId === 'miletus' && devLevel === 1));
                 const isSpartaDev3Blocking = (() => {
                   const sd3 = nextDev?.id === 'sparta-dev-3' || (cityId === 'sparta' && devLevel === 2);
                   return sd3 && devLevel < 4 && spartaStep < 2;

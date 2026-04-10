@@ -463,6 +463,8 @@ export const App: React.FC = () => {
                   pendingDecisions={gameState.pendingDecisions}
                   currentPlayerId={currentPlayerId}
                   playedCardIds={privateState.playedCards.map(c => c.id)}
+                  cityId={currentPlayer?.cityId}
+                  developmentLevel={currentPlayer?.developmentLevel ?? 0}
                   onAdvance={handleProgressTrack}
                   onUndo={handleUndoProgress}
                   onSkip={handleSkipPhase}

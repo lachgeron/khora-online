@@ -13,6 +13,7 @@ import type { ClientMessage, GameState, PlayerState, Result, GameError, Progress
 import type { PhaseManager } from './omen-phase';
 import { advanceTrack, addVP, subtractCoins, subtractPhilosophyTokens } from '../resources';
 import { hasCardInPlay } from '../card-handlers';
+import { hasDevUnlocked } from '../city-dev-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
 
 /** Drachma costs per track, indexed by current level (cost to advance FROM that level). */
@@ -106,10 +107,11 @@ export class ProgressPhaseManager implements PhaseManager {
       player = result.value;
     }
 
-    // Reformists bonus advancements (free, just pay drachmas — no philosophy token)
+    // Reformists / Corinth dev 3 bonus advancements (pay drachmas — no philosophy token)
     if (bonusTracks && bonusTracks.length > 0) {
       const hasReformists = hasCardInPlay(player, 'reformists');
-      const maxBonus = hasReformists ? 1 : 0;
+      const hasCorinthDev3 = hasDevUnlocked(player, 'corinth-dev-3');
+      const maxBonus = (hasReformists ? 1 : 0) + (hasCorinthDev3 ? 1 : 0);
       if (bonusTracks.length > maxBonus) {
         this.snapshots.delete(playerId);
         return { ok: false, error: { code: 'INVALID_DECISION', message: 'No card granting bonus track advancements' } };
@@ -229,6 +231,11 @@ export class ProgressPhaseManager implements PhaseManager {
 
     // Gradualism: pay 1 less Drachma on any progress advancement
     if (cost > 0 && hasCardInPlay(player, 'gradualism')) {
+      cost = Math.max(0, cost - 1);
+    }
+
+    // Corinth dev 3: pay 1 less Drachma on any progress advancement
+    if (cost > 0 && hasDevUnlocked(player, 'corinth-dev-3')) {
       cost = Math.max(0, cost - 1);
     }
 

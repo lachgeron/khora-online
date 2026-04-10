@@ -198,7 +198,7 @@ export const ALL_CITIES: CityCard[] = [
       { id: 'corinth-dev-2', name: 'Gain taxes = token count', level: 2,
         knowledgeRequirement: { green: 0, blue: 0, red: 1 }, drachmaCost: 1,
         effect: { type: 'ADVANCE_TRACK', track: 'TAX', amount: 0 }, effectType: 'IMMEDIATE' },
-      { id: 'corinth-dev-3', name: 'Progress 2 levels, 1 less drachma each', level: 3,
+      { id: 'corinth-dev-3', name: 'During the progress phase, you may increase up to a total of 2 levels on the track(s) of your choice. Each progress costs you 1 drachma less.', level: 3,
         knowledgeRequirement: { green: 1, blue: 1, red: 2 }, drachmaCost: 2,
         effect: { type: 'GAIN_VP', amount: 0 }, effectType: 'ONGOING' },
       { id: 'corinth-dev-4', name: 'Gain 2 VP per token you have', level: 4,
