@@ -52,24 +52,26 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
         <div className="mb-4">
           <p className="text-sm text-sand-600 mb-2">Card Draft Mode</p>
           <div className="flex items-center justify-center gap-4">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <label className={`flex items-center gap-1.5 select-none ${isHost ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
               <input
                 type="radio"
                 name="draftMode"
                 value="STANDARD"
                 checked={draftMode === 'STANDARD'}
                 onChange={() => onChangeDraftMode('STANDARD')}
+                disabled={!isHost}
                 className="w-4 h-4 accent-gold"
               />
               <span className="text-sm text-sand-700">Standard</span>
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <label className={`flex items-center gap-1.5 select-none ${isHost ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
               <input
                 type="radio"
                 name="draftMode"
                 value="PICK_BAN"
                 checked={draftMode === 'PICK_BAN'}
                 onChange={() => onChangeDraftMode('PICK_BAN')}
+                disabled={!isHost}
                 className="w-4 h-4 accent-gold"
               />
               <span className="text-sm text-sand-700">Pick/Ban</span>
