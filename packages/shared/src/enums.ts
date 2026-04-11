@@ -69,10 +69,14 @@ export type TrackType =
 /** Development effect timing. */
 export type DevelopmentEffectType = 'IMMEDIATE' | 'ONGOING' | 'END_GAME';
 
+/** Draft mode for the politics card drafting phase. */
+export type DraftMode = 'STANDARD' | 'PICK_BAN';
+
 /** Types of decisions a player can be prompted for. */
 export type DecisionType =
   | 'SELECT_CITY'
   | 'DRAFT_CARD'
+  | 'PICK_BAN_CARD'
   | 'ROLL_DICE'
   | 'ASSIGN_DICE'
   | 'SPEND_PHILOSOPHY_TOKENS'

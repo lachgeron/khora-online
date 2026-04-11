@@ -1,18 +1,21 @@
 import React from 'react';
 import type { PlayerInfo } from '../types';
+import type { DraftMode } from '../types';
 
 export interface LobbyRoomProps {
   players: PlayerInfo[];
   currentPlayerId: string;
   hostPlayerId: string;
   recordStats: boolean;
+  draftMode: DraftMode;
   onToggleRecordStats: (value: boolean) => void;
+  onChangeDraftMode: (mode: DraftMode) => void;
   onStartGame: () => void;
   onBack: () => void;
 }
 
 export const LobbyRoom: React.FC<LobbyRoomProps> = ({
-  players, currentPlayerId, hostPlayerId, recordStats, onToggleRecordStats, onStartGame, onBack,
+  players, currentPlayerId, hostPlayerId, recordStats, draftMode, onToggleRecordStats, onChangeDraftMode, onStartGame, onBack,
 }) => {
   const isHost = currentPlayerId === hostPlayerId;
 
@@ -45,6 +48,34 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
           />
           <span className="text-sm text-sand-600">Record stats for this game</span>
         </label>
+
+        <div className="mb-4">
+          <p className="text-sm text-sand-600 mb-2">Card Draft Mode</p>
+          <div className="flex items-center justify-center gap-4">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="radio"
+                name="draftMode"
+                value="STANDARD"
+                checked={draftMode === 'STANDARD'}
+                onChange={() => onChangeDraftMode('STANDARD')}
+                className="w-4 h-4 accent-gold"
+              />
+              <span className="text-sm text-sand-700">Standard</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="radio"
+                name="draftMode"
+                value="PICK_BAN"
+                checked={draftMode === 'PICK_BAN'}
+                onChange={() => onChangeDraftMode('PICK_BAN')}
+                className="w-4 h-4 accent-gold"
+              />
+              <span className="text-sm text-sand-700">Pick/Ban</span>
+            </label>
+          </div>
+        </div>
 
         {isHost && (
           <button

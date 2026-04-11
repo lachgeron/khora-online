@@ -68,7 +68,7 @@ export class CitySelectionPhaseManager implements PhaseManager {
 
     return {
       ...state,
-      draftState: { ...state.draftState, cityDraft, politicsDraft: null },
+      draftState: { ...state.draftState, cityDraft, politicsDraft: null, pickBanDraft: state.draftState?.pickBanDraft ?? null },
       pendingDecisions: pendingPlayerId
         ? [{
             playerId: pendingPlayerId,
@@ -148,7 +148,7 @@ export class CitySelectionPhaseManager implements PhaseManager {
       ok: true,
       value: {
         ...state,
-        draftState: { ...state.draftState!, cityDraft: newDraft, politicsDraft: null },
+        draftState: { ...state.draftState!, cityDraft: newDraft, politicsDraft: null, pickBanDraft: state.draftState?.pickBanDraft ?? null },
         pendingDecisions,
       },
     };

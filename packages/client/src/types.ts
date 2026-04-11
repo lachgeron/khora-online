@@ -12,6 +12,7 @@ export type {
   ProgressTrackType,
   DecisionType,
   KnowledgeColor,
+  DraftMode,
   // Models
   ActionSlot,
   PlayerState,
@@ -23,6 +24,7 @@ export type {
   DraftState,
   CityDraftState,
   PoliticsDraftState,
+  PickBanDraftState,
   // Messages
   PublicGameState,
   PublicPlayerState,

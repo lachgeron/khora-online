@@ -7,6 +7,7 @@ import type {
   TrackAdvancement,
   ActionType,
   ActionChoices,
+  DraftMode,
 } from './types';
 import { createLobby, joinLobby, startGame, takeSeat, updateLobbySettings } from './api';
 import { useGameSocket } from './useGameSocket';
@@ -15,6 +16,7 @@ import { GameBrowser } from './components/GameBrowser';
 import { LobbyRoom } from './components/LobbyRoom';
 import { CitySelection } from './components/CitySelection';
 import { PoliticsDraft } from './components/PoliticsDraft';
+import { PickBanDraft } from './components/PickBanDraft';
 import { GameBoard } from './components/GameBoard';
 import { DicePhase } from './components/DicePhase';
 import { ActionPhase } from './components/ActionPhase';
@@ -45,6 +47,7 @@ export const App: React.FC = () => {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
   const [recordStats, setRecordStats] = useState(true);
+  const [draftMode, setDraftMode] = useState<DraftMode>('STANDARD');
 
   const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
     useGameSocket(gameId, currentPlayerId);
@@ -65,9 +68,10 @@ export const App: React.FC = () => {
   useLobbyPolling(
     screen === 'LOBBY' ? lobbyId : null,
     2000,
-    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats }) => {
+    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats, draftMode: lobbyDraftMode }) => {
       setLobbyPlayers(players);
       setRecordStats(lobbyRecordStats);
+      setDraftMode(lobbyDraftMode);
       if (started && detectedGameId && !gameId) {
         setGameId(detectedGameId);
         setScreen('GAME');
@@ -128,6 +132,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleChangeDraftMode = async (mode: DraftMode) => {
+    setDraftMode(mode);
+    if (lobbyId) {
+      await updateLobbySettings(lobbyId, { draftMode: mode });
+    }
+  };
+
   const handleBackToBrowse = () => {
     setLobbyId('');
     setLobbyPlayers([]);
@@ -149,6 +160,7 @@ export const App: React.FC = () => {
     sendMessage({ type: 'CLAIM_ACHIEVEMENT', achievementId, trackChoice });
   const handleSelectCity = (cityId: string) => sendMessage({ type: 'SELECT_CITY', cityId });
   const handleDraftCard = (cardId: string) => sendMessage({ type: 'DRAFT_CARD', cardId });
+  const handlePickBanCard = (cardId: string, action: 'BAN' | 'PICK') => sendMessage({ type: 'PICK_BAN_CARD', cardId, action });
 
   const currentPlayer = gameState?.players.find(p => p.playerId === currentPlayerId);
 
@@ -214,7 +226,9 @@ export const App: React.FC = () => {
           currentPlayerId={currentPlayerId}
           hostPlayerId={hostPlayerId}
           recordStats={recordStats}
+          draftMode={draftMode}
           onToggleRecordStats={handleToggleRecordStats}
+          onChangeDraftMode={handleChangeDraftMode}
           onStartGame={handleStartGame}
           onBack={handleBackToBrowse}
         />
@@ -248,7 +262,7 @@ export const App: React.FC = () => {
         const isDisplayPhase = pending?.decisionType === 'PHASE_DISPLAY';
         const isMyTurn = !isDisplayPhase && pending?.playerId === currentPlayerId;
         const DECISION_LABELS: Record<string, string> = {
-          SELECT_CITY: 'select a city', DRAFT_CARD: 'draft a card', ROLL_DICE: 'roll dice',
+          SELECT_CITY: 'select a city', DRAFT_CARD: 'draft a card', PICK_BAN_CARD: 'pick/ban a card', ROLL_DICE: 'roll dice',
           ASSIGN_DICE: 'assign dice', RESOLVE_ACTION: 'resolve action', PROGRESS_TRACK: 'advance a track',
           ACHIEVEMENT_TRACK_CHOICE: 'choose reward', SPEND_PHILOSOPHY_TOKENS: 'spend tokens',
         };
@@ -290,6 +304,30 @@ export const App: React.FC = () => {
               playerNames={playerNames}
               pendingDecisions={gameState.pendingDecisions}
               onDraftCard={handleDraftCard}
+              cityCard={(() => {
+                const player = gameState.players.find(p => p.playerId === currentPlayerId);
+                return player?.cityId ? (gameState.cityCards?.[player.cityId] ?? null) : null;
+              })()}
+              otherPlayerCities={gameState.players
+                .filter(p => p.playerId !== currentPlayerId && p.cityId && gameState.cityCards?.[p.cityId])
+                .map(p => ({ playerId: p.playerId, playerName: p.playerName, city: gameState.cityCards[p.cityId] }))}
+            />
+          )}
+
+          {gameState.currentPhase === 'DRAFT_POLITICS' && gameState.pickBanDraft && (
+            <PickBanDraft
+              allCards={gameState.pickBanDraft.allCards}
+              bannedCards={gameState.pickBanDraft.bannedCards}
+              pickedCards={gameState.pickBanDraft.pickedCards}
+              turnOrder={gameState.pickBanDraft.turnOrder}
+              currentTurnIndex={gameState.pickBanDraft.currentTurnIndex}
+              phase={gameState.pickBanDraft.phase}
+              bansPerPlayer={gameState.pickBanDraft.bansPerPlayer}
+              picksPerPlayer={gameState.pickBanDraft.picksPerPlayer}
+              currentPlayerId={currentPlayerId}
+              playerNames={playerNames}
+              pendingDecisions={gameState.pendingDecisions}
+              onPickBanCard={handlePickBanCard}
               cityCard={(() => {
                 const player = gameState.players.find(p => p.playerId === currentPlayerId);
                 return player?.cityId ? (gameState.cityCards?.[player.cityId] ?? null) : null;

@@ -5,7 +5,7 @@
  * Games are publicly listed — no invite codes needed.
  */
 
-import type { PlayerInfo, Result } from '@khora/shared';
+import type { DraftMode, PlayerInfo, Result } from '@khora/shared';
 
 /** A lobby waiting room before a game begins. */
 export interface Lobby {
@@ -15,6 +15,7 @@ export interface Lobby {
   players: PlayerInfo[];
   started: boolean;
   recordStats: boolean;
+  draftMode: DraftMode;
   createdAt: number;
 }
 
@@ -67,6 +68,7 @@ export class LobbyManager {
       players: [{ playerId: hostPlayerId, playerName: hostPlayerName }],
       started: false,
       recordStats: true,
+      draftMode: 'STANDARD',
       createdAt: Date.now(),
     };
 

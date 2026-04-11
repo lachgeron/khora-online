@@ -13,6 +13,7 @@ export interface NotificationProps {
 const DECISION_LABELS: Record<DecisionType, string> = {
   SELECT_CITY: 'select a city',
   DRAFT_CARD: 'draft a politics card',
+  PICK_BAN_CARD: 'pick or ban a card',
   ROLL_DICE: 'roll their dice',
   ASSIGN_DICE: 'assign dice to actions',
   SPEND_PHILOSOPHY_TOKENS: 'spend philosophy tokens',

@@ -249,7 +249,10 @@ app.patch('/api/lobbies/:lobbyId/settings', (req, res) => {
   if (typeof req.body.recordStats === 'boolean') {
     lobby.recordStats = req.body.recordStats;
   }
-  res.json({ recordStats: lobby.recordStats });
+  if (req.body.draftMode === 'STANDARD' || req.body.draftMode === 'PICK_BAN') {
+    lobby.draftMode = req.body.draftMode;
+  }
+  res.json({ recordStats: lobby.recordStats, draftMode: lobby.draftMode });
 });
 
 // POST /api/lobbies/:lobbyId/start — start game
@@ -261,16 +264,17 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
 
   const players = startResult.value.players;
   const cities = makeDefaultCityCards();
+  const lobby = lobbyManager.getLobby(lobbyId);
+  const draftMode = lobby?.draftMode ?? 'STANDARD';
 
-  const gameEngine = new GameEngine();
-  const state = gameEngine.initializeGame(players, cities, makeDefaultEventDeck(), makeDefaultPoliticsDeck(), makeDefaultAchievements(), makeDefaultCentralBoardTokens());
+  const gameEngine = new GameEngine(draftMode);
+  const state = gameEngine.initializeGame(players, cities, makeDefaultEventDeck(), makeDefaultPoliticsDeck(), makeDefaultAchievements(), makeDefaultCentralBoardTokens(), draftMode);
 
   games.set(state.gameId, state);
   engines.set(state.gameId, gameEngine);
   lobbyGameIds.set(lobbyId, state.gameId);
 
   // Check if stats recording was disabled for this lobby
-  const lobby = lobbyManager.getLobby(lobbyId);
   if (lobby && !lobby.recordStats) {
     unrecordedGames.add(state.gameId);
   }

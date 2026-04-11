@@ -307,6 +307,7 @@ export const arbGameState: fc.Arbitrary<GameState> = fc
       gameLog: fc.constant([] as GameLogEntry[]),
       pendingDecisions: fc.constant([] as PendingDecision[]),
       disconnectedPlayers: fc.constant(new Map() as Map<string, DisconnectionInfo>),
+      draftMode: fc.constantFrom('STANDARD' as const, 'PICK_BAN' as const),
       draftState: fc.constant(null as DraftState | null),
       finalScores: fc.constant(null as FinalScoreBoard | null),
       createdAt: fc.integer({ min: 1_700_000_000_000, max: 1_800_000_000_000 }),

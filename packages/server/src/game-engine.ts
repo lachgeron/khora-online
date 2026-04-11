@@ -20,6 +20,7 @@ import type {
   PublicGameState,
   PrivatePlayerState,
   DraftState,
+  DraftMode,
 } from '@khora/shared';
 import type { KnowledgeToken } from '@khora/shared';
 
@@ -34,6 +35,7 @@ import { GloryPhaseManager } from './phases/glory-phase';
 import { AchievementPhaseManager } from './phases/achievement-phase';
 import { CitySelectionPhaseManager } from './phases/city-selection-phase';
 import { DraftPoliticsPhaseManager } from './phases/draft-politics-phase';
+import { PickBanDraftPhaseManager } from './phases/pick-ban-draft-phase';
 import { calculateFinalScores } from './scoring-engine';
 import { applyDevelopmentEffect } from './city-abilities';
 import { getAllCityCards } from './game-data';
@@ -72,11 +74,11 @@ export class GameEngine {
   private readonly stateMachine: StateMachine;
   private readonly phaseManagers: Map<GamePhase, PhaseManager>;
 
-  constructor() {
+  constructor(draftMode: DraftMode = 'STANDARD') {
     this.stateMachine = new StateMachine('CITY_SELECTION', 1);
     this.phaseManagers = new Map<GamePhase, PhaseManager>([
       ['CITY_SELECTION', new CitySelectionPhaseManager()],
-      ['DRAFT_POLITICS', new DraftPoliticsPhaseManager()],
+      ['DRAFT_POLITICS', draftMode === 'PICK_BAN' ? new PickBanDraftPhaseManager() : new DraftPoliticsPhaseManager()],
       ['OMEN', new OmenPhaseManager()],
       ['TAXATION', new TaxationPhaseManager()],
       ['DICE', new DicePhaseManager()],
@@ -100,6 +102,7 @@ export class GameEngine {
     politicsDeck: PoliticsCard[],
     achievements: AchievementToken[],
     centralBoardTokens: KnowledgeToken[] = [],
+    draftMode: DraftMode = 'STANDARD',
   ): GameState {
     // Create placeholder player states (no city assigned yet)
     const playerStates: PlayerState[] = players.map((info) => ({
@@ -153,6 +156,7 @@ export class GameEngine {
       gameLog: [],
       pendingDecisions: [],
       disconnectedPlayers: new Map(),
+      draftMode,
       draftState: {
         cityDraft: {
           pickOrder: [],
@@ -163,6 +167,7 @@ export class GameEngine {
           allCities: [...allCities],
         },
         politicsDraft: null,
+        pickBanDraft: null,
       },
       finalScores: null,
       createdAt: now,
@@ -255,6 +260,7 @@ export class GameEngine {
     // apply drafted cards to player hands and clear draft state
     if (state.currentPhase === 'DRAFT_POLITICS' && nextPhase === 'OMEN') {
       const politicsDraft = state.draftState?.politicsDraft;
+      const pickBanDraft = state.draftState?.pickBanDraft;
       if (politicsDraft) {
         newState = {
           ...newState,
@@ -262,6 +268,20 @@ export class GameEngine {
             ...p,
             handCards: [...p.handCards, ...(politicsDraft.selectedCards[p.playerId] ?? [])],
           })),
+          draftState: null,
+        };
+      } else if (pickBanDraft) {
+        // For pick/ban mode: picked cards go to hand, remaining cards (not banned/picked) stay in deck
+        const allBannedIds = new Set(Object.values(pickBanDraft.bannedCards).flatMap(cards => cards.map(c => c.id)));
+        const allPickedIds = new Set(Object.values(pickBanDraft.pickedCards).flatMap(cards => cards.map(c => c.id)));
+        const remainingDeck = pickBanDraft.allCards.filter(c => !allBannedIds.has(c.id) && !allPickedIds.has(c.id));
+        newState = {
+          ...newState,
+          players: newState.players.map(p => ({
+            ...p,
+            handCards: [...p.handCards, ...(pickBanDraft.pickedCards[p.playerId] ?? [])],
+          })),
+          politicsDeck: remainingDeck,
           draftState: null,
         };
       }
@@ -308,6 +328,22 @@ export class GameEngine {
           draftRound: politicsDraft.draftRound,
           waitingFor: politicsDraft.waitingFor,
           totalRounds: 5,
+          passOrder: politicsDraft.passOrder,
+        }
+      : null;
+
+    // Build pick/ban draft public state
+    const pickBanDraft = state.draftState?.pickBanDraft ?? null;
+    const publicPickBanDraft = pickBanDraft
+      ? {
+          allCards: pickBanDraft.allCards,
+          bannedCards: pickBanDraft.bannedCards,
+          pickedCards: pickBanDraft.pickedCards,
+          turnOrder: pickBanDraft.turnOrder,
+          currentTurnIndex: pickBanDraft.currentTurnIndex,
+          phase: pickBanDraft.phase,
+          bansPerPlayer: pickBanDraft.bansPerPlayer,
+          picksPerPlayer: pickBanDraft.picksPerPlayer,
         }
       : null;
 
@@ -357,6 +393,8 @@ export class GameEngine {
       })),
       cityDraft: publicCityDraft,
       politicsDraft: publicPoliticsDraft,
+      pickBanDraft: publicPickBanDraft,
+      draftMode: state.draftMode,
       finalScores: state.finalScores ?? null,
     };
 

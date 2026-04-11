@@ -2,7 +2,7 @@
  * Core data models for Khora Online.
  */
 
-import type { ActionType, GamePhase, KnowledgeColor } from './enums';
+import type { ActionType, DraftMode, GamePhase, KnowledgeColor } from './enums';
 import type {
   AchievementCondition,
   CityDevelopment,
@@ -135,10 +135,23 @@ export interface PoliticsDraftState {
   passOrder: string[];                        // Player order for passing packs
 }
 
+/** State for the pick/ban politics card drafting sub-phase. */
+export interface PickBanDraftState {
+  allCards: PoliticsCard[];                   // All cards available for the draft
+  bannedCards: Record<string, PoliticsCard[]>; // playerId → cards they banned
+  pickedCards: Record<string, PoliticsCard[]>; // playerId → cards they picked
+  turnOrder: string[];                        // Randomized player order (repeating cycle)
+  currentTurnIndex: number;                   // Index into turnOrder for current turn
+  phase: 'BAN' | 'PICK';                     // Current sub-phase
+  bansPerPlayer: number;                      // How many bans each player must make (2)
+  picksPerPlayer: number;                     // How many picks each player must make (5)
+}
+
 /** Combined draft state for the pre-game picking phase. */
 export interface DraftState {
   cityDraft: CityDraftState | null;
   politicsDraft: PoliticsDraftState | null;
+  pickBanDraft: PickBanDraftState | null;
 }
 
 /** The complete authoritative game state. */
@@ -158,6 +171,7 @@ export interface GameState {
   gameLog: GameLogEntry[];
   pendingDecisions: PendingDecision[];
   disconnectedPlayers: Map<string, DisconnectionInfo>;
+  draftMode: DraftMode;          // Which draft mode to use for politics cards
   draftState: DraftState | null; // Active during CITY_SELECTION and DRAFT_POLITICS
   finalScores: FinalScoreBoard | null; // Set during FINAL_SCORING, displayed in GAME_OVER
   createdAt: number;             // Unix timestamp

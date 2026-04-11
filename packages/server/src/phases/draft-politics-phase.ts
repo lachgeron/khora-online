@@ -60,7 +60,7 @@ export class DraftPoliticsPhaseManager implements PhaseManager {
     return {
       ...state,
       politicsDeck: remainingDeck,
-      draftState: { cityDraft: state.draftState?.cityDraft ?? null, politicsDraft },
+      draftState: { cityDraft: state.draftState?.cityDraft ?? null, politicsDraft, pickBanDraft: null },
       pendingDecisions: playerIds.map(id => ({
         playerId: id,
         decisionType: 'DRAFT_CARD' as const,

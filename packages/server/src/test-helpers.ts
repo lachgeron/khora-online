@@ -67,6 +67,7 @@ export function makeTestGameState(overrides: Partial<GameState> = {}): GameState
     gameLog: [],
     pendingDecisions: [],
     disconnectedPlayers: new Map(),
+    draftMode: 'STANDARD',
     draftState: null,
     finalScores: null,
     createdAt: Date.now(),

@@ -2,9 +2,9 @@
  * Client <-> Server message types and visibility-filtered state for Khora Online.
  */
 
-import type { ActionType, DecisionType, GamePhase, KnowledgeColor, ProgressTrackType } from './enums';
+import type { ActionType, DecisionType, DraftMode, GamePhase, KnowledgeColor, ProgressTrackType } from './enums';
 import type { KnowledgeToken } from './effects';
-import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PoliticsCard } from './models';
+import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard } from './models';
 import type {
   ActionChoices,
   DiceAssignment,
@@ -20,6 +20,7 @@ import type {
 export type ClientMessage =
   | { type: 'SELECT_CITY'; cityId: string }
   | { type: 'DRAFT_CARD'; cardId: string }
+  | { type: 'PICK_BAN_CARD'; cardId: string; action: 'BAN' | 'PICK' }
   | { type: 'ROLL_DICE' }
   | { type: 'ASSIGN_DICE'; assignments: DiceAssignment[]; philosophyTokensToSpend?: number }
   | { type: 'UNASSIGN_DICE' }
@@ -85,6 +86,17 @@ export interface PublicGameState {
     totalRounds: number;
     passOrder: string[];
   } | null;
+  pickBanDraft: {
+    allCards: PoliticsCard[];
+    bannedCards: Record<string, PoliticsCard[]>;
+    pickedCards: Record<string, PoliticsCard[]>;
+    turnOrder: string[];
+    currentTurnIndex: number;
+    phase: 'BAN' | 'PICK';
+    bansPerPlayer: number;
+    picksPerPlayer: number;
+  } | null;
+  draftMode: DraftMode;
   finalScores: FinalScoreBoard | null;
 }
 

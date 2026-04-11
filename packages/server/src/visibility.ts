@@ -75,6 +75,7 @@ export function buildPrivatePlayerState(player: PlayerState): PrivatePlayerState
 export function buildPublicGameState(state: GameState): PublicGameState {
   const cityDraft = state.draftState?.cityDraft ?? null;
   const politicsDraft = state.draftState?.politicsDraft ?? null;
+  const pickBanDraft = state.draftState?.pickBanDraft ?? null;
 
   return {
     roundNumber: state.roundNumber,
@@ -109,6 +110,19 @@ export function buildPublicGameState(state: GameState): PublicGameState {
           passOrder: politicsDraft.passOrder,
         }
       : null,
+    pickBanDraft: pickBanDraft
+      ? {
+          allCards: pickBanDraft.allCards,
+          bannedCards: pickBanDraft.bannedCards,
+          pickedCards: pickBanDraft.pickedCards,
+          turnOrder: pickBanDraft.turnOrder,
+          currentTurnIndex: pickBanDraft.currentTurnIndex,
+          phase: pickBanDraft.phase,
+          bansPerPlayer: pickBanDraft.bansPerPlayer,
+          picksPerPlayer: pickBanDraft.picksPerPlayer,
+        }
+      : null,
+    draftMode: state.draftMode,
     finalScores: state.finalScores ?? null,
   };
 }
