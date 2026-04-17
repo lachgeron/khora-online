@@ -55,56 +55,68 @@ export function enumerateProgressPlans(
   if (s.progressAlreadyDone) return [cloneState(s)];
 
   const maxScrollFunded = Math.floor(s.philosophyTokens / 2);
-  const tracks: ProgressTrackType[] = ['ECONOMY', 'CULTURE', 'MILITARY'];
   // Base: 1 advancement. Reformists OR Corinth-dev-3 overrides base to 2 (not additive).
   const reformists = hasCard('reformists');
   const corinthDev3 = hasCorinthDev3(s.cityId, s.developmentLevel);
   const baseSlots = (reformists || corinthDev3) ? 2 : 1;
 
   const results: SolverState[] = [];
+  const seenKeys = new Set<string>();
 
-  // We explore N scrolls in {0, 1, 2, 3} capped by maxScrollFunded.
-  const scrollOptions = [0, 1, Math.min(2, maxScrollFunded), Math.min(3, maxScrollFunded)]
-    .filter((v, i, a) => v <= maxScrollFunded && a.indexOf(v) === i);
+  // Enumerate every multiset of {E, C, M} counts (i, j, k) with total size
+  // in [0, baseSlots + maxScrollFunded]. Scrolls spent auto-derived from the
+  // extra slots needed beyond baseSlots. Order within a plan is irrelevant:
+  // milestone rewards and coin costs depend only on per-track start levels.
+  const maxTotal = baseSlots + maxScrollFunded;
+  const hasOldGuard = hasCard('old-guard');
 
-  for (const scrolls of scrollOptions) {
-    const totalSlots = baseSlots + scrolls;
-    // For each single-track focus and "mixed" strategies, enumerate:
-    const strategies: ProgressTrackType[][] = [];
-    // All-on-one-track strategies
-    for (const t of tracks) strategies.push(new Array(totalSlots).fill(t));
-    // Split strategies: one on each track
-    if (totalSlots >= 2) {
-      strategies.push(['ECONOMY', 'CULTURE']);
-      strategies.push(['ECONOMY', 'MILITARY']);
-      strategies.push(['CULTURE', 'MILITARY']);
-    }
-    if (totalSlots >= 3) {
-      strategies.push(['ECONOMY', 'CULTURE', 'MILITARY']);
-    }
-    // "Skip progress" strategy for Old Guard
-    if (hasCard('old-guard')) strategies.push([]);
+  for (let e = 0; e <= maxTotal; e++) {
+    for (let c = 0; c <= maxTotal - e; c++) {
+      for (let m = 0; m <= maxTotal - e - c; m++) {
+        const planSize = e + c + m;
+        const scrolls = Math.max(0, planSize - baseSlots);
+        if (scrolls > maxScrollFunded) continue;
 
-    for (const plan of strategies) {
-      if (plan.length > totalSlots) continue;
-      const candidate = cloneState(s);
-      candidate.philosophyTokens -= scrolls * 2;
-      if (candidate.philosophyTokens < 0) continue;
+        const candidate = cloneState(s);
+        candidate.philosophyTokens -= scrolls * 2;
+        if (candidate.philosophyTokens < 0) continue;
 
-      let ok = true;
-      for (const t of plan) {
-        const field: 'economyTrack' | 'cultureTrack' | 'militaryTrack' =
-          t === 'ECONOMY' ? 'economyTrack' : t === 'CULTURE' ? 'cultureTrack' : 'militaryTrack';
-        const cost = progressCost(t, candidate[field], hasCard, devUnlocked);
-        if (!Number.isFinite(cost) || candidate.coins < cost) { ok = false; break; }
-        candidate.coins -= cost;
-        advanceProgressTrack(candidate, t, 1);
+        // Order: apply cheapest track advances first to avoid running out of
+        // coins mid-plan when a more expensive track could still be afforded
+        // if we'd skipped part of it. Since order doesn't change final track
+        // levels or milestones (tracks are independent), we still commit all
+        // `e` advances of economy etc., but reject if any single advance
+        // runs short.
+        const planSpec: Array<{ track: ProgressTrackType; count: number }> = [
+          { track: 'ECONOMY', count: e },
+          { track: 'CULTURE', count: c },
+          { track: 'MILITARY', count: m },
+        ];
+
+        let ok = true;
+        for (const { track, count } of planSpec) {
+          const field: 'economyTrack' | 'cultureTrack' | 'militaryTrack' =
+            track === 'ECONOMY' ? 'economyTrack' : track === 'CULTURE' ? 'cultureTrack' : 'militaryTrack';
+          for (let i = 0; i < count; i++) {
+            const cost = progressCost(track, candidate[field], hasCard, devUnlocked);
+            if (!Number.isFinite(cost) || candidate.coins < cost) { ok = false; break; }
+            candidate.coins -= cost;
+            advanceProgressTrack(candidate, track, 1);
+          }
+          if (!ok) break;
+        }
+        if (!ok) continue;
+
+        // Old Guard: +4 VP if no progress done this round.
+        if (planSize === 0 && hasOldGuard) candidate.victoryPoints += 4;
+        candidate.progressAlreadyDone = true;
+
+        // Dedupe on key resource fields — different scroll paths can collide.
+        const key = `${candidate.economyTrack},${candidate.cultureTrack},${candidate.militaryTrack},${candidate.taxTrack},${candidate.gloryTrack},${candidate.coins},${candidate.philosophyTokens},${candidate.citizenTrack},${candidate.victoryPoints}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        results.push(candidate);
       }
-      if (!ok) continue;
-      // Old Guard: +4 VP if no progress done
-      if (plan.length === 0 && hasCard('old-guard')) candidate.victoryPoints += 4;
-      candidate.progressAlreadyDone = true;
-      results.push(candidate);
     }
   }
 

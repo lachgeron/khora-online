@@ -8,7 +8,7 @@ import type {
   ActionType,
   KnowledgeToken,
 } from '../types';
-import type { SolverInput, SolverAction, FrozenOpponent } from './types';
+import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken } from './types';
 
 const ACTION_MAP: Record<ActionType, SolverAction | null> = {
   PHILOSOPHY: 'PHILOSOPHY',
@@ -48,6 +48,21 @@ export function buildSolverInput(
 
   const knowledgeTokens: KnowledgeToken[] = privateState.knowledgeTokens;
 
+  // Central-board tokens: include unexplored only, strip to solver's flat shape.
+  // Persepolis is modelled separately because it grants 3 majors at once.
+  const boardTokens: BoardExplorationToken[] = (publicState.centralBoardTokens ?? [])
+    .filter(t => !t.explored && t.militaryRequirement !== undefined)
+    .map(t => ({
+      id: t.id,
+      color: t.color,
+      tokenType: t.tokenType,
+      militaryRequirement: t.militaryRequirement ?? 0,
+      skullCost: t.skullValue ?? 0,
+      bonusCoins: t.bonusCoins ?? 0,
+      bonusVP: t.bonusVP ?? 0,
+      isPersepolis: t.isPersepolis,
+    }));
+
   return {
     cityId: me.cityId,
     developmentLevel: me.developmentLevel,
@@ -69,6 +84,7 @@ export function buildSolverInput(
     slotsConsumedThisRound,
     progressAlreadyDone,
     opponents,
+    boardTokens,
   };
 }
 

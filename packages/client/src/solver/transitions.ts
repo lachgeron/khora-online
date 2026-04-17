@@ -16,6 +16,7 @@ import {
   minorBuyCost,
   exploreTroopDiscount,
 } from './card-data';
+import { capTroops } from './tracks';
 import {
   applyDevOngoingOnAction,
   applyDevOngoingOnPlayCard,
@@ -81,7 +82,7 @@ export function applyAction(
     case 'MILITARY': {
       // Step 1: Gain troops equal to military track level (matches server military-resolver).
       s.troopTrack += s.militaryTrack;
-      // Step 2: Exploration — grant chosen tokens, paying troops. Under solver assumption, can always get requested color.
+      // Step 2: Exploration — use real board tokens with their skull cost + bonus VP/coins.
       applyOngoingOnAction(s, 'MILITARY', hasCardFn);
       applyDevOngoingOnAction(s, 'MILITARY', cityId, devLevel);
       const discount = exploreTroopDiscount(hasCardFn) + (hasSpartaDev1(cityId, devLevel) ? 1 : 0);
@@ -91,12 +92,20 @@ export function applyAction(
       // Per solver spec: explore[] may contain up to `maxExplore` tokens.
       const toExplore = choice.explore.slice(0, maxExplore);
       for (const tok of toExplore) {
-        // Minor cost = 2 troops; Major cost = 4 troops (standard). Discount reduces by `discount`.
-        const baseCost = tok.tokenType === 'MAJOR' ? 4 : 2;
-        const cost = Math.max(1, baseCost - discount);
+        // Requirement: troop TRACK must meet militaryRequirement (note: track, not reserve).
+        // Then pay skull cost (troops lost), and gain bonus coins + VP.
+        if (s.troopTrack < tok.militaryRequirement) continue;
+        const cost = Math.max(0, tok.skullCost - discount);
         if (s.troopTrack < cost) continue;
         s.troopTrack -= cost;
-        if (tok.tokenType === 'MAJOR') {
+        s.coins += tok.bonusCoins;
+        s.victoryPoints += tok.bonusVP;
+        if (tok.isPersepolis) {
+          // Persepolis grants 1 major of each color
+          s.knowledge.greenMajor += 1;
+          s.knowledge.blueMajor += 1;
+          s.knowledge.redMajor += 1;
+        } else if (tok.tokenType === 'MAJOR') {
           if (tok.color === 'GREEN') s.knowledge.greenMajor += 1;
           else if (tok.color === 'BLUE') s.knowledge.blueMajor += 1;
           else s.knowledge.redMajor += 1;
@@ -106,6 +115,7 @@ export function applyAction(
           else s.knowledge.redMinor += 1;
         }
       }
+      capTroops(s);
       return;
     }
     case 'POLITICS': {

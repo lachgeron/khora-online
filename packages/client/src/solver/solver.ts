@@ -13,6 +13,7 @@ import type {
   RoundPlan,
   FrozenOpponent,
   ActionChoice,
+  BoardExplorationToken,
 } from './types';
 import type { PoliticsCard, ProgressTrackType } from '../types';
 import { enumerateActionPlans, heuristicScore } from './action-enum';
@@ -28,11 +29,13 @@ interface SolverContext {
   cardIds: string[];
   allCards: PoliticsCard[];
   opponents: FrozenOpponent[];
+  boardTokens: BoardExplorationToken[];
   deadline: number;
   nodesExplored: { count: number };
   partialResult: { value: boolean };
   beamWidth: number;
   actionTopK: number;
+  initialRound: number;    // the first round we were asked to plan for
 }
 
 function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -123,11 +126,19 @@ function simulateRoundTopK(
     ctx.cardIds,
     ctx.allCards,
     ctx.opponents,
+    ctx.boardTokens,
     ctx.actionTopK,
   );
   ctx.nodesExplored.count += actionPlans.length;
 
   const scored: Array<{ score: number; result: RoundResult }> = [];
+
+  // For the initial simulated round (currentRound), taxation has already been applied before
+  // the snapshot was taken (solver only runs at/after DICE phase), so we SKIP applying tax
+  // at the end of that round to avoid double-counting. For subsequent rounds, we apply tax
+  // at end-of-round (this shifts its timing by one round vs the real game's start-of-round
+  // taxation, but the per-round total is correct).
+  const skipTax = s.round === ctx.initialRound;
 
   for (const ap of actionPlans) {
     if (Date.now() >= ctx.deadline) { ctx.partialResult.value = true; break; }
@@ -141,8 +152,10 @@ function simulateRoundTopK(
 
     for (const pState of progressCandidates) {
       const afterTax = cloneState(pState);
-      applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
-      const score = heuristicScore(afterTax);
+      if (!skipTax) {
+        applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
+      }
+      const score = heuristicScore(afterTax, ctx.cardIds);
       const progressTracks = diffProgressTracks(ap.state, pState);
       const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
       scored.push({
@@ -277,23 +290,48 @@ function diversifyBeam<T extends { state: SolverState }>(
 
   const majorsTier = (s: SolverState): number => {
     const m = s.knowledge.greenMajor + s.knowledge.blueMajor + s.knowledge.redMajor;
+    if (m >= 4) return 4;
     if (m >= 3) return 3;
     if (m >= 2) return 2;
     if (m >= 1) return 1;
     return 0;
   };
+  // Richer bucket key: includes dev, culture 3rd-die, majors tier, played cards, plus
+  // track-sum coarse bin + tax band + coin band. More dimensions keeps the beam exploring
+  // structurally distinct strategies (coin-rich vs progress-heavy vs card-spam).
   const bucketKey = (s: SolverState): string => {
     const devCap = Math.min(s.developmentLevel, 4);
     const cult4 = s.cultureTrack >= 4 ? 1 : 0;
+    const mil4 = s.militaryTrack >= 4 ? 1 : 0;
     const mt = majorsTier(s);
-    const playedT = Math.min(popcount(s.playedMask), 6);
-    return `${devCap}-${cult4}-${mt}-${playedT}`;
+    const playedT = Math.min(popcount(s.playedMask), 8);
+    const taxBin = Math.min(s.taxTrack, 6);
+    const coinBin = s.coins >= 12 ? 2 : s.coins >= 6 ? 1 : 0;
+    const scrollBin = s.philosophyTokens >= 4 ? 2 : s.philosophyTokens >= 2 ? 1 : 0;
+    return `${devCap}-${cult4}-${mil4}-${mt}-${playedT}-${taxBin}-${coinBin}-${scrollBin}`;
   };
+
+  // Exact-state dedupe key: prevents carrying multiple identical trajectories.
+  const exactKey = (s: SolverState): string =>
+    `${s.handMask}|${s.playedMask}|${s.victoryPoints}|${s.coins}|${s.philosophyTokens}|` +
+    `${s.economyTrack}|${s.cultureTrack}|${s.militaryTrack}|${s.taxTrack}|${s.gloryTrack}|` +
+    `${s.troopTrack}|${s.citizenTrack}|${s.developmentLevel}|` +
+    `${s.knowledge.greenMinor},${s.knowledge.blueMinor},${s.knowledge.redMinor},` +
+    `${s.knowledge.greenMajor},${s.knowledge.blueMajor},${s.knowledge.redMajor}`;
+
+  const seenExact = new Set<string>();
+  const deduped: T[] = [];
+  for (const entry of sortedDesc) {
+    const k = exactKey(entry.state);
+    if (seenExact.has(k)) continue;
+    seenExact.add(k);
+    deduped.push(entry);
+  }
 
   const seenBuckets = new Set<string>();
   const chosen: T[] = [];
   // First pass: take the best entry from each distinct bucket.
-  for (const entry of sortedDesc) {
+  for (const entry of deduped) {
     if (chosen.length >= beamWidth) break;
     const key = bucketKey(entry.state);
     if (seenBuckets.has(key)) continue;
@@ -303,7 +341,7 @@ function diversifyBeam<T extends { state: SolverState }>(
   // Second pass: fill remaining slots from the overall top ranking.
   if (chosen.length < beamWidth) {
     const chosenSet = new Set(chosen);
-    for (const entry of sortedDesc) {
+    for (const entry of deduped) {
       if (chosen.length >= beamWidth) break;
       if (chosenSet.has(entry)) continue;
       chosen.push(entry);
@@ -342,9 +380,9 @@ export function runSolver(
   const partialResultShared = { value: false };
 
   /**
-   * Deterministic small-magnitude jitter for ranking diversity in restart passes.
-   * Returns a value in roughly [-1.5, 1.5] derived from a cheap state-fingerprint
-   * XOR'd with the seed. When seed=0 the jitter is 0 (pure heuristic ordering).
+   * Deterministic jitter for ranking diversity in restart passes. Amplitude scales
+   * with |seed| so later restarts perturb rankings more aggressively and expose
+   * trajectories the main beam pruned. When seed=0 the jitter is 0 (pure heuristic).
    */
   const rankJitter = (s: SolverState, seed: number): number => {
     if (seed === 0) return 0;
@@ -355,9 +393,11 @@ export function runSolver(
     h ^= (s.coins | 0) * 131;
     h ^= (s.economyTrack | 0) * 7 + (s.cultureTrack | 0) * 11 + (s.militaryTrack | 0) * 13;
     h ^= (s.developmentLevel | 0) * 17 + (s.philosophyTokens | 0) * 19 + (s.troopTrack | 0) * 23;
+    h ^= (s.taxTrack | 0) * 29 + (s.gloryTrack | 0) * 37 + (s.citizenTrack | 0) * 41;
     h = (h ^ (h >>> 16)) >>> 0;
-    // Normalize to ~[-1.5, 1.5]
-    return ((h / 0xffffffff) - 0.5) * 3;
+    // Amplitude scales with seed (clamped) — early restarts are gentle, later ones bolder.
+    const amp = Math.min(6, 1.5 + Math.abs(seed) * 0.3);
+    return ((h / 0xffffffff) - 0.5) * amp;
   };
 
   /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if time runs out. */
@@ -366,11 +406,13 @@ export function runSolver(
       cardIds,
       allCards: allCardObjs,
       opponents: input.opponents,
+      boardTokens: input.boardTokens,
       deadline,
       nodesExplored: nodesExploredShared,
       partialResult: partialResultShared,
       beamWidth,
       actionTopK,
+      initialRound: initialState.round,
     };
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
@@ -410,8 +452,8 @@ export function runSolver(
       // In restart passes (seed!=0) a tiny deterministic jitter is added so ties and
       // near-ties break differently, exposing trajectories the main beam pruned.
       nextBeam.sort((a, b) =>
-        (heuristicScore(b.state) + rankJitter(b.state, seed)) -
-        (heuristicScore(a.state) + rankJitter(a.state, seed))
+        (heuristicScore(b.state, cardIds) + rankJitter(b.state, seed)) -
+        (heuristicScore(a.state, cardIds) + rankJitter(a.state, seed))
       );
       // Diversity-preserving selection: bucket by (devLevel, cultureTrack>=4, majorCount>=2) to
       // keep strategic variety. Within each bucket, take the best; then fill the remaining slots
@@ -462,12 +504,24 @@ export function runSolver(
     }
   }
 
-  // Randomized restarts: use remaining budget to search with small ranking noise,
-  // which breaks ties differently and explores trajectories the main beam pruned.
+  // Randomized restarts: use remaining budget to search with ranking noise.
+  // Rotate through a set of (beamWidth, actionTopK) profiles so restarts also vary
+  // the search geometry, not just the rank ordering. Early restarts are narrower
+  // (fast, many iterations); later ones wider (deeper exploration per pass).
+  const restartProfiles: Array<[number, number]> = [
+    [120, 24],
+    [200, 32],
+    [160, 28],
+    [300, 36],
+    [200, 40],
+    [400, 32],
+    [250, 44],
+  ];
   let restartSeed = 1;
   while (Date.now() < deadline - 500) {
     // Budget at least ~500ms for end-of-run bookkeeping.
-    const result = runBeam(200, 32, restartSeed);
+    const [w, k] = restartProfiles[(restartSeed - 1) % restartProfiles.length];
+    const result = runBeam(w, k, restartSeed);
     restartSeed++;
     if (!result) break;
     const vp = finalizeScore(result.state, cardIds, allCardObjs).total;

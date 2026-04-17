@@ -6,11 +6,11 @@
  * the branching factor manageable.
  */
 
-import type { SolverState, FrozenOpponent, ActionChoice, SolverAction } from './types';
-import type { KnowledgeToken, KnowledgeColor, PoliticsCard } from '../types';
+import type { SolverState, FrozenOpponent, ActionChoice, SolverAction, BoardExplorationToken } from './types';
+import type { KnowledgeColor, PoliticsCard } from '../types';
 import { applyAction } from './transitions';
-import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount } from './card-data';
-import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3 } from './city-data';
+import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount, exploreTroopDiscount, endGameCardVP } from './card-data';
+import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3, hasSpartaDev1 } from './city-data';
 
 /** Candidate action-phase outcome: a sequence of choices + resulting state. */
 export interface ActionPlan {
@@ -26,6 +26,7 @@ function candidateSingleChoices(
   s: SolverState,
   cardIds: string[],
   allCards: PoliticsCard[],
+  boardTokens: BoardExplorationToken[],
   usedActions: Set<SolverAction>,
 ): ActionChoice[] {
   const out: ActionChoice[] = [];
@@ -40,10 +41,9 @@ function candidateSingleChoices(
       for (const c of colors) out.push({ type: 'TRADE', buyMinor: c });
     }
   }
-  if (!usedActions.has('MILITARY') && s.troopTrack >= 1) {
-    const exploreOptions = enumerateExploreChoices(s, allCards);
+  if (!usedActions.has('MILITARY')) {
+    const exploreOptions = enumerateExploreChoices(s, allCards, boardTokens);
     for (const ex of exploreOptions) out.push({ type: 'MILITARY', explore: ex });
-    // Option to military without exploring (e.g. just to get troops via ongoing effects) — skipped, low value
   }
 
   // POLITICS — one choice per playable card in hand (the politics slot can play 1 card)
@@ -116,67 +116,117 @@ function meetsReqSolver(
   return shortfall <= philosophyPairs;
 }
 
-/** Heuristic: which minor to buy to fill card/dev requirements fastest. */
-function pickMinorColorToBuy(s: SolverState, allCards: PoliticsCard[]): KnowledgeColor | null {
-  // Compute deficits vs. all cards in hand + next dev.
+/**
+ * Enumerate explore choices from the actual central board.
+ *
+ * We consider only affordable tokens (troopTrack meets militaryRequirement; skull cost ≤ troops
+ * after the military action's base troop gain). For each, we score by how well it addresses
+ * current card/dev deficits and how much direct VP/coin bonus it delivers; we keep the top few.
+ *
+ * Thebes dev-3 grants two explorations per action — we enumerate the best top-N pairs.
+ */
+function enumerateExploreChoices(
+  s: SolverState,
+  allCards: PoliticsCard[],
+  boardTokens: BoardExplorationToken[],
+): BoardExplorationToken[][] {
+  const options: BoardExplorationToken[][] = [];
+  options.push([]); // skip
+
+  // The troop value available at the MOMENT of exploration is troopTrack + militaryTrack
+  // (action base grants militaryTrack troops before exploring).
+  const availableTroops = s.troopTrack + s.militaryTrack;
+  const hasCardFn = (id: string): boolean => {
+    const idx = _cardIdIndex(id, allCards);
+    return idx >= 0 && (s.playedMask & (1 << idx)) !== 0;
+  };
+  const discount = exploreTroopDiscount(hasCardFn) + (hasSpartaDev1(s.cityId, s.developmentLevel) ? 1 : 0);
+
+  const deficit = deficitMap(s, allCards);
+
+  // Score each token for inclusion. Higher = better candidate.
+  const scored: { tok: BoardExplorationToken; score: number }[] = [];
+  for (const tok of boardTokens) {
+    if (tok.militaryRequirement > availableTroops) continue;
+    const cost = Math.max(0, tok.skullCost - discount);
+    if (cost > availableTroops) continue;
+
+    // Deficit coverage: how many required color-units does this token fill?
+    const colorDeficit =
+      tok.color === 'GREEN' ? deficit.g :
+      tok.color === 'BLUE' ? deficit.b :
+      deficit.r;
+    const deficitFill = Math.min(colorDeficit, 1);
+
+    // Raw value: bonusCoins ~ 0.6 VP, bonusVP 1:1, major > minor, color-fill big bonus.
+    const colorValue = deficitFill * 4;
+    const majorBonus = tok.tokenType === 'MAJOR' ? 3 : 1.5;   // majors fuel Glory × Majors endgame
+    const bonus = tok.bonusVP + tok.bonusCoins * 0.6;
+    // Troop cost penalty: ~0.4 VP per troop spent (rough conversion).
+    const troopPenalty = cost * 0.4;
+    // Persepolis is massive — 3 majors at once
+    const persepolisBonus = tok.isPersepolis ? 15 : 0;
+
+    const score = colorValue + majorBonus + bonus + persepolisBonus - troopPenalty;
+    scored.push({ tok, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+
+  const thebesDouble = hasThebesDev3(s.cityId, s.developmentLevel);
+  const topSingles = scored.slice(0, thebesDouble ? 8 : 12);
+
+  // Single-token explores
+  for (const x of topSingles) options.push([x.tok]);
+
+  // Double-token explores (Thebes dev-3): pair top 6 with next 6, skipping duplicates.
+  if (thebesDouble) {
+    const pool = topSingles.slice(0, 6);
+    for (let i = 0; i < pool.length; i++) {
+      for (let j = 0; j < pool.length; j++) {
+        if (i === j) continue;           // distinct ids
+        if (pool[i].tok.id === pool[j].tok.id) continue;
+        const costI = Math.max(0, pool[i].tok.skullCost - discount);
+        const costJ = Math.max(0, pool[j].tok.skullCost - discount);
+        if (costI + costJ > availableTroops) continue;
+        // Both tokens must meet req; second token's req is against troops _after_ first pay,
+        // but game-wise the req is checked against current troopTrack before paying — we
+        // approximate by checking both pass the initial check above.
+        options.push([pool[i].tok, pool[j].tok]);
+      }
+    }
+  }
+
+  return options;
+}
+
+function _cardIdIndex(id: string, allCards: PoliticsCard[]): number {
+  for (let i = 0; i < allCards.length; i++) if (allCards[i]?.id === id) return i;
+  return -1;
+}
+
+/** Aggregated deficit per color across hand cards + next dev. */
+function deficitMap(s: SolverState, allCards: PoliticsCard[]): { g: number; b: number; r: number } {
   const g = s.knowledge.greenMinor + s.knowledge.greenMajor;
   const b = s.knowledge.blueMinor + s.knowledge.blueMajor;
   const r = s.knowledge.redMinor + s.knowledge.redMajor;
-  let deficitG = 0, deficitB = 0, deficitR = 0;
-
+  let dg = 0, db = 0, dr = 0;
   for (let i = 0; i < allCards.length; i++) {
     const bit = 1 << i;
     if ((s.handMask & bit) === 0) continue;
     const card = allCards[i];
     if (!card) continue;
     const req = card.knowledgeRequirement;
-    deficitG = Math.max(deficitG, Math.max(0, req.green - g));
-    deficitB = Math.max(deficitB, Math.max(0, req.blue - b));
-    deficitR = Math.max(deficitR, Math.max(0, req.red - r));
+    dg = Math.max(dg, Math.max(0, req.green - g));
+    db = Math.max(db, Math.max(0, req.blue - b));
+    dr = Math.max(dr, Math.max(0, req.red - r));
   }
-
   if (s.developmentLevel < 4) {
     const req = devKnowledgeRequirement(s.cityId, s.developmentLevel + 1);
-    deficitG = Math.max(deficitG, Math.max(0, req.green - g));
-    deficitB = Math.max(deficitB, Math.max(0, req.blue - b));
-    deficitR = Math.max(deficitR, Math.max(0, req.red - r));
+    dg = Math.max(dg, Math.max(0, req.green - g));
+    db = Math.max(db, Math.max(0, req.blue - b));
+    dr = Math.max(dr, Math.max(0, req.red - r));
   }
-
-  if (deficitG >= deficitB && deficitG >= deficitR && deficitG > 0) return 'GREEN';
-  if (deficitB >= deficitR && deficitB > 0) return 'BLUE';
-  if (deficitR > 0) return 'RED';
-  return null;
-}
-
-/** Enumerate a few useful explore choices. */
-function enumerateExploreChoices(s: SolverState, allCards: PoliticsCard[]): KnowledgeToken[][] {
-  const options: KnowledgeToken[][] = [];
-  const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
-  // Option 0: skip exploration (still gain troops from the action)
-  options.push([]);
-  // Single minor of each color
-  for (const c of colors) {
-    options.push([{ id: `${c}-minor-explore`, color: c, tokenType: 'MINOR' }]);
-  }
-  // Single major of most-needed color
-  const needed = pickMinorColorToBuy(s, allCards) ?? 'GREEN';
-  options.push([{ id: `${needed}-major-explore`, color: needed, tokenType: 'MAJOR' }]);
-  // Thebes dev-3 enables double exploration
-  if (hasThebesDev3(s.cityId, s.developmentLevel)) {
-    for (const a of colors) {
-      for (const b of colors) {
-        options.push([
-          { id: `${a}-minor-ex1`, color: a, tokenType: 'MINOR' },
-          { id: `${b}-minor-ex2`, color: b, tokenType: 'MINOR' },
-        ]);
-      }
-    }
-    options.push([
-      { id: `${needed}-major-ex1`, color: needed, tokenType: 'MAJOR' },
-      { id: `${needed}-minor-ex2`, color: needed, tokenType: 'MINOR' },
-    ]);
-  }
-  return options;
+  return { g: dg, b: db, r: dr };
 }
 
 /**
@@ -191,22 +241,24 @@ export function enumerateActionPlans(
   cardIds: string[],
   allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
+  boardTokens: BoardExplorationToken[],
   topK: number,
   usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
 ): ActionPlan[] {
   if (slotsLeft <= 0) return [{ choices: [], state: s }];
 
-  const candidates = candidateSingleChoices(s, cardIds, allCards, usedActions);
+  const candidates = candidateSingleChoices(s, cardIds, allCards, boardTokens, usedActions);
   if (candidates.length === 0) return [{ choices: [], state: s }];
 
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
+  const baseScore = heuristicScore(s, cardIds);
   for (const c of candidates) {
     const next = cloneState(s);
     applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
       return idx >= 0 && (next.playedMask & (1 << idx)) !== 0;
     });
-    const score = heuristicScore(next) - heuristicScore(s);
+    const score = heuristicScore(next, cardIds) - baseScore;
     scored.push({ choice: c, next, score });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -216,7 +268,13 @@ export function enumerateActionPlans(
   for (const t of top) {
     const nextUsed = new Set(usedActions);
     nextUsed.add(t.choice.type);
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, nextUsed);
+    // Mutate boardTokens view for subsequent slots: remove ids that were consumed by MILITARY explore.
+    let nextTokens = boardTokens;
+    if (t.choice.type === 'MILITARY' && t.choice.explore.length > 0) {
+      const consumed = new Set(t.choice.explore.map(x => x.id));
+      nextTokens = boardTokens.filter(x => !consumed.has(x.id));
+    }
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, nextTokens, topK, nextUsed);
     for (const sp of subPlans) {
       plans.push({
         choices: [t.choice, ...sp.choices],
@@ -228,58 +286,78 @@ export function enumerateActionPlans(
 }
 
 /** Cheap heuristic: estimate state value for ranking action candidates. */
-export function heuristicScore(s: SolverState): number {
+export function heuristicScore(s: SolverState, cardIds?: string[]): number {
   // Weight roughly by expected VP contribution over the remaining game.
   const roundsLeft = Math.max(0, 9 - s.round + 1);
   const minors = s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
   const majors = majorCount(s);
 
-  // Tax grants 1 drachma/round. Roughly 0.4-0.5 VP/coin over a game (coins feed cards/devs).
-  const taxVP = s.taxTrack * roundsLeft * 0.9;
+  // Tax grants drachma/round; drachma convert to VP via cards/devs at ~0.45 VP/coin.
+  const taxVP = s.taxTrack * roundsLeft * 0.95;
 
-  // Glory × majors end-game scoring. We also anticipate 1 extra major per 2 rounds left
-  // (via Military action) so Glory contributes even when majors == 0 right now.
-  const expectedFinalMajors = majors + roundsLeft * 0.35;
+  // Glory × majors end-game scoring. We also anticipate extra majors (~0.4/round left)
+  // via Military exploration so Glory track still contributes even when majors == 0.
+  const expectedFinalMajors = majors + roundsLeft * 0.4;
   const gloryVP = s.gloryTrack * expectedFinalMajors;
   // Each major accrued compounds with current+expected future glory.
-  const majorBonus = majors * 3;                          // a major is ~3 VP via glory
+  const majorBonus = majors * 3.5;
 
-  // Knowledge feeds dev unlocks + card requirements. Minors also feed Trade/endgame cards.
-  const minorsKnow = 1.8 * minors;
-  const majorsKnow = 2.5 * majors;
+  // Knowledge feeds dev unlocks + card requirements + some endgame cards.
+  const minorsKnow = 1.9 * minors;
+  const majorsKnow = 2.8 * majors;
 
   // Progress-track VP potential per level — includes milestones indirectly via state.
   // Heavier on Culture (unlocks 3rd die at L4) and Military (each L grants glory).
   const progressVal =
-    2.5 * s.economyTrack +
-    3.0 * s.cultureTrack +
-    3.5 * s.militaryTrack;
+    2.6 * s.economyTrack +
+    3.2 * s.cultureTrack +
+    3.6 * s.militaryTrack;
 
   // Big discrete jump when 3rd die unlocks at Culture 4: ~extra action per round.
-  const thirdDieBonus = s.cultureTrack >= 4 ? roundsLeft * 4.0 : 0;
+  const thirdDieBonus = s.cultureTrack >= 4 ? roundsLeft * 4.5 : 0;
 
   // Development levels are end-game VP plus immediate effects. Dev-4 often huge.
   const devVal = 6 * s.developmentLevel + cityDev4AnticipatedVP(s);
   // Proximity-to-next-dev: reward being close to unlocking the next development.
   const devProximity = nextDevProximityBonus(s, roundsLeft);
 
-  // Troops: exploration potential. 2 troops → 1 minor (worth ~1.8). Cap at useful level.
+  // Troops: exploration potential. Each troop consumed on a explore ~yields 0.5 VP.
   const usableTroops = Math.min(s.troopTrack, roundsLeft * 3);
-  const troopVal = usableTroops * 0.45;
+  const troopVal = usableTroops * 0.5;
 
   // Philosophy scrolls substitute for knowledge (2 scrolls = 1 req) or fund extra progress.
   const usableScrolls = Math.min(s.philosophyTokens, roundsLeft * 2);
-  const scrollVal = usableScrolls * 0.9;
+  const scrollVal = usableScrolls * 0.95;
 
   // Coins have declining value near end-of-game (nothing to spend them on).
+  // Scaled down further in the last two rounds where coins often sit idle.
+  const endGameCoinDecay = roundsLeft <= 1 ? 0.15 : roundsLeft <= 2 ? 0.25 : 0.45;
   const usableCoins = Math.min(s.coins, roundsLeft * 6);
-  const coinVal = usableCoins * 0.4;
+  const coinVal = usableCoins * endGameCoinDecay;
 
-  // Played cards: ongoing value over remaining rounds. Each play is ~1-2 VP/round avg.
+  // Hand cards: each unplayed card has latent value (future immediate + ongoing + endgame).
+  // If cardIds is available, we can estimate potential endgame contribution for hand cards
+  // crudely — ignore for now but boost the generic per-card weight.
   const handCount = popcount(s.handMask);
   const playedCount = popcount(s.playedMask);
-  const handLatent = Math.min(handCount, roundsLeft) * 0.8;     // latent only
-  const playedVal = playedCount * (1.5 + 1.0 * roundsLeft);     // accrues over rounds
+  const perHandLatent = roundsLeft >= 4 ? 3.2 : roundsLeft >= 2 ? 2.0 : 0.8;
+  const handLatent = Math.min(handCount, roundsLeft) * perHandLatent;
+
+  // Played cards: generic ongoing-bonus accrual. Each play nets ~1 VP immediately on
+  // avg + ~1 VP/round in ongoing effects. Avoid double-counting against endgame VP below.
+  const playedVal = playedCount * (1.0 + 0.8 * roundsLeft);
+
+  // Played cards end-game VP: for cards with explicit endgame scoring (bank, austerity,
+  // central-government, hall-of-statues, gold-reserve, heavy-taxes, proskenion,
+  // diversification), score the anticipated endgame VP directly using the current state.
+  let playedEndGameVP = 0;
+  if (cardIds) {
+    for (let i = 0; i < cardIds.length; i++) {
+      const bit = 1 << i;
+      if ((s.playedMask & bit) === 0) continue;
+      playedEndGameVP += endGameCardVP(cardIds[i], s);
+    }
+  }
 
   return (
     s.victoryPoints +
@@ -296,7 +374,8 @@ export function heuristicScore(s: SolverState): number {
     devVal +
     devProximity +
     handLatent +
-    playedVal
+    playedVal +
+    playedEndGameVP
   );
 }
 

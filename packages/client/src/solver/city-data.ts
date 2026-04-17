@@ -113,21 +113,40 @@ export function applyDevImmediateEffect(
   if (cityId === 'miletus' && level === 4) { s.victoryPoints += 15; return; }
   // sparta
   if (cityId === 'sparta' && level === 3) {
-    // Take 2 military actions — simplified: grant ~8 troops (flexible) + ~2 tokens of choice.
-    // For solver simplicity, model as troops/tokens grant, since exploration is a separate action type.
-    s.troopTrack += 6;
-    s.knowledge.greenMinor += 1;
-    s.knowledge.blueMinor += 1;
+    // Take 2 military actions: each grants troopTrack troops, then optional explore.
+    // Model as 2× militaryTrack troops plus 2 "free" minor-token explorations of a
+    // useful color (since skull cost is small at minor level, we still pay roughly 2 troops each).
+    // Sparta dev-2 ongoing (+1 tax on military) is always unlocked here, so add +2 tax.
+    s.troopTrack += 2 * s.militaryTrack;
+    if (s.cityId === 'sparta' && s.developmentLevel >= 2) s.taxTrack += 2;
+    // Rough model: pay 2 troops per minor explore (after Sparta dev-1 discount: 1 each)
+    const discount = 1; // sparta dev-1 is unlocked once at dev-3
+    const costPerExplore = Math.max(1, 2 - discount);
+    for (let i = 0; i < 2; i++) {
+      if (s.troopTrack >= costPerExplore) {
+        s.troopTrack -= costPerExplore;
+        // Default to blue (Sparta dev-4 scores per blue, otherwise useful generally)
+        s.knowledge.blueMinor += 1;
+      }
+    }
     return;
   }
   // olympia
   if (cityId === 'olympia' && level === 1) { s.taxTrack += 1; return; }
   if (cityId === 'olympia' && level === 3) { advanceProgressTrack(s, 'CULTURE', 2); return; }
   if (cityId === 'olympia' && level === 4) {
-    // Take 3 culture actions — model as +6 coins (Stoa) and philosophy via ongoing? Simplified:
-    // 3 culture action triggers. Culture base gives coins (track level+2-ish) and sometimes ONGOING bonuses.
-    // Solver-level heuristic: approximate as 3× coin income at culture-level, plus ongoing triggers.
-    for (let i = 0; i < 3; i++) applyCultureActionEconomics(s);
+    // Take 3 culture actions. Each culture action grants VP = cultureTrack.
+    // We also apply Olympia dev-2's ongoing bonus (+1 troop +1 scroll on culture) per action.
+    // Other ongoing card bonuses (Stoa Poikile +2 coins, Persians +2 troops) are not known
+    // here without access to the hasCard predicate; the action-resolver wiring handles those
+    // separately for regular culture actions, but dev-4 is an immediate burst — we conservatively
+    // include only the base VP gain + Olympia dev-2 ongoing effect.
+    for (let i = 0; i < 3; i++) {
+      s.victoryPoints += s.cultureTrack;
+      // Olympia dev-2 is guaranteed here (dev-4 implies all lower devs unlocked)
+      s.troopTrack += 1;
+      s.philosophyTokens += 1;
+    }
     return;
   }
   // argos
@@ -142,12 +161,6 @@ export function applyDevImmediateEffect(
   if (cityId === 'argos' && level === 4) { s.gloryTrack += 2; return; }
   // athens
   if (cityId === 'athens' && level === 1) { s.philosophyTokens += 3; return; }
-}
-
-/** Helper for Olympia dev-4: approximate Culture action economics. */
-function applyCultureActionEconomics(s: SolverState): void {
-  // Base culture action income: at culture track level L, gain L drachma (approximation).
-  s.coins += s.cultureTrack;
 }
 
 /**

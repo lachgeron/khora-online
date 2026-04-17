@@ -12,6 +12,7 @@
  */
 
 import type { KnowledgeColor, PoliticsCard, KnowledgeToken, ProgressTrackType } from '@khora/shared';
+// KnowledgeToken kept for historical snapshot shape; not used in ActionChoice.
 
 /** The 6 actions the solver considers (Legislation is always skipped). */
 export type SolverAction =
@@ -101,7 +102,7 @@ export type ActionChoice =
   | { type: 'PHILOSOPHY' }
   | { type: 'CULTURE' }
   | { type: 'TRADE'; buyMinor: KnowledgeColor | null }
-  | { type: 'MILITARY'; explore: KnowledgeToken[] }
+  | { type: 'MILITARY'; explore: BoardExplorationToken[] }
   | { type: 'POLITICS'; cardIndex: number; philosophyPairs: number }
   | { type: 'DEVELOPMENT'; philosophyPairs: number };
 
@@ -165,6 +166,22 @@ export interface SolverInput {
 
   // Frozen opponents (for Power / Public Market)
   opponents: FrozenOpponent[];
+
+  // Central-board exploration tokens (unexplored only; sorted desc by VP/coin value).
+  // Used to pick actual explore targets with real skull costs + bonus VP/coins.
+  boardTokens: BoardExplorationToken[];
+}
+
+/** A central-board exploration token available for Military exploration. */
+export interface BoardExplorationToken {
+  id: string;
+  color: KnowledgeColor;
+  tokenType: 'MINOR' | 'MAJOR';
+  militaryRequirement: number;  // troops needed on track to explore
+  skullCost: number;             // troops lost when exploring
+  bonusCoins: number;
+  bonusVP: number;
+  isPersepolis?: boolean;
 }
 
 /** Reason a solver cannot produce a plan. */
