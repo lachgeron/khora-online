@@ -18,7 +18,7 @@ import type { PoliticsCard, ProgressTrackType } from '../types';
 import { enumerateActionPlans, heuristicScore } from './action-enum';
 import { enumerateProgressPlans } from './progress-enum';
 import { applyTaxPhase, finalizeScore } from './scoring';
-import { cloneState } from './card-data';
+import { cloneState, popcount } from './card-data';
 import { canSolveFromPhase } from './snapshot';
 import type { PublicGameState } from '../types';
 
@@ -252,6 +252,58 @@ function advanceToNextRound(s: SolverState): SolverState {
   return next;
 }
 
+// ─── Diversity-preserving beam selection ────────────────────────────────────
+
+/**
+ * Select up to `beamWidth` entries from a sorted list while preserving
+ * strategic diversity. Bucketing by (developmentLevel, cultureTrack>=4 flag,
+ * majorsTier) prevents the beam from collapsing into a single near-identical
+ * trajectory (e.g. 12 Old-Guard-spam variants) and keeps Dev-investment paths
+ * alive even when their current score lags.
+ */
+function diversifyBeam<T extends { state: SolverState }>(
+  sortedDesc: T[],
+  beamWidth: number,
+): T[] {
+  if (sortedDesc.length <= beamWidth) return sortedDesc;
+
+  const majorsTier = (s: SolverState): number => {
+    const m = s.knowledge.greenMajor + s.knowledge.blueMajor + s.knowledge.redMajor;
+    if (m >= 3) return 3;
+    if (m >= 2) return 2;
+    if (m >= 1) return 1;
+    return 0;
+  };
+  const bucketKey = (s: SolverState): string => {
+    const devCap = Math.min(s.developmentLevel, 4);
+    const cult4 = s.cultureTrack >= 4 ? 1 : 0;
+    const mt = majorsTier(s);
+    const playedT = Math.min(popcount(s.playedMask), 6);
+    return `${devCap}-${cult4}-${mt}-${playedT}`;
+  };
+
+  const seenBuckets = new Set<string>();
+  const chosen: T[] = [];
+  // First pass: take the best entry from each distinct bucket.
+  for (const entry of sortedDesc) {
+    if (chosen.length >= beamWidth) break;
+    const key = bucketKey(entry.state);
+    if (seenBuckets.has(key)) continue;
+    seenBuckets.add(key);
+    chosen.push(entry);
+  }
+  // Second pass: fill remaining slots from the overall top ranking.
+  if (chosen.length < beamWidth) {
+    const chosenSet = new Set(chosen);
+    for (const entry of sortedDesc) {
+      if (chosen.length >= beamWidth) break;
+      if (chosenSet.has(entry)) continue;
+      chosen.push(entry);
+    }
+  }
+  return chosen;
+}
+
 // ─── Entry point ────────────────────────────────────────────────────────────
 
 export function runSolver(
@@ -272,73 +324,110 @@ export function runSolver(
   const cardIds = allCardObjs.map(c => c.id);
 
   const initialState = buildInitialState(input, cardIds);
-  const ctx: SolverContext = {
-    cardIds,
-    allCards: allCardObjs,
-    opponents: input.opponents,
-    deadline,
-    nodesExplored: { count: 0 },
-    partialResult: { value: false },
-    beamWidth: 12,
-    actionTopK: 12,
-  };
 
-  // Multi-round beam search: keep top `beamWidth` trajectories across rounds.
   interface BeamEntry {
     state: SolverState;
     roundPlans: RoundPlan[];
   }
-  let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
-  for (let round = initialState.round; round <= 9; round++) {
-    if (Date.now() >= deadline) {
-      ctx.partialResult.value = true;
-      break;
-    }
-    const nextBeam: BeamEntry[] = [];
-    for (const entry of beam) {
-      if (Date.now() >= deadline) { ctx.partialResult.value = true; break; }
-      const stateAtRound = { ...entry.state, round };
-      const results = simulateRoundTopK(stateAtRound, ctx, ctx.beamWidth);
-      for (const r of results) {
-        nextBeam.push({
-          state: advanceToNextRound(r.stateAfter),
-          roundPlans: [
-            ...entry.roundPlans,
-            {
-              round,
-              description: r.description,
-              vpBefore: r.vpBefore,
-              vpAfter: r.vpAfter,
-              coinsBefore: r.coinsBefore,
-              coinsAfter: r.coinsAfter,
-            },
-          ],
-        });
+  const nodesExploredShared = { count: 0 };
+  const partialResultShared = { value: false };
+
+  /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if time runs out. */
+  const runBeam = (beamWidth: number, actionTopK: number): BeamEntry | null => {
+    const ctx: SolverContext = {
+      cardIds,
+      allCards: allCardObjs,
+      opponents: input.opponents,
+      deadline,
+      nodesExplored: nodesExploredShared,
+      partialResult: partialResultShared,
+      beamWidth,
+      actionTopK,
+    };
+
+    let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
+
+    for (let round = initialState.round; round <= 9; round++) {
+      if (Date.now() >= deadline) {
+        partialResultShared.value = true;
+        return null;
       }
+      const nextBeam: BeamEntry[] = [];
+      for (const entry of beam) {
+        if (Date.now() >= deadline) { partialResultShared.value = true; break; }
+        const stateAtRound = { ...entry.state, round };
+        const results = simulateRoundTopK(stateAtRound, ctx, beamWidth);
+        for (const r of results) {
+          nextBeam.push({
+            state: advanceToNextRound(r.stateAfter),
+            roundPlans: [
+              ...entry.roundPlans,
+              {
+                round,
+                description: r.description,
+                vpBefore: r.vpBefore,
+                vpAfter: r.vpAfter,
+                coinsBefore: r.coinsBefore,
+                coinsAfter: r.coinsAfter,
+              },
+            ],
+          });
+        }
+      }
+      if (nextBeam.length === 0) {
+        partialResultShared.value = true;
+        return null;
+      }
+      // Rank by forward-looking heuristic (captures future-potential, not just current score).
+      nextBeam.sort((a, b) => heuristicScore(b.state) - heuristicScore(a.state));
+      // Diversity-preserving selection: bucket by (devLevel, cultureTrack>=4, majorCount>=2) to
+      // keep strategic variety. Within each bucket, take the best; then fill the remaining slots
+      // from the overall ranking.
+      beam = diversifyBeam(nextBeam, beamWidth);
     }
-    if (nextBeam.length === 0) {
-      ctx.partialResult.value = true;
-      break;
+
+    // Pick best by actual final VP.
+    let best: BeamEntry | null = null;
+    let bestScore = -Infinity;
+    for (const entry of beam) {
+      const sc = finalizeScore(entry.state, cardIds, allCardObjs).total;
+      if (sc > bestScore) { bestScore = sc; best = entry; }
     }
-    // Rank each trajectory by projected final VP (via finalizeScore on current state).
-    nextBeam.sort((a, b) => {
-      const fa = finalizeScore(a.state, cardIds, allCardObjs).total;
-      const fb = finalizeScore(b.state, cardIds, allCardObjs).total;
-      return fb - fa;
-    });
-    beam = nextBeam.slice(0, ctx.beamWidth);
+    return best;
+  };
+
+  // Iterative deepening: run beam search with progressively wider parameters
+  // until we hit the deadline. Keep the best trajectory found so far.
+  let overallBest: BeamEntry | null = null;
+  let overallBestVP = -Infinity;
+
+  const widths: Array<[number, number]> = [
+    [12, 12],
+    [24, 16],
+    [48, 20],
+    [80, 24],
+    [120, 28],
+    [200, 32],
+  ];
+  for (const [beamWidth, actionTopK] of widths) {
+    if (Date.now() >= deadline) break;
+    const result = runBeam(beamWidth, actionTopK);
+    if (!result) break;
+    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
+    if (vp > overallBestVP) {
+      overallBestVP = vp;
+      overallBest = result;
+    }
   }
 
-  // Pick best trajectory by final score.
-  let best = beam[0];
-  let bestScore = -Infinity;
-  for (const entry of beam) {
-    const s = finalizeScore(entry.state, cardIds, allCardObjs).total;
-    if (s > bestScore) { bestScore = s; best = entry; }
+  if (!overallBest) {
+    // Fallback: if we couldn't complete any beam (e.g., deadline hit immediately), return empty plan.
+    overallBest = { state: initialState, roundPlans: [] };
   }
-  const finalState = best.state;
-  const roundPlans = best.roundPlans;
+
+  const finalState = overallBest.state;
+  const roundPlans = overallBest.roundPlans;
   const finalized = finalizeScore(finalState, cardIds, allCardObjs);
 
   const currentRound = roundPlans.length > 0 ? roundPlans[0] : null;
@@ -349,9 +438,9 @@ export function runSolver(
     vpBreakdown: finalized.breakdown,
     currentRound,
     futureRounds,
-    partialResult: ctx.partialResult.value,
+    partialResult: partialResultShared.value,
     computeMs: Date.now() - start,
-    exploredNodes: ctx.nodesExplored.count,
+    exploredNodes: nodesExploredShared.count,
   };
 
   return { ok: true, plan };

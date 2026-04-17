@@ -9,7 +9,7 @@
 import type { SolverState, FrozenOpponent, ActionChoice, SolverAction } from './types';
 import type { KnowledgeToken, KnowledgeColor, PoliticsCard } from '../types';
 import { applyAction } from './transitions';
-import { cloneState, totalKnowledge, majorCount, popcount } from './card-data';
+import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount } from './card-data';
 import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3 } from './city-data';
 
 /** Candidate action-phase outcome: a sequence of choices + resulting state. */
@@ -258,8 +258,10 @@ export function heuristicScore(s: SolverState): number {
   // Big discrete jump when 3rd die unlocks at Culture 4: ~extra action per round.
   const thirdDieBonus = s.cultureTrack >= 4 ? roundsLeft * 4.0 : 0;
 
-  // Development levels are end-game VP plus immediate effects. Dev-4 often huge (Miletus +15 VP, etc.).
-  const devVal = 6 * s.developmentLevel + (s.developmentLevel >= 4 ? 10 : 0);
+  // Development levels are end-game VP plus immediate effects. Dev-4 often huge.
+  const devVal = 6 * s.developmentLevel + cityDev4AnticipatedVP(s);
+  // Proximity-to-next-dev: reward being close to unlocking the next development.
+  const devProximity = nextDevProximityBonus(s, roundsLeft);
 
   // Troops: exploration potential. 2 troops → 1 minor (worth ~1.8). Cap at useful level.
   const usableTroops = Math.min(s.troopTrack, roundsLeft * 3);
@@ -292,7 +294,57 @@ export function heuristicScore(s: SolverState): number {
     gloryVP +
     majorBonus +
     devVal +
+    devProximity +
     handLatent +
     playedVal
   );
+}
+
+/**
+ * Anticipated end-game VP from the city's dev-4 given the current state.
+ * Only credited if Dev-4 is actually reachable (not already past, and within reach).
+ */
+function cityDev4AnticipatedVP(s: SolverState): number {
+  if (s.developmentLevel >= 4) {
+    // Already at Dev-4 — the payoff is baked into scoreTrack/playedMask; give small premium.
+    return 12;
+  }
+  // Estimate: if reasonable chance to reach Dev-4, credit a portion of its eventual VP.
+  switch (s.cityId) {
+    case 'miletus': return 12;                          // +15 VP immediate
+    case 'corinth': return Math.min(18, 2 * totalKnowledge(s)); // 2× final knowledge
+    case 'thebes': {
+      const minors = s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
+      return Math.min(16, 2 * minors);
+    }
+    case 'sparta': return Math.min(16, 4 * knowledgeCount(s, 'BLUE'));
+    case 'athens': return Math.min(18, 3 * popcount(s.playedMask));
+    case 'argos': return 10;                             // dev-4 grants +2 glory
+    case 'olympia': return 10;                           // dev-4 grants 3 culture actions
+    default: return 8;
+  }
+}
+
+/** Reward approaching the next development unlock (knowledge req coverage + affordability). */
+function nextDevProximityBonus(s: SolverState, roundsLeft: number): number {
+  if (s.developmentLevel >= 4 || roundsLeft <= 0) return 0;
+  const nextLvl = s.developmentLevel + 1;
+  const req = devKnowledgeRequirement(s.cityId, nextLvl);
+  const cost = devDrachmaCost(s.cityId, nextLvl);
+  const g = s.knowledge.greenMinor + s.knowledge.greenMajor;
+  const b = s.knowledge.blueMinor + s.knowledge.blueMajor;
+  const r = s.knowledge.redMinor + s.knowledge.redMajor;
+  const have = Math.min(g, req.green) + Math.min(b, req.blue) + Math.min(r, req.red);
+  const total = req.green + req.blue + req.red;
+  const shortfall = Math.max(0, total - have);
+  // Philosophy scrolls can cover 1 req each (2 scrolls = 1 sub). Model coverage as fractional.
+  const scrollCoverage = Math.min(shortfall, Math.floor(s.philosophyTokens / 2));
+  const effectiveShortfall = shortfall - scrollCoverage;
+  // Coverage ratio: 1.0 if fully met, decaying as shortfall grows.
+  const coverageRatio = total > 0 ? (total - effectiveShortfall) / total : 1;
+  // If affordability is missing, discount heavily.
+  const affordFactor = s.coins >= cost ? 1 : 0.5;
+  // Base bonus scales with how valuable the next dev is for this city.
+  const nextDevValue = nextLvl === 4 ? 8 : nextLvl === 3 ? 5 : 3;
+  return coverageRatio * affordFactor * nextDevValue;
 }
