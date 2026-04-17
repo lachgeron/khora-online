@@ -152,7 +152,14 @@ function simulateRoundTopK(
           chosenActions: ap.choices,
           progressTracks,
           philosophySpent,
-          description: describeRound(ap.choices, progressTracks, philosophySpent, ctx.cardIds, ctx.allCards),
+          description: describeRound(
+            ap.choices,
+            progressTracks,
+            philosophySpent,
+            ctx.cardIds,
+            ctx.allCards,
+            hasCard(pState, 'old-guard', ctx.cardIds),
+          ),
           vpBefore,
           vpAfter: afterTax.victoryPoints,
           coinsBefore,
@@ -197,6 +204,7 @@ function describeRound(
   philosophySpent: number,
   cardIds: string[],
   allCards: PoliticsCard[],
+  hasOldGuard: boolean,
 ): string[] {
   const bullets: string[] = [];
   for (const c of choices) {
@@ -213,7 +221,7 @@ function describeRound(
     if (philosophySpent > 0) msg += ` (spent ${philosophySpent} scrolls)`;
     bullets.push(msg);
   } else {
-    bullets.push('Progress: skip (Old Guard +4 VP)');
+    bullets.push(hasOldGuard ? 'Progress: skip (Old Guard +4 VP)' : 'Progress: skip (nothing affordable)');
   }
   return bullets;
 }
@@ -333,8 +341,27 @@ export function runSolver(
   const nodesExploredShared = { count: 0 };
   const partialResultShared = { value: false };
 
+  /**
+   * Deterministic small-magnitude jitter for ranking diversity in restart passes.
+   * Returns a value in roughly [-1.5, 1.5] derived from a cheap state-fingerprint
+   * XOR'd with the seed. When seed=0 the jitter is 0 (pure heuristic ordering).
+   */
+  const rankJitter = (s: SolverState, seed: number): number => {
+    if (seed === 0) return 0;
+    let h = seed * 2654435761;
+    h ^= s.handMask | 0;
+    h ^= (s.playedMask | 0) * 31;
+    h ^= (s.victoryPoints | 0) * 97;
+    h ^= (s.coins | 0) * 131;
+    h ^= (s.economyTrack | 0) * 7 + (s.cultureTrack | 0) * 11 + (s.militaryTrack | 0) * 13;
+    h ^= (s.developmentLevel | 0) * 17 + (s.philosophyTokens | 0) * 19 + (s.troopTrack | 0) * 23;
+    h = (h ^ (h >>> 16)) >>> 0;
+    // Normalize to ~[-1.5, 1.5]
+    return ((h / 0xffffffff) - 0.5) * 3;
+  };
+
   /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if time runs out. */
-  const runBeam = (beamWidth: number, actionTopK: number): BeamEntry | null => {
+  const runBeam = (beamWidth: number, actionTopK: number, seed: number = 0): BeamEntry | null => {
     const ctx: SolverContext = {
       cardIds,
       allCards: allCardObjs,
@@ -380,7 +407,12 @@ export function runSolver(
         return null;
       }
       // Rank by forward-looking heuristic (captures future-potential, not just current score).
-      nextBeam.sort((a, b) => heuristicScore(b.state) - heuristicScore(a.state));
+      // In restart passes (seed!=0) a tiny deterministic jitter is added so ties and
+      // near-ties break differently, exposing trajectories the main beam pruned.
+      nextBeam.sort((a, b) =>
+        (heuristicScore(b.state) + rankJitter(b.state, seed)) -
+        (heuristicScore(a.state) + rankJitter(a.state, seed))
+      );
       // Diversity-preserving selection: bucket by (devLevel, cultureTrack>=4, majorCount>=2) to
       // keep strategic variety. Within each bucket, take the best; then fill the remaining slots
       // from the overall ranking.
@@ -402,6 +434,10 @@ export function runSolver(
   let overallBest: BeamEntry | null = null;
   let overallBestVP = -Infinity;
 
+  // Wide schedule that scales up well beyond what can typically finish — the
+  // deadline check inside `runBeam` is the real terminator. If a pass hits the
+  // deadline mid-search it returns null and we stop, keeping the best trajectory
+  // from earlier (fully-completed) passes.
   const widths: Array<[number, number]> = [
     [12, 12],
     [24, 16],
@@ -409,10 +445,30 @@ export function runSolver(
     [80, 24],
     [120, 28],
     [200, 32],
+    [320, 36],
+    [500, 40],
+    [800, 44],
+    [1200, 48],
+    [2000, 52],
   ];
   for (const [beamWidth, actionTopK] of widths) {
     if (Date.now() >= deadline) break;
     const result = runBeam(beamWidth, actionTopK);
+    if (!result) break;
+    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
+    if (vp > overallBestVP) {
+      overallBestVP = vp;
+      overallBest = result;
+    }
+  }
+
+  // Randomized restarts: use remaining budget to search with small ranking noise,
+  // which breaks ties differently and explores trajectories the main beam pruned.
+  let restartSeed = 1;
+  while (Date.now() < deadline - 500) {
+    // Budget at least ~500ms for end-of-run bookkeeping.
+    const result = runBeam(200, 32, restartSeed);
+    restartSeed++;
     if (!result) break;
     const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
     if (vp > overallBestVP) {
