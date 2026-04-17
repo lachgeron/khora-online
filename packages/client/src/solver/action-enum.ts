@@ -6,7 +6,7 @@
  * the branching factor manageable.
  */
 
-import type { SolverState, FrozenOpponent, ActionChoice } from './types';
+import type { SolverState, FrozenOpponent, ActionChoice, SolverAction } from './types';
 import type { KnowledgeToken, KnowledgeColor, PoliticsCard } from '../types';
 import { applyAction } from './transitions';
 import { cloneState, totalKnowledge } from './card-data';
@@ -20,53 +20,57 @@ export interface ActionPlan {
 
 /**
  * Generate candidate ActionChoices for a single slot given the state.
- * Returns a small pruned list of options.
+ * Excludes any action already used this round (each action slot activates at most once).
  */
 function candidateSingleChoices(
   s: SolverState,
   cardIds: string[],
   allCards: PoliticsCard[],
-  _hasCardFn: (id: string) => boolean,
+  usedActions: Set<SolverAction>,
 ): ActionChoice[] {
   const out: ActionChoice[] = [];
 
-  // Base 4
-  out.push({ type: 'PHILOSOPHY' });
-  out.push({ type: 'CULTURE' });
-  out.push({ type: 'TRADE', buyMinor: null });
-  // TRADE with a buy (only one heuristic: buy the color we need least for dev or cards)
-  const colorToBuy = pickMinorColorToBuy(s, allCards);
-  if (colorToBuy) out.push({ type: 'TRADE', buyMinor: colorToBuy });
-  // MILITARY with 1 or 2 tokens explored
-  const exploreOptions = enumerateExploreChoices(s, allCards);
-  for (const ex of exploreOptions) out.push({ type: 'MILITARY', explore: ex });
+  if (!usedActions.has('PHILOSOPHY')) out.push({ type: 'PHILOSOPHY' });
+  if (!usedActions.has('CULTURE')) out.push({ type: 'CULTURE' });
+  if (!usedActions.has('TRADE')) {
+    out.push({ type: 'TRADE', buyMinor: null });
+    const colorToBuy = pickMinorColorToBuy(s, allCards);
+    if (colorToBuy && s.coins >= 3) out.push({ type: 'TRADE', buyMinor: colorToBuy });
+  }
+  if (!usedActions.has('MILITARY') && s.troopTrack >= 1) {
+    const exploreOptions = enumerateExploreChoices(s, allCards);
+    for (const ex of exploreOptions) out.push({ type: 'MILITARY', explore: ex });
+    // Option to military without exploring (e.g. just to get troops via ongoing effects) — skipped, low value
+  }
 
-  // POLITICS — one choice per playable card in hand
-  for (let i = 0; i < cardIds.length; i++) {
-    const bit = 1 << i;
-    if ((s.handMask & bit) === 0) continue;
-    const card = allCards[i];
-    if (!card) continue;
-    if (!canPlayCard(s, card)) continue;
-    // Philosophy pairs needed? Cost & knowledge check.
-    const pairs = philosophyPairsNeeded(s, card);
-    out.push({ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs });
+  // POLITICS — one choice per playable card in hand (the politics slot can play 1 card)
+  if (!usedActions.has('POLITICS')) {
+    for (let i = 0; i < cardIds.length; i++) {
+      const bit = 1 << i;
+      if ((s.handMask & bit) === 0) continue;
+      const card = allCards[i];
+      if (!card) continue;
+      if (!canPlayCard(s, card)) continue;
+      const pairs = philosophyPairsNeeded(s, card);
+      out.push({ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs });
+    }
   }
 
   // DEVELOPMENT — if a new level is unlockable
-  if (s.developmentLevel < 4) {
+  if (!usedActions.has('DEVELOPMENT') && s.developmentLevel < 4) {
     const nextLvl = s.developmentLevel + 1;
     const req = devKnowledgeRequirement(s.cityId, nextLvl);
     const cost = devDrachmaCost(s.cityId, nextLvl);
-    if (s.coins >= cost && meetsReqSolver(s, req, 0)) {
-      out.push({ type: 'DEVELOPMENT', philosophyPairs: 0 });
-    } else {
-      // Try with philosophy pairs
-      for (let pairs = 1; pairs <= 3; pairs++) {
-        if (s.philosophyTokens < pairs * 2) break;
-        if (s.coins >= cost && meetsReqSolver(s, req, pairs)) {
-          out.push({ type: 'DEVELOPMENT', philosophyPairs: pairs });
-          break;
+    if (s.coins >= cost) {
+      if (meetsReqSolver(s, req, 0)) {
+        out.push({ type: 'DEVELOPMENT', philosophyPairs: 0 });
+      } else {
+        for (let pairs = 1; pairs <= 4; pairs++) {
+          if (s.philosophyTokens < pairs * 2) break;
+          if (meetsReqSolver(s, req, pairs)) {
+            out.push({ type: 'DEVELOPMENT', philosophyPairs: pairs });
+            break;
+          }
         }
       }
     }
@@ -168,22 +172,17 @@ export function enumerateActionPlans(
   allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
   topK: number,
+  usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
 ): ActionPlan[] {
   if (slotsLeft <= 0) return [{ choices: [], state: s }];
 
-  const hasCardFn = (id: string) => {
-    const idx = cardIds.indexOf(id);
-    if (idx < 0) return false;
-    return (s.playedMask & (1 << idx)) !== 0;
-  };
+  const candidates = candidateSingleChoices(s, cardIds, allCards, usedActions);
+  if (candidates.length === 0) return [{ choices: [], state: s }];
 
-  const candidates = candidateSingleChoices(s, cardIds, allCards, hasCardFn);
-
-  // Score each candidate by a cheap state-transition evaluation
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
   for (const c of candidates) {
     const next = cloneState(s);
-    applyAction(next, c, cardIds, opponents, (id) => {
+    applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
       return idx >= 0 && (next.playedMask & (1 << idx)) !== 0;
     });
@@ -195,7 +194,9 @@ export function enumerateActionPlans(
 
   const plans: ActionPlan[] = [];
   for (const t of top) {
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK);
+    const nextUsed = new Set(usedActions);
+    nextUsed.add(t.choice.type);
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, nextUsed);
     for (const sp of subPlans) {
       plans.push({
         choices: [t.choice, ...sp.choices],
@@ -208,16 +209,25 @@ export function enumerateActionPlans(
 
 /** Cheap heuristic: estimate state value for ranking action candidates. */
 export function heuristicScore(s: SolverState): number {
-  // Rough: VP + 1 per coin + 3 per knowledge + 2 per scroll + 2 per troop + track levels
+  // Weight roughly by expected VP contribution over the remaining game.
+  const roundsLeft = Math.max(0, 9 - s.round + 1);
+  const taxVP = s.taxTrack * roundsLeft * 0.8;           // each tax gives 1 coin/round ~= 0.5 VP
+  const gloryVP = s.gloryTrack * 2;                       // glory × majors at end
+  const knowledgeVal = 2 * totalKnowledge(s);             // feeds dev + cards
+  const progressVal =                                     // progress tracks unlock devs/milestones
+    2.5 * s.economyTrack +
+    3 * s.cultureTrack +
+    2 * s.militaryTrack;
+  const devVal = 6 * s.developmentLevel;                  // dev-4s worth lots, earlier devs ongoing
   return (
     s.victoryPoints +
-    0.5 * s.coins +
-    3 * totalKnowledge(s) +
-    1.5 * s.philosophyTokens +
-    0.3 * s.troopTrack +
-    2 * (s.economyTrack + s.cultureTrack + s.militaryTrack) +
-    2 * s.taxTrack +
-    4 * s.gloryTrack +
-    3 * s.developmentLevel
+    0.4 * s.coins +
+    knowledgeVal +
+    0.7 * s.philosophyTokens +
+    0.2 * s.troopTrack +
+    progressVal +
+    taxVP +
+    gloryVP +
+    devVal
   );
 }

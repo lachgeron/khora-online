@@ -11,7 +11,6 @@ import type { SolverState, FrozenOpponent } from './types';
 import type { ProgressTrackType } from '../types';
 import { cloneState } from './card-data';
 import {
-  bonusProgressAdvancements,
   economyProgressFree,
   progressDiscount,
 } from './card-data';
@@ -55,10 +54,12 @@ export function enumerateProgressPlans(
 ): SolverState[] {
   if (s.progressAlreadyDone) return [cloneState(s)];
 
-  const bonus = bonusProgressAdvancements(hasCard, devUnlocked);
   const maxScrollFunded = Math.floor(s.philosophyTokens / 2);
   const tracks: ProgressTrackType[] = ['ECONOMY', 'CULTURE', 'MILITARY'];
-  const corinthBonus2 = hasCorinthDev3(s.cityId, s.developmentLevel); // Corinth dev-3: up to 2 advancements (replaces base 1)
+  // Base: 1 advancement. Reformists OR Corinth-dev-3 overrides base to 2 (not additive).
+  const reformists = hasCard('reformists');
+  const corinthDev3 = hasCorinthDev3(s.cityId, s.developmentLevel);
+  const baseSlots = (reformists || corinthDev3) ? 2 : 1;
 
   const results: SolverState[] = [];
 
@@ -67,7 +68,7 @@ export function enumerateProgressPlans(
     .filter((v, i, a) => v <= maxScrollFunded && a.indexOf(v) === i);
 
   for (const scrolls of scrollOptions) {
-    const totalSlots = (corinthBonus2 ? 2 : 1) + bonus + scrolls;
+    const totalSlots = baseSlots + scrolls;
     // For each single-track focus and "mixed" strategies, enumerate:
     const strategies: ProgressTrackType[][] = [];
     // All-on-one-track strategies

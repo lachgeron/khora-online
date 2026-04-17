@@ -7,6 +7,7 @@
  */
 
 import type { SolverState, SolverAction, FrozenOpponent, ActionChoice } from './types';
+import type { PoliticsCard } from '../types';
 import {
   cloneState,
   applyOngoingOnAction,
@@ -24,24 +25,25 @@ import {
   hasThebesDev3,
 } from './city-data';
 
-/** Coins earned from a TRADE action at economy level. Base = economy track level. */
+/** Coins earned from a TRADE action. Base = economy track level + 1. */
 function tradeIncome(s: SolverState): number {
-  return s.economyTrack;
+  return s.economyTrack + 1;
 }
 
-/** Coins earned from a CULTURE action. Base = cultureTrack. */
-function cultureIncome(s: SolverState): number {
+/** VP earned from a CULTURE action. Equal to culture track level. */
+function cultureVP(s: SolverState): number {
   return s.cultureTrack;
 }
 
-/** Scrolls earned from PHILOSOPHY action. Base = 2. */
-const PHILOSOPHY_SCROLLS = 2;
+/** Scrolls earned from PHILOSOPHY action. Base = 1. */
+const PHILOSOPHY_SCROLLS = 1;
 
 /** Apply a single action to state. Mutates state (assumed cloned). */
 export function applyAction(
   s: SolverState,
   choice: ActionChoice,
   cardIds: string[],
+  allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
   hasCardFn: (id: string) => boolean,
 ): void {
@@ -56,7 +58,7 @@ export function applyAction(
       return;
     }
     case 'CULTURE': {
-      s.coins += cultureIncome(s);
+      s.victoryPoints += cultureVP(s);
       applyOngoingOnAction(s, 'CULTURE', hasCardFn);
       applyDevOngoingOnAction(s, 'CULTURE', cityId, devLevel);
       return;
@@ -77,7 +79,9 @@ export function applyAction(
       return;
     }
     case 'MILITARY': {
-      // Exploration: grant chosen tokens, paying troops. Under solver assumption, can always get requested color.
+      // Step 1: Gain troops equal to military track level (matches server military-resolver).
+      s.troopTrack += s.militaryTrack;
+      // Step 2: Exploration — grant chosen tokens, paying troops. Under solver assumption, can always get requested color.
       applyOngoingOnAction(s, 'MILITARY', hasCardFn);
       applyDevOngoingOnAction(s, 'MILITARY', cityId, devLevel);
       const discount = exploreTroopDiscount(hasCardFn) + (hasSpartaDev1(cityId, devLevel) ? 1 : 0);
@@ -110,8 +114,15 @@ export function applyAction(
       const cardBit = 1 << idx;
       if ((s.handMask & cardBit) === 0) return; // not in hand
       const cardId = cardIds[idx];
-      // Pay cost (approximated by card definition — but we don't have full PoliticsCard here,
-      // caller passes cardIds/handMask; cost handled by enumerator before calling applyAction).
+      const card = allCards[idx];
+      if (!card) return;
+      // Pay drachma cost
+      if (s.coins < card.cost) return;
+      s.coins -= card.cost;
+      // Pay philosophy scrolls to cover missing knowledge (2 scrolls = 1 substitution)
+      const pairsNeeded = choice.philosophyPairs ?? 0;
+      if (s.philosophyTokens < pairsNeeded * 2) return;
+      s.philosophyTokens -= pairsNeeded * 2;
       s.handMask &= ~cardBit;
       s.playedMask |= cardBit;
       // Play-card triggers
@@ -131,6 +142,10 @@ export function applyAction(
       const baseCost = devDrachmaCost(cityId, newLevel);
       const cost = Math.max(0, baseCost);
       if (s.coins < cost) return;
+      // Pay philosophy scrolls to cover missing knowledge
+      const pairsNeeded = choice.philosophyPairs ?? 0;
+      if (s.philosophyTokens < pairsNeeded * 2) return;
+      s.philosophyTokens -= pairsNeeded * 2;
       s.coins -= cost;
       s.developmentLevel = newLevel;
       applyDevImmediateEffect(s, cityId, newLevel);

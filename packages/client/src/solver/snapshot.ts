@@ -36,10 +36,11 @@ export function buildSolverInput(
     militaryTrack: o.militaryTrack,
   }));
 
-  const actionsAlreadyTaken: SolverAction[] = me.actionSlots
-    .filter(s => s.resolved)
+  const resolvedSlots = me.actionSlots.filter(s => s.resolved);
+  const actionsAlreadyTaken: SolverAction[] = resolvedSlots
     .map(s => ACTION_MAP[s.actionType])
     .filter((a): a is SolverAction => a !== null);
+  const slotsConsumedThisRound = resolvedSlots.length;
 
   // Progress already done? Detect from phase: after PROGRESS phase of the current round.
   const progressAlreadyDone =
@@ -65,6 +66,7 @@ export function buildSolverInput(
     playedCards: privateState.playedCards,
     currentRound: publicState.roundNumber,
     actionsAlreadyTaken,
+    slotsConsumedThisRound,
     progressAlreadyDone,
     opponents,
   };

@@ -65,7 +65,8 @@ export interface SolverState {
   round: number;                       // 1–9 (the round we are about to plan)
 
   // Mid-round fixed state (from snapshot). On round advance, reset.
-  actionsAlreadyTaken: SolverAction[]; // already resolved this round
+  actionsAlreadyTaken: SolverAction[]; // already resolved this round (excluding LEGISLATION)
+  slotsConsumedThisRound: number;      // total dice slots used this round (incl. skipped LEGISLATION)
   progressAlreadyDone: boolean;        // progress phase already done this round
 
   // Tracks
@@ -158,7 +159,8 @@ export interface SolverInput {
 
   // Round state
   currentRound: number;                  // 1–9
-  actionsAlreadyTaken: SolverAction[];   // in the current round
+  actionsAlreadyTaken: SolverAction[];   // in the current round (excluding LEGISLATION)
+  slotsConsumedThisRound: number;        // total resolved dice slots this round
   progressAlreadyDone: boolean;
 
   // Frozen opponents (for Power / Public Market)

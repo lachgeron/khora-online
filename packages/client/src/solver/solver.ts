@@ -66,6 +66,7 @@ function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
   return {
     round: input.currentRound,
     actionsAlreadyTaken: [...input.actionsAlreadyTaken],
+    slotsConsumedThisRound: input.slotsConsumedThisRound,
     progressAlreadyDone: input.progressAlreadyDone,
     economyTrack: input.economyTrack,
     cultureTrack: input.cultureTrack,
@@ -114,7 +115,9 @@ function simulateRound(
   const coinsBefore = s.coins;
 
   // 1. Action phase: enumerate action plans for remaining slots.
-  const slotsLeft = 3 - s.actionsAlreadyTaken.length;
+  // Third die is unlocked at Culture track 4.
+  const maxSlots = s.cultureTrack >= 4 ? 3 : 2;
+  const slotsLeft = Math.max(0, maxSlots - s.slotsConsumedThisRound);
   const actionPlans = enumerateActionPlans(
     s,
     slotsLeft,
@@ -247,6 +250,7 @@ function advanceToNextRound(s: SolverState): SolverState {
   const next = cloneState(s);
   next.round += 1;
   next.actionsAlreadyTaken = [];
+  next.slotsConsumedThisRound = 0;
   next.progressAlreadyDone = false;
   return next;
 }
