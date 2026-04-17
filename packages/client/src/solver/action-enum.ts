@@ -231,33 +231,63 @@ export function enumerateActionPlans(
 export function heuristicScore(s: SolverState): number {
   // Weight roughly by expected VP contribution over the remaining game.
   const roundsLeft = Math.max(0, 9 - s.round + 1);
-  const taxVP = s.taxTrack * roundsLeft * 0.9;            // each tax gives 1 coin/round
+  const minors = s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
   const majors = majorCount(s);
-  const gloryVP = s.gloryTrack * (majors + 0.5);          // glory × majors at end; +0.5 reserve for future majors
-  const majorBonus = majors * (s.gloryTrack + 1);         // majors themselves valuable if glory grows
-  const minorsKnow =                                       // minors feed card/dev requirements
-    1.5 * (s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor);
-  const majorsKnow =
-    2.0 * majors;
-  const progressVal =                                     // progress tracks unlock devs + score
-    3.0 * s.economyTrack +
+
+  // Tax grants 1 drachma/round. Roughly 0.4-0.5 VP/coin over a game (coins feed cards/devs).
+  const taxVP = s.taxTrack * roundsLeft * 0.9;
+
+  // Glory × majors end-game scoring. We also anticipate 1 extra major per 2 rounds left
+  // (via Military action) so Glory contributes even when majors == 0 right now.
+  const expectedFinalMajors = majors + roundsLeft * 0.35;
+  const gloryVP = s.gloryTrack * expectedFinalMajors;
+  // Each major accrued compounds with current+expected future glory.
+  const majorBonus = majors * 3;                          // a major is ~3 VP via glory
+
+  // Knowledge feeds dev unlocks + card requirements. Minors also feed Trade/endgame cards.
+  const minorsKnow = 1.8 * minors;
+  const majorsKnow = 2.5 * majors;
+
+  // Progress-track VP potential per level — includes milestones indirectly via state.
+  // Heavier on Culture (unlocks 3rd die at L4) and Military (each L grants glory).
+  const progressVal =
+    2.5 * s.economyTrack +
     3.0 * s.cultureTrack +
-    2.5 * s.militaryTrack;
-  const devVal = 7 * s.developmentLevel;                  // each dev ~4-8 VP + effect
-  // Played cards generate ongoing value per remaining round (~1 VP/round avg).
-  // Hand cards are worth less since they may not get played.
+    3.5 * s.militaryTrack;
+
+  // Big discrete jump when 3rd die unlocks at Culture 4: ~extra action per round.
+  const thirdDieBonus = s.cultureTrack >= 4 ? roundsLeft * 4.0 : 0;
+
+  // Development levels are end-game VP plus immediate effects. Dev-4 often huge (Miletus +15 VP, etc.).
+  const devVal = 6 * s.developmentLevel + (s.developmentLevel >= 4 ? 10 : 0);
+
+  // Troops: exploration potential. 2 troops → 1 minor (worth ~1.8). Cap at useful level.
+  const usableTroops = Math.min(s.troopTrack, roundsLeft * 3);
+  const troopVal = usableTroops * 0.45;
+
+  // Philosophy scrolls substitute for knowledge (2 scrolls = 1 req) or fund extra progress.
+  const usableScrolls = Math.min(s.philosophyTokens, roundsLeft * 2);
+  const scrollVal = usableScrolls * 0.9;
+
+  // Coins have declining value near end-of-game (nothing to spend them on).
+  const usableCoins = Math.min(s.coins, roundsLeft * 6);
+  const coinVal = usableCoins * 0.4;
+
+  // Played cards: ongoing value over remaining rounds. Each play is ~1-2 VP/round avg.
   const handCount = popcount(s.handMask);
   const playedCount = popcount(s.playedMask);
-  const handLatent = handCount * 0.5;                     // small latent value only
-  const playedVal = playedCount * (2 + 0.8 * roundsLeft); // ongoing value scales with rounds left
+  const handLatent = Math.min(handCount, roundsLeft) * 0.8;     // latent only
+  const playedVal = playedCount * (1.5 + 1.0 * roundsLeft);     // accrues over rounds
+
   return (
     s.victoryPoints +
-    0.35 * s.coins +
+    coinVal +
     minorsKnow +
     majorsKnow +
-    0.6 * s.philosophyTokens +
-    0.15 * s.troopTrack +
+    scrollVal +
+    troopVal +
     progressVal +
+    thirdDieBonus +
     taxVP +
     gloryVP +
     majorBonus +

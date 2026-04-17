@@ -101,21 +101,20 @@ interface RoundResult {
 }
 
 /**
- * Simulate one round starting from state `s` (mid-round or fresh). Returns the
- * best round outcome (state + chosen actions/progress/etc.).
+ * Simulate one round starting from state `s`. Returns top-K round outcomes
+ * (for multi-round beam search). Results are sorted best-first by heuristic.
  */
-function simulateRound(
+function simulateRoundTopK(
   s: SolverState,
   ctx: SolverContext,
-  _depth: number,
-): RoundResult | null {
-  if (Date.now() >= ctx.deadline) return null;
+  topK: number,
+): RoundResult[] {
+  if (Date.now() >= ctx.deadline) return [];
 
   const vpBefore = s.victoryPoints;
   const coinsBefore = s.coins;
 
   // 1. Action phase: enumerate action plans for remaining slots.
-  // Third die is unlocked at Culture track 4.
   const maxSlots = s.cultureTrack >= 4 ? 3 : 2;
   const slotsLeft = Math.max(0, maxSlots - s.slotsConsumedThisRound);
   const actionPlans = enumerateActionPlans(
@@ -128,9 +127,7 @@ function simulateRound(
   );
   ctx.nodesExplored.count += actionPlans.length;
 
-  // 2. For each action plan, enumerate progress plans.
-  let bestTotal = -Infinity;
-  let best: RoundResult | null = null;
+  const scored: Array<{ score: number; result: RoundResult }> = [];
 
   for (const ap of actionPlans) {
     if (Date.now() >= ctx.deadline) { ctx.partialResult.value = true; break; }
@@ -146,12 +143,11 @@ function simulateRound(
       const afterTax = cloneState(pState);
       applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
       const score = heuristicScore(afterTax);
-      if (score > bestTotal) {
-        bestTotal = score;
-        // Reconstruct the progress tracks used (by diff).
-        const progressTracks = diffProgressTracks(ap.state, pState);
-        const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-        best = {
+      const progressTracks = diffProgressTracks(ap.state, pState);
+      const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
+      scored.push({
+        score,
+        result: {
           stateAfter: afterTax,
           chosenActions: ap.choices,
           progressTracks,
@@ -161,12 +157,13 @@ function simulateRound(
           vpAfter: afterTax.victoryPoints,
           coinsBefore,
           coinsAfter: afterTax.coins,
-        };
-      }
+        },
+      });
     }
   }
 
-  return best;
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK).map(x => x.result);
 }
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
@@ -282,37 +279,67 @@ export function runSolver(
     deadline,
     nodesExplored: { count: 0 },
     partialResult: { value: false },
-    beamWidth: 6,
-    actionTopK: 10,
+    beamWidth: 12,
+    actionTopK: 12,
   };
 
-  const roundPlans: RoundPlan[] = [];
-  let state = initialState;
+  // Multi-round beam search: keep top `beamWidth` trajectories across rounds.
+  interface BeamEntry {
+    state: SolverState;
+    roundPlans: RoundPlan[];
+  }
+  let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
-  // Greedy round-by-round simulation
   for (let round = initialState.round; round <= 9; round++) {
     if (Date.now() >= deadline) {
       ctx.partialResult.value = true;
       break;
     }
-    state = { ...state, round };
-    const result = simulateRound(state, ctx, 0);
-    if (!result) {
+    const nextBeam: BeamEntry[] = [];
+    for (const entry of beam) {
+      if (Date.now() >= deadline) { ctx.partialResult.value = true; break; }
+      const stateAtRound = { ...entry.state, round };
+      const results = simulateRoundTopK(stateAtRound, ctx, ctx.beamWidth);
+      for (const r of results) {
+        nextBeam.push({
+          state: advanceToNextRound(r.stateAfter),
+          roundPlans: [
+            ...entry.roundPlans,
+            {
+              round,
+              description: r.description,
+              vpBefore: r.vpBefore,
+              vpAfter: r.vpAfter,
+              coinsBefore: r.coinsBefore,
+              coinsAfter: r.coinsAfter,
+            },
+          ],
+        });
+      }
+    }
+    if (nextBeam.length === 0) {
       ctx.partialResult.value = true;
       break;
     }
-    roundPlans.push({
-      round,
-      description: result.description,
-      vpBefore: result.vpBefore,
-      vpAfter: result.vpAfter,
-      coinsBefore: result.coinsBefore,
-      coinsAfter: result.coinsAfter,
+    // Rank each trajectory by projected final VP (via finalizeScore on current state).
+    nextBeam.sort((a, b) => {
+      const fa = finalizeScore(a.state, cardIds, allCardObjs).total;
+      const fb = finalizeScore(b.state, cardIds, allCardObjs).total;
+      return fb - fa;
     });
-    state = advanceToNextRound(result.stateAfter);
+    beam = nextBeam.slice(0, ctx.beamWidth);
   }
 
-  const finalized = finalizeScore(state, cardIds, allCardObjs);
+  // Pick best trajectory by final score.
+  let best = beam[0];
+  let bestScore = -Infinity;
+  for (const entry of beam) {
+    const s = finalizeScore(entry.state, cardIds, allCardObjs).total;
+    if (s > bestScore) { bestScore = s; best = entry; }
+  }
+  const finalState = best.state;
+  const roundPlans = best.roundPlans;
+  const finalized = finalizeScore(finalState, cardIds, allCardObjs);
 
   const currentRound = roundPlans.length > 0 ? roundPlans[0] : null;
   const futureRounds = roundPlans.slice(1);
