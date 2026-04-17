@@ -9,8 +9,8 @@
 import type { SolverState, FrozenOpponent, ActionChoice, SolverAction } from './types';
 import type { KnowledgeToken, KnowledgeColor, PoliticsCard } from '../types';
 import { applyAction } from './transitions';
-import { cloneState, totalKnowledge } from './card-data';
-import { devKnowledgeRequirement, devDrachmaCost } from './city-data';
+import { cloneState, totalKnowledge, majorCount, popcount } from './card-data';
+import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3 } from './city-data';
 
 /** Candidate action-phase outcome: a sequence of choices + resulting state. */
 export interface ActionPlan {
@@ -34,8 +34,11 @@ function candidateSingleChoices(
   if (!usedActions.has('CULTURE')) out.push({ type: 'CULTURE' });
   if (!usedActions.has('TRADE')) {
     out.push({ type: 'TRADE', buyMinor: null });
-    const colorToBuy = pickMinorColorToBuy(s, allCards);
-    if (colorToBuy && s.coins >= 3) out.push({ type: 'TRADE', buyMinor: colorToBuy });
+    // Enumerate all 3 buy-color options when affordable, not only the "most needed" color.
+    if (s.coins >= 3) {
+      const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
+      for (const c of colors) out.push({ type: 'TRADE', buyMinor: c });
+    }
   }
   if (!usedActions.has('MILITARY') && s.troopTrack >= 1) {
     const exploreOptions = enumerateExploreChoices(s, allCards);
@@ -149,13 +152,30 @@ function pickMinorColorToBuy(s: SolverState, allCards: PoliticsCard[]): Knowledg
 function enumerateExploreChoices(s: SolverState, allCards: PoliticsCard[]): KnowledgeToken[][] {
   const options: KnowledgeToken[][] = [];
   const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
+  // Option 0: skip exploration (still gain troops from the action)
+  options.push([]);
   // Single minor of each color
   for (const c of colors) {
     options.push([{ id: `${c}-minor-explore`, color: c, tokenType: 'MINOR' }]);
   }
-  // Single major of most-needed color (if troops allow)
+  // Single major of most-needed color
   const needed = pickMinorColorToBuy(s, allCards) ?? 'GREEN';
   options.push([{ id: `${needed}-major-explore`, color: needed, tokenType: 'MAJOR' }]);
+  // Thebes dev-3 enables double exploration
+  if (hasThebesDev3(s.cityId, s.developmentLevel)) {
+    for (const a of colors) {
+      for (const b of colors) {
+        options.push([
+          { id: `${a}-minor-ex1`, color: a, tokenType: 'MINOR' },
+          { id: `${b}-minor-ex2`, color: b, tokenType: 'MINOR' },
+        ]);
+      }
+    }
+    options.push([
+      { id: `${needed}-major-ex1`, color: needed, tokenType: 'MAJOR' },
+      { id: `${needed}-minor-ex2`, color: needed, tokenType: 'MINOR' },
+    ]);
+  }
   return options;
 }
 
@@ -211,23 +231,38 @@ export function enumerateActionPlans(
 export function heuristicScore(s: SolverState): number {
   // Weight roughly by expected VP contribution over the remaining game.
   const roundsLeft = Math.max(0, 9 - s.round + 1);
-  const taxVP = s.taxTrack * roundsLeft * 0.8;           // each tax gives 1 coin/round ~= 0.5 VP
-  const gloryVP = s.gloryTrack * 2;                       // glory × majors at end
-  const knowledgeVal = 2 * totalKnowledge(s);             // feeds dev + cards
-  const progressVal =                                     // progress tracks unlock devs/milestones
-    2.5 * s.economyTrack +
-    3 * s.cultureTrack +
-    2 * s.militaryTrack;
-  const devVal = 6 * s.developmentLevel;                  // dev-4s worth lots, earlier devs ongoing
+  const taxVP = s.taxTrack * roundsLeft * 0.9;            // each tax gives 1 coin/round
+  const majors = majorCount(s);
+  const gloryVP = s.gloryTrack * (majors + 0.5);          // glory × majors at end; +0.5 reserve for future majors
+  const majorBonus = majors * (s.gloryTrack + 1);         // majors themselves valuable if glory grows
+  const minorsKnow =                                       // minors feed card/dev requirements
+    1.5 * (s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor);
+  const majorsKnow =
+    2.0 * majors;
+  const progressVal =                                     // progress tracks unlock devs + score
+    3.0 * s.economyTrack +
+    3.0 * s.cultureTrack +
+    2.5 * s.militaryTrack;
+  const devVal = 7 * s.developmentLevel;                  // each dev ~4-8 VP + effect
+  // Played cards generate ongoing value per remaining round (~1 VP/round avg).
+  // Hand cards are worth less since they may not get played.
+  const handCount = popcount(s.handMask);
+  const playedCount = popcount(s.playedMask);
+  const handLatent = handCount * 0.5;                     // small latent value only
+  const playedVal = playedCount * (2 + 0.8 * roundsLeft); // ongoing value scales with rounds left
   return (
     s.victoryPoints +
-    0.4 * s.coins +
-    knowledgeVal +
-    0.7 * s.philosophyTokens +
-    0.2 * s.troopTrack +
+    0.35 * s.coins +
+    minorsKnow +
+    majorsKnow +
+    0.6 * s.philosophyTokens +
+    0.15 * s.troopTrack +
     progressVal +
     taxVP +
     gloryVP +
-    devVal
+    majorBonus +
+    devVal +
+    handLatent +
+    playedVal
   );
 }

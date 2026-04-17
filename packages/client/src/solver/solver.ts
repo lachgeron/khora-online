@@ -227,14 +227,14 @@ function describeChoice(
   allCards: PoliticsCard[],
 ): string {
   switch (c.type) {
-    case 'PHILOSOPHY': return 'Philosophy — gain 2 scrolls';
-    case 'CULTURE':    return 'Culture — gain coins';
+    case 'PHILOSOPHY': return 'Philosophy — gain 1 scroll';
+    case 'CULTURE':    return 'Culture — gain VP';
     case 'TRADE':      return c.buyMinor
-      ? `Trade — buy a ${c.buyMinor} minor token`
+      ? `Trade — gain coins, buy a ${c.buyMinor} minor token`
       : 'Trade — gain coins';
     case 'MILITARY': {
       const list = c.explore.map(t => `${t.color} ${t.tokenType.toLowerCase()}`).join(', ');
-      return `Military — explore ${list || 'nothing'}`;
+      return `Military — gain troops${c.explore.length ? `, explore ${list}` : ''}`;
     }
     case 'POLITICS': {
       const card = allCards[c.cardIndex];
@@ -282,8 +282,8 @@ export function runSolver(
     deadline,
     nodesExplored: { count: 0 },
     partialResult: { value: false },
-    beamWidth: 4,
-    actionTopK: 4,
+    beamWidth: 6,
+    actionTopK: 10,
   };
 
   const roundPlans: RoundPlan[] = [];
