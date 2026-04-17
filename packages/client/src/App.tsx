@@ -32,6 +32,10 @@ import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
 import { StatsPage } from './components/StatsPage';
+import { SolverModal } from './solver/ui/SolverModal';
+import { useSolverKeybind } from './solver/ui/useSolverKeybind';
+import { runSolver, buildSolverInput } from './solver';
+import type { SolverResult } from './solver';
 
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
@@ -53,6 +57,36 @@ export const App: React.FC = () => {
     useGameSocket(gameId, currentPlayerId);
 
   const { adminPanel, deactivateAdmin } = useAdminMode();
+
+  // ─── Solver ('''''9 secret feature) ───
+  const [solverState, setSolverState] = useState<'idle' | 'computing' | 'done' | 'error'>('idle');
+  const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
+
+  useSolverKeybind(() => {
+    if (!gameState || !privateState || !currentPlayerId) return;
+    if (solverState === 'computing') return;
+
+    setSolverState('computing');
+    setSolverResult(null);
+
+    // Yield to UI so the modal renders before the CPU-bound solver starts.
+    setTimeout(() => {
+      try {
+        const input = buildSolverInput(gameState, privateState, currentPlayerId);
+        if (!input) {
+          setSolverResult({ ok: false, reason: 'UNKNOWN', message: 'Could not read current game state.' });
+          setSolverState('done');
+          return;
+        }
+        const result = runSolver(input, gameState, { timeoutMs: 25000 });
+        setSolverResult(result);
+        setSolverState('done');
+      } catch (err) {
+        console.error('Solver error:', err);
+        setSolverState('error');
+      }
+    }, 50);
+  });
 
   // When an admin panel activates, request the relevant data
   useEffect(() => {
@@ -532,6 +566,14 @@ export const App: React.FC = () => {
             sendMessage({ type: 'ADMIN_SWAP_CARD', handCardId, deckCardId });
           }}
           onClose={deactivateAdmin}
+        />
+      )}
+
+      {solverState !== 'idle' && (
+        <SolverModal
+          state={solverState}
+          result={solverResult}
+          onClose={() => { setSolverState('idle'); setSolverResult(null); }}
         />
       )}
 
