@@ -54,7 +54,9 @@ export function enumerateProgressPlans(
 ): SolverState[] {
   if (s.progressAlreadyDone) return [cloneState(s)];
 
-  const maxScrollFunded = Math.floor(s.philosophyTokens / 2);
+  // Progress phase: each philosophy scroll funds ONE extra advancement (1:1), not 2:1.
+  // (Only knowledge-substitution during Politics/Development is 2:1 — see card-data.)
+  const maxScrollFunded = s.philosophyTokens;
   // Base: 1 advancement. Reformists OR Corinth-dev-3 overrides base to 2 (not additive).
   const reformists = hasCard('reformists');
   const corinthDev3 = hasCorinthDev3(s.cityId, s.developmentLevel);
@@ -78,7 +80,7 @@ export function enumerateProgressPlans(
         if (scrolls > maxScrollFunded) continue;
 
         const candidate = cloneState(s);
-        candidate.philosophyTokens -= scrolls * 2;
+        candidate.philosophyTokens -= scrolls; // 1 scroll per extra advancement
         if (candidate.philosophyTokens < 0) continue;
 
         // Order: apply cheapest track advances first to avoid running out of

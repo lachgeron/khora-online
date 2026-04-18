@@ -71,6 +71,8 @@ function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
     actionsAlreadyTaken: [...input.actionsAlreadyTaken],
     slotsConsumedThisRound: input.slotsConsumedThisRound,
     progressAlreadyDone: input.progressAlreadyDone,
+    legislationDoneThisRound: input.legislationDoneThisRound,
+    citizensAchievementClaimed: input.citizensAchievementClaimed,
     economyTrack: input.economyTrack,
     cultureTrack: input.cultureTrack,
     militaryTrack: input.militaryTrack,
@@ -151,39 +153,77 @@ function simulateRoundTopK(
     ctx.nodesExplored.count += progressCandidates.length;
 
     for (const pState of progressCandidates) {
-      const afterTax = cloneState(pState);
-      if (!skipTax) {
-        applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
-      }
-      const score = heuristicScore(afterTax, ctx.cardIds);
-      const progressTracks = diffProgressTracks(ap.state, pState);
-      const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-      scored.push({
-        score,
-        result: {
-          stateAfter: afterTax,
-          chosenActions: ap.choices,
-          progressTracks,
-          philosophySpent,
-          description: describeRound(
-            ap.choices,
+      // Achievement phase: 12-citizens award (only in round 1, uncontested in practice).
+      // If citizens ≥ 12 and not already claimed, branch into two variants: +1 tax or +1 glory.
+      // This is the only achievement the solver models — elsewhere achievements are ignored.
+      const postAchievementStates = maybeClaimCitizensAchievement(pState);
+
+      for (const achState of postAchievementStates) {
+        const afterTax = cloneState(achState);
+        if (!skipTax) {
+          applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
+        }
+        const score = heuristicScore(afterTax, ctx.cardIds);
+        const progressTracks = diffProgressTracks(ap.state, pState);
+        const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
+        const claimedNow = achState.citizensAchievementClaimed && !pState.citizensAchievementClaimed;
+        const achievementDelta = claimedNow
+          ? (achState.taxTrack > pState.taxTrack ? '+1 Tax' : '+1 Glory')
+          : null;
+        scored.push({
+          score,
+          result: {
+            stateAfter: afterTax,
+            chosenActions: ap.choices,
             progressTracks,
             philosophySpent,
-            ctx.cardIds,
-            ctx.allCards,
-            hasCard(pState, 'old-guard', ctx.cardIds),
-          ),
-          vpBefore,
-          vpAfter: afterTax.victoryPoints,
-          coinsBefore,
-          coinsAfter: afterTax.coins,
-        },
-      });
+            description: describeRound(
+              ap.choices,
+              progressTracks,
+              philosophySpent,
+              ctx.cardIds,
+              ctx.allCards,
+              hasCard(pState, 'old-guard', ctx.cardIds),
+              achievementDelta,
+            ),
+            vpBefore,
+            vpAfter: afterTax.victoryPoints,
+            coinsBefore,
+            coinsAfter: afterTax.coins,
+          },
+        });
+      }
     }
   }
 
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, topK).map(x => x.result);
+}
+
+/**
+ * 12-Citizens achievement (round 1 only).
+ *
+ * If citizens ≥ 12 and achievement not yet claimed, returns two state variants:
+ * one with +1 Tax track, one with +1 Glory track. Beam search evaluates both.
+ * Otherwise returns the input state unchanged.
+ *
+ * Intentionally the only achievement modeled — per user direction, it's the
+ * only one that's effectively uncontested in practice (R1 opening).
+ */
+function maybeClaimCitizensAchievement(s: SolverState): SolverState[] {
+  if (s.citizensAchievementClaimed) return [s];
+  if (s.round !== 1) return [s];
+  if (s.citizenTrack < 12) return [s];
+
+  const taxVariant = cloneState(s);
+  taxVariant.taxTrack += 1;
+  taxVariant.citizensAchievementClaimed = true;
+
+  const gloryVariant = cloneState(s);
+  gloryVariant.gloryTrack += 1;
+  gloryVariant.citizensAchievementClaimed = true;
+
+  return [taxVariant, gloryVariant];
 }
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
@@ -218,6 +258,7 @@ function describeRound(
   cardIds: string[],
   allCards: PoliticsCard[],
   hasOldGuard: boolean,
+  achievementDelta: string | null,
 ): string[] {
   const bullets: string[] = [];
   for (const c of choices) {
@@ -235,6 +276,9 @@ function describeRound(
     bullets.push(msg);
   } else {
     bullets.push(hasOldGuard ? 'Progress: skip (Old Guard +4 VP)' : 'Progress: skip (nothing affordable)');
+  }
+  if (achievementDelta) {
+    bullets.push(`Achievement: 12 Citizens (${achievementDelta})`);
   }
   return bullets;
 }
@@ -260,6 +304,7 @@ function describeChoice(
       return `Politics — play "${name}"${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
     }
     case 'DEVELOPMENT': return `Development — unlock next level${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
+    case 'LEGISLATION': return 'Legislation — +3 citizens (free slot)';
   }
 }
 
@@ -270,6 +315,8 @@ function advanceToNextRound(s: SolverState): SolverState {
   next.actionsAlreadyTaken = [];
   next.slotsConsumedThisRound = 0;
   next.progressAlreadyDone = false;
+  next.legislationDoneThisRound = false;
+  // citizensAchievementClaimed stays — it's a once-per-game flag.
   return next;
 }
 

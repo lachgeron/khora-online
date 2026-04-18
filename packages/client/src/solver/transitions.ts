@@ -163,6 +163,15 @@ export function applyAction(
       applyDevOngoingOnAction(s, 'DEVELOPMENT', cityId, devLevel + 1);
       return;
     }
+    case 'LEGISLATION': {
+      // Free-slot action (does not consume a die). Grants +3 citizens (capped at 15)
+      // and draws 2 politics cards, keeping 1. Card identity is unknown to the solver,
+      // so we only model the +3 citizens — the key effect for the 12-citizens achievement.
+      if (s.legislationDoneThisRound) return;
+      s.citizenTrack = Math.min(15, s.citizenTrack + 3);
+      s.legislationDoneThisRound = true;
+      return;
+    }
   }
 }
 

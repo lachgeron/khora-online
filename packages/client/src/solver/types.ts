@@ -14,14 +14,22 @@
 import type { KnowledgeColor, PoliticsCard, KnowledgeToken, ProgressTrackType } from '@khora/shared';
 // KnowledgeToken kept for historical snapshot shape; not used in ActionChoice.
 
-/** The 6 actions the solver considers (Legislation is always skipped). */
+/**
+ * Actions the solver considers.
+ *
+ * LEGISLATION is only offered as a candidate during round 1 (to reach the
+ * 12-citizens achievement via Philosophy + Legislation + 2×Economy progress).
+ * It's a "free" slot — does not consume a die slot. Outside of round 1 the
+ * solver ignores Legislation entirely.
+ */
 export type SolverAction =
   | 'PHILOSOPHY'
   | 'CULTURE'
   | 'TRADE'
   | 'MILITARY'
   | 'POLITICS'
-  | 'DEVELOPMENT';
+  | 'DEVELOPMENT'
+  | 'LEGISLATION';
 
 export const SOLVER_ACTIONS: SolverAction[] = [
   'PHILOSOPHY',
@@ -30,6 +38,7 @@ export const SOLVER_ACTIONS: SolverAction[] = [
   'MILITARY',
   'POLITICS',
   'DEVELOPMENT',
+  'LEGISLATION',
 ];
 
 /** Knowledge count, indexed by color. Majors and minors counted separately. */
@@ -68,7 +77,9 @@ export interface SolverState {
   // Mid-round fixed state (from snapshot). On round advance, reset.
   actionsAlreadyTaken: SolverAction[]; // already resolved this round (excluding LEGISLATION)
   slotsConsumedThisRound: number;      // total dice slots used this round (incl. skipped LEGISLATION)
-  progressAlreadyDone: boolean;        // progress phase already done this round
+  progressAlreadyDone: boolean;
+  legislationDoneThisRound: boolean;   // true iff LEGISLATION resolved this round (free-slot tracking)
+  citizensAchievementClaimed: boolean; // true after claiming the 12-citizens achievement (R1 only)        // progress phase already done this round
 
   // Tracks
   economyTrack: number;
@@ -104,7 +115,8 @@ export type ActionChoice =
   | { type: 'TRADE'; buyMinor: KnowledgeColor | null }
   | { type: 'MILITARY'; explore: BoardExplorationToken[] }
   | { type: 'POLITICS'; cardIndex: number; philosophyPairs: number }
-  | { type: 'DEVELOPMENT'; philosophyPairs: number };
+  | { type: 'DEVELOPMENT'; philosophyPairs: number }
+  | { type: 'LEGISLATION' };
 
 /** The full choice set for one round. */
 export interface MacroAction {
@@ -163,6 +175,8 @@ export interface SolverInput {
   actionsAlreadyTaken: SolverAction[];   // in the current round (excluding LEGISLATION)
   slotsConsumedThisRound: number;        // total resolved dice slots this round
   progressAlreadyDone: boolean;
+  legislationDoneThisRound: boolean;     // true iff LEGISLATION was resolved this round
+  citizensAchievementClaimed: boolean;   // true iff 12-citizens achievement already claimed
 
   // Frozen opponents (for Power / Public Market)
   opponents: FrozenOpponent[];

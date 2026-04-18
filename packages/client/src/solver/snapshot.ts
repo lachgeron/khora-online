@@ -12,7 +12,7 @@ import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken }
 
 const ACTION_MAP: Record<ActionType, SolverAction | null> = {
   PHILOSOPHY: 'PHILOSOPHY',
-  LEGISLATION: null, // skipped
+  LEGISLATION: 'LEGISLATION', // tracked via legislationDoneThisRound flag separately
   CULTURE: 'CULTURE',
   TRADE: 'TRADE',
   MILITARY: 'MILITARY',
@@ -37,14 +37,25 @@ export function buildSolverInput(
   }));
 
   const resolvedSlots = me.actionSlots.filter(s => s.resolved);
+  const legislationDoneThisRound = resolvedSlots.some(s => s.actionType === 'LEGISLATION');
+  // actionsAlreadyTaken: exclude LEGISLATION (it's tracked via its own flag since it's a free slot)
   const actionsAlreadyTaken: SolverAction[] = resolvedSlots
+    .filter(s => s.actionType !== 'LEGISLATION')
     .map(s => ACTION_MAP[s.actionType])
     .filter((a): a is SolverAction => a !== null);
-  const slotsConsumedThisRound = resolvedSlots.length;
+  // slotsConsumedThisRound: only die-bound slots; Legislation is free.
+  const slotsConsumedThisRound = resolvedSlots.filter(s => s.actionType !== 'LEGISLATION').length;
 
   // Progress already done? Detect from phase: after PROGRESS phase of the current round.
   const progressAlreadyDone =
     publicState.currentPhase === 'GLORY' || publicState.currentPhase === 'ACHIEVEMENT';
+
+  // Citizens-12 achievement already processed? Any past-achievement phase in round 1 or later.
+  // If the snapshot is taken after R1 achievement phase, we conservatively treat the reward as
+  // already granted (since taxTrack/gloryTrack reflect the current state).
+  const citizensAchievementClaimed =
+    publicState.roundNumber > 1 ||
+    (publicState.roundNumber === 1 && publicState.currentPhase === 'ACHIEVEMENT');
 
   const knowledgeTokens: KnowledgeToken[] = privateState.knowledgeTokens;
 
@@ -83,6 +94,8 @@ export function buildSolverInput(
     actionsAlreadyTaken,
     slotsConsumedThisRound,
     progressAlreadyDone,
+    legislationDoneThisRound,
+    citizensAchievementClaimed,
     opponents,
     boardTokens,
   };

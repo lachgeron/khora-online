@@ -59,6 +59,12 @@ function candidateSingleChoices(
     }
   }
 
+  // LEGISLATION — free-slot action, only considered in round 1 (for the 12-citizens
+  // achievement opening). Outside round 1 the solver ignores it entirely.
+  if (s.round === 1 && !s.legislationDoneThisRound) {
+    out.push({ type: 'LEGISLATION' });
+  }
+
   // DEVELOPMENT — if a new level is unlockable
   if (!usedActions.has('DEVELOPMENT') && s.developmentLevel < 4) {
     const nextLvl = s.developmentLevel + 1;
@@ -245,14 +251,16 @@ export function enumerateActionPlans(
   topK: number,
   usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
 ): ActionPlan[] {
-  if (slotsLeft <= 0) return [{ choices: [], state: s }];
-
   const candidates = candidateSingleChoices(s, cardIds, allCards, boardTokens, usedActions);
-  if (candidates.length === 0) return [{ choices: [], state: s }];
+  // When out of die slots, we can still pick LEGISLATION (free slot). Filter accordingly.
+  const viable = slotsLeft <= 0
+    ? candidates.filter(c => c.type === 'LEGISLATION')
+    : candidates;
+  if (viable.length === 0) return [{ choices: [], state: s }];
 
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
   const baseScore = heuristicScore(s, cardIds);
-  for (const c of candidates) {
+  for (const c of viable) {
     const next = cloneState(s);
     applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
@@ -274,7 +282,9 @@ export function enumerateActionPlans(
       const consumed = new Set(t.choice.explore.map(x => x.id));
       nextTokens = boardTokens.filter(x => !consumed.has(x.id));
     }
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, nextTokens, topK, nextUsed);
+    // LEGISLATION is a free slot — does not consume a die. Every other action does.
+    const slotsUsed = t.choice.type === 'LEGISLATION' ? 0 : 1;
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - slotsUsed, cardIds, allCards, opponents, nextTokens, topK, nextUsed);
     for (const sp of subPlans) {
       plans.push({
         choices: [t.choice, ...sp.choices],
