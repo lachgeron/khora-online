@@ -295,7 +295,13 @@ function describeChoice(
       ? `Trade — gain coins, buy a ${c.buyMinor} minor token`
       : 'Trade — gain coins';
     case 'MILITARY': {
-      const list = c.explore.map(t => `${t.color} ${t.tokenType.toLowerCase()}`).join(', ');
+      const describeToken = (t: { color: string; tokenType: string; militaryRequirement: number; skullCost: number; isPersepolis?: boolean }): string => {
+        const color = t.color.charAt(0) + t.color.slice(1).toLowerCase();
+        const type = t.tokenType.charAt(0) + t.tokenType.slice(1).toLowerCase();
+        const persepolis = t.isPersepolis ? ' Persepolis' : '';
+        return `${color} ${type}${persepolis} (${t.militaryRequirement}-${t.skullCost})`;
+      };
+      const list = c.explore.map(describeToken).join(', ');
       return `Military — gain troops${c.explore.length ? `, explore ${list}` : ''}`;
     }
     case 'POLITICS': {

@@ -38,13 +38,12 @@ export function buildSolverInput(
 
   const resolvedSlots = me.actionSlots.filter(s => s.resolved);
   const legislationDoneThisRound = resolvedSlots.some(s => s.actionType === 'LEGISLATION');
-  // actionsAlreadyTaken: exclude LEGISLATION (it's tracked via its own flag since it's a free slot)
+  // LEGISLATION is tracked both in actionsAlreadyTaken and via its own flag. It consumes
+  // a slot like any other action (R1 opening: max 2 actions total).
   const actionsAlreadyTaken: SolverAction[] = resolvedSlots
-    .filter(s => s.actionType !== 'LEGISLATION')
     .map(s => ACTION_MAP[s.actionType])
     .filter((a): a is SolverAction => a !== null);
-  // slotsConsumedThisRound: only die-bound slots; Legislation is free.
-  const slotsConsumedThisRound = resolvedSlots.filter(s => s.actionType !== 'LEGISLATION').length;
+  const slotsConsumedThisRound = resolvedSlots.length;
 
   // Progress already done? Detect from phase: after PROGRESS phase of the current round.
   const progressAlreadyDone =
