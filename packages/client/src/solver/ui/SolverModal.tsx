@@ -7,34 +7,33 @@ interface SolverModalProps {
   onClose: () => void;
 }
 
+/**
+ * Non-blocking right-edge sidebar so the game remains playable while the solver
+ * computes. No backdrop, no click-outside-to-close — the game UI stays interactive.
+ * The name is kept for compatibility with existing imports.
+ */
 export const SolverModal: React.FC<SolverModalProps> = ({ state, result, onClose }) => {
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60"
-      onClick={onClose}
+      className="fixed top-0 right-0 bottom-0 z-[50] w-[420px] max-w-[92vw] bg-sand-50 border-l border-sand-300 shadow-2xl flex flex-col"
     >
-      <div
-        className="relative bg-sand-50 border border-sand-300 rounded-xl shadow-2xl w-[720px] max-w-[92vw] max-h-[88vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-sand-200 shrink-0">
-          <h2 className="font-display text-lg font-semibold text-sand-900">
-            Oracle's Vision
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-sand-500 hover:text-sand-800 transition-colors text-xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
-        </div>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-sand-200 shrink-0 bg-sand-100">
+        <h2 className="font-display text-lg font-semibold text-sand-900">
+          Oracle's Vision
+        </h2>
+        <button
+          onClick={onClose}
+          className="text-sand-500 hover:text-sand-800 transition-colors text-xl leading-none"
+          aria-label="Close"
+        >
+          &times;
+        </button>
+      </div>
 
-        <div className="flex-1 overflow-hidden">
-          {state === 'computing' && <ComputingView />}
-          {state === 'done' && result && <DoneView result={result} />}
-          {state === 'error' && <ErrorView />}
-        </div>
+      <div className="flex-1 overflow-hidden">
+        {state === 'computing' && <ComputingView />}
+        {state === 'done' && result && <DoneView result={result} />}
+        {state === 'error' && <ErrorView />}
       </div>
     </div>
   );

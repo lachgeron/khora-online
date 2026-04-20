@@ -310,7 +310,7 @@ function describeChoice(
       return `Politics — play "${name}"${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
     }
     case 'DEVELOPMENT': return `Development — unlock next level${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
-    case 'LEGISLATION': return 'Legislation — +3 citizens (free slot)';
+    case 'LEGISLATION': return 'Legislation — +3 citizens';
   }
 }
 
