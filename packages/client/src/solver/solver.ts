@@ -1,8 +1,11 @@
 /**
  * Main solver entry point.
  *
- * Uses beam-search over macro-actions per round. Budget enforced by wall clock.
- * Returns best plan found before timeout (partialResult flag if incomplete).
+ * Runs continuous beam-search over macro-actions per round. Instead of a hard
+ * wall-clock deadline, callers pass a `shouldAbort()` callback (polled at loop
+ * boundaries) and an `onProgress(plan)` callback that fires whenever a strictly
+ * better plan is found. Yields to the host event loop between rounds so the
+ * caller (typically a Web Worker) can process incoming messages promptly.
  */
 
 import type {
@@ -30,9 +33,8 @@ interface SolverContext {
   allCards: PoliticsCard[];
   opponents: FrozenOpponent[];
   boardTokens: BoardExplorationToken[];
-  deadline: number;
+  shouldAbort: () => boolean;
   nodesExplored: { count: number };
-  partialResult: { value: boolean };
   beamWidth: number;
   actionTopK: number;
   initialRound: number;    // the first round we were asked to plan for
@@ -114,7 +116,7 @@ function simulateRoundTopK(
   ctx: SolverContext,
   topK: number,
 ): RoundResult[] {
-  if (Date.now() >= ctx.deadline) return [];
+  if (ctx.shouldAbort()) return [];
 
   const vpBefore = s.victoryPoints;
   const coinsBefore = s.coins;
@@ -143,7 +145,7 @@ function simulateRoundTopK(
   const skipTax = s.round === ctx.initialRound;
 
   for (const ap of actionPlans) {
-    if (Date.now() >= ctx.deadline) { ctx.partialResult.value = true; break; }
+    if (ctx.shouldAbort()) break;
     const progressCandidates = enumerateProgressPlans(
       ap.state,
       ctx.opponents,
@@ -349,9 +351,6 @@ function diversifyBeam<T extends { state: SolverState }>(
     if (m >= 1) return 1;
     return 0;
   };
-  // Richer bucket key: includes dev, culture 3rd-die, majors tier, played cards, plus
-  // track-sum coarse bin + tax band + coin band. More dimensions keeps the beam exploring
-  // structurally distinct strategies (coin-rich vs progress-heavy vs card-spam).
   const bucketKey = (s: SolverState): string => {
     const devCap = Math.min(s.developmentLevel, 4);
     const cult4 = s.cultureTrack >= 4 ? 1 : 0;
@@ -364,7 +363,6 @@ function diversifyBeam<T extends { state: SolverState }>(
     return `${devCap}-${cult4}-${mil4}-${mt}-${playedT}-${taxBin}-${coinBin}-${scrollBin}`;
   };
 
-  // Exact-state dedupe key: prevents carrying multiple identical trajectories.
   const exactKey = (s: SolverState): string =>
     `${s.handMask}|${s.playedMask}|${s.victoryPoints}|${s.coins}|${s.philosophyTokens}|` +
     `${s.economyTrack}|${s.cultureTrack}|${s.militaryTrack}|${s.taxTrack}|${s.gloryTrack}|` +
@@ -383,7 +381,6 @@ function diversifyBeam<T extends { state: SolverState }>(
 
   const seenBuckets = new Set<string>();
   const chosen: T[] = [];
-  // First pass: take the best entry from each distinct bucket.
   for (const entry of deduped) {
     if (chosen.length >= beamWidth) break;
     const key = bucketKey(entry.state);
@@ -391,7 +388,6 @@ function diversifyBeam<T extends { state: SolverState }>(
     seenBuckets.add(key);
     chosen.push(entry);
   }
-  // Second pass: fill remaining slots from the overall top ranking.
   if (chosen.length < beamWidth) {
     const chosenSet = new Set(chosen);
     for (const entry of deduped) {
@@ -405,20 +401,35 @@ function diversifyBeam<T extends { state: SolverState }>(
 
 // ─── Entry point ────────────────────────────────────────────────────────────
 
-export function runSolver(
+export interface RunSolverOptions {
+  /** Polled at loop boundaries; returning true stops the search asap. */
+  shouldAbort: () => boolean;
+  /** Fired whenever a strictly better plan is found. */
+  onProgress?: (plan: Plan) => void;
+  /**
+   * Awaited between rounds so the host event loop can process messages
+   * (critical inside a Web Worker). Default: `() => Promise.resolve()`.
+   */
+  yieldToHost?: () => Promise<void>;
+}
+
+/**
+ * Continuous optimal-play search. Runs until `shouldAbort()` returns true.
+ * Streams improvements via `onProgress`. Also returns the best plan found.
+ */
+export async function runSolver(
   input: SolverInput,
   publicState: PublicGameState,
-  options: { timeoutMs: number } = { timeoutMs: 25000 },
-): SolverResult {
+  options: RunSolverOptions,
+): Promise<SolverResult> {
   const phaseCheck = canSolveFromPhase(publicState);
   if (!phaseCheck.ok) {
     return { ok: false, reason: phaseCheck.reason!, message: phaseCheck.message ?? 'Unavailable' };
   }
 
+  const { shouldAbort, onProgress, yieldToHost = () => Promise.resolve() } = options;
   const start = Date.now();
-  const deadline = start + options.timeoutMs;
 
-  // Build card index table
   const allCardObjs = [...input.handCards, ...input.playedCards];
   const cardIds = allCardObjs.map(c => c.id);
 
@@ -430,7 +441,6 @@ export function runSolver(
   }
 
   const nodesExploredShared = { count: 0 };
-  const partialResultShared = { value: false };
 
   /**
    * Deterministic jitter for ranking diversity in restart passes. Amplitude scales
@@ -448,21 +458,19 @@ export function runSolver(
     h ^= (s.developmentLevel | 0) * 17 + (s.philosophyTokens | 0) * 19 + (s.troopTrack | 0) * 23;
     h ^= (s.taxTrack | 0) * 29 + (s.gloryTrack | 0) * 37 + (s.citizenTrack | 0) * 41;
     h = (h ^ (h >>> 16)) >>> 0;
-    // Amplitude scales with seed (clamped) — early restarts are gentle, later ones bolder.
     const amp = Math.min(6, 1.5 + Math.abs(seed) * 0.3);
     return ((h / 0xffffffff) - 0.5) * amp;
   };
 
-  /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if time runs out. */
-  const runBeam = (beamWidth: number, actionTopK: number, seed: number = 0): BeamEntry | null => {
+  /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if aborted. */
+  const runBeam = async (beamWidth: number, actionTopK: number, seed: number = 0): Promise<BeamEntry | null> => {
     const ctx: SolverContext = {
       cardIds,
       allCards: allCardObjs,
       opponents: input.opponents,
       boardTokens: input.boardTokens,
-      deadline,
+      shouldAbort,
       nodesExplored: nodesExploredShared,
-      partialResult: partialResultShared,
       beamWidth,
       actionTopK,
       initialRound: initialState.round,
@@ -471,13 +479,10 @@ export function runSolver(
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
     for (let round = initialState.round; round <= 9; round++) {
-      if (Date.now() >= deadline) {
-        partialResultShared.value = true;
-        return null;
-      }
+      if (shouldAbort()) return null;
       const nextBeam: BeamEntry[] = [];
       for (const entry of beam) {
-        if (Date.now() >= deadline) { partialResultShared.value = true; break; }
+        if (shouldAbort()) return null;
         const stateAtRound = { ...entry.state, round };
         const results = simulateRoundTopK(stateAtRound, ctx, beamWidth);
         for (const r of results) {
@@ -497,24 +502,17 @@ export function runSolver(
           });
         }
       }
-      if (nextBeam.length === 0) {
-        partialResultShared.value = true;
-        return null;
-      }
-      // Rank by forward-looking heuristic (captures future-potential, not just current score).
-      // In restart passes (seed!=0) a tiny deterministic jitter is added so ties and
-      // near-ties break differently, exposing trajectories the main beam pruned.
+      if (nextBeam.length === 0) return null;
       nextBeam.sort((a, b) =>
         (heuristicScore(b.state, cardIds) + rankJitter(b.state, seed)) -
         (heuristicScore(a.state, cardIds) + rankJitter(a.state, seed))
       );
-      // Diversity-preserving selection: bucket by (devLevel, cultureTrack>=4, majorCount>=2) to
-      // keep strategic variety. Within each bucket, take the best; then fill the remaining slots
-      // from the overall ranking.
       beam = diversifyBeam(nextBeam, beamWidth);
+      // Yield to host event loop between rounds so pending worker messages
+      // (abort/restart) get processed without waiting for the full pass.
+      await yieldToHost();
     }
 
-    // Pick best by actual final VP.
     let best: BeamEntry | null = null;
     let bestScore = -Infinity;
     for (const entry of beam) {
@@ -524,16 +522,20 @@ export function runSolver(
     return best;
   };
 
-  // Iterative deepening: run beam search with progressively wider parameters
-  // until we hit the deadline. Keep the best trajectory found so far.
   let overallBest: BeamEntry | null = null;
   let overallBestVP = -Infinity;
 
-  // Wide schedule that scales up well beyond what can typically finish — the
-  // deadline check inside `runBeam` is the real terminator. If a pass hits the
-  // deadline mid-search it returns null and we stop, keeping the best trajectory
-  // from earlier (fully-completed) passes.
-  const widths: Array<[number, number]> = [
+  const reportIfBetter = (result: BeamEntry): void => {
+    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
+    if (vp <= overallBestVP) return;
+    overallBestVP = vp;
+    overallBest = result;
+    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start));
+  };
+
+  // Phase 1: iterative deepening — start narrow (fast first result) and widen
+  // progressively until the profile saturates or we're aborted.
+  const baseWidths: Array<[number, number]> = [
     [12, 12],
     [24, 16],
     [48, 20],
@@ -546,21 +548,17 @@ export function runSolver(
     [1200, 48],
     [2000, 52],
   ];
-  for (const [beamWidth, actionTopK] of widths) {
-    if (Date.now() >= deadline) break;
-    const result = runBeam(beamWidth, actionTopK);
+  for (const [beamWidth, actionTopK] of baseWidths) {
+    if (shouldAbort()) break;
+    const result = await runBeam(beamWidth, actionTopK);
     if (!result) break;
-    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
-    if (vp > overallBestVP) {
-      overallBestVP = vp;
-      overallBest = result;
-    }
+    reportIfBetter(result);
   }
 
-  // Randomized restarts: use remaining budget to search with ranking noise.
-  // Rotate through a set of (beamWidth, actionTopK) profiles so restarts also vary
-  // the search geometry, not just the rank ordering. Early restarts are narrower
-  // (fast, many iterations); later ones wider (deeper exploration per pass).
+  // Phase 2: continuous randomized restarts with progressively widening profiles.
+  // Each cycle through `restartProfiles` is scaled up by `widenMultiplier`, so
+  // later cycles explore deeper rather than just re-rolling the same geometry.
+  // Runs until aborted — there is no convergence shortcut.
   const restartProfiles: Array<[number, number]> = [
     [120, 24],
     [200, 32],
@@ -570,41 +568,61 @@ export function runSolver(
     [400, 32],
     [250, 44],
   ];
+  const CYCLE_LEN = restartProfiles.length;
+  const WIDTH_CAP = 50000;
+  const K_CAP = 200;
   let restartSeed = 1;
-  while (Date.now() < deadline - 500) {
-    // Budget at least ~500ms for end-of-run bookkeeping.
-    const [w, k] = restartProfiles[(restartSeed - 1) % restartProfiles.length];
-    const result = runBeam(w, k, restartSeed);
+  while (!shouldAbort()) {
+    const cycle = Math.floor((restartSeed - 1) / CYCLE_LEN);
+    // Growth: +25% per cycle (geometric). Capped so we don't balloon unboundedly.
+    const widenMultiplier = Math.pow(1.25, cycle);
+    const [baseW, baseK] = restartProfiles[(restartSeed - 1) % CYCLE_LEN];
+    const w = Math.min(WIDTH_CAP, Math.round(baseW * widenMultiplier));
+    const k = Math.min(K_CAP, Math.round(baseK * (1 + 0.15 * cycle)));
+    const result = await runBeam(w, k, restartSeed);
     restartSeed++;
     if (!result) break;
-    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
-    if (vp > overallBestVP) {
-      overallBestVP = vp;
-      overallBest = result;
-    }
+    reportIfBetter(result);
   }
 
   if (!overallBest) {
-    // Fallback: if we couldn't complete any beam (e.g., deadline hit immediately), return empty plan.
-    overallBest = { state: initialState, roundPlans: [] };
+    return {
+      ok: true,
+      plan: {
+        projectedFinalVP: 0,
+        vpBreakdown: { scoreTrack: 0, politicsCards: 0, developments: 0, gloryTimesMajors: 0 },
+        currentRound: null,
+        futureRounds: [],
+        partialResult: true,
+        computeMs: Date.now() - start,
+        exploredNodes: nodesExploredShared.count,
+      },
+    };
   }
 
-  const finalState = overallBest.state;
-  const roundPlans = overallBest.roundPlans;
-  const finalized = finalizeScore(finalState, cardIds, allCardObjs);
+  return {
+    ok: true,
+    plan: buildPlan(overallBest, cardIds, allCardObjs, nodesExploredShared, start),
+  };
+}
 
-  const currentRound = roundPlans.length > 0 ? roundPlans[0] : null;
-  const futureRounds = roundPlans.slice(1);
-
-  const plan: Plan = {
+function buildPlan(
+  best: { state: SolverState; roundPlans: RoundPlan[] },
+  cardIds: string[],
+  allCardObjs: PoliticsCard[],
+  nodesExploredShared: { count: number },
+  start: number,
+): Plan {
+  const finalized = finalizeScore(best.state, cardIds, allCardObjs);
+  const currentRound = best.roundPlans.length > 0 ? best.roundPlans[0] : null;
+  const futureRounds = best.roundPlans.slice(1);
+  return {
     projectedFinalVP: finalized.total,
     vpBreakdown: finalized.breakdown,
     currentRound,
     futureRounds,
-    partialResult: partialResultShared.value,
+    partialResult: false,
     computeMs: Date.now() - start,
     exploredNodes: nodesExploredShared.count,
   };
-
-  return { ok: true, plan };
 }
