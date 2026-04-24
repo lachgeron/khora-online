@@ -36,7 +36,16 @@ export function buildSolverInput(
     militaryTrack: o.militaryTrack,
   }));
 
-  const resolvedSlots = me.actionSlots.filter(s => s.resolved);
+  // Action slots only get cleared when the DICE phase begins. During OMEN /
+  // TAXATION of round N, the slots still hold the resolved actions from round
+  // N-1 — treating them as "already taken this round" would make the solver
+  // believe the action phase is done before it has started. Any phase before
+  // DICE is considered "round not yet begun" for slot-tracking purposes.
+  const phasesBeforeDice: Array<typeof publicState.currentPhase> = ['OMEN', 'TAXATION'];
+  const slotsAreFresh = phasesBeforeDice.includes(publicState.currentPhase);
+  const resolvedSlots = slotsAreFresh
+    ? []
+    : me.actionSlots.filter(s => s.resolved);
   const legislationDoneThisRound = resolvedSlots.some(s => s.actionType === 'LEGISLATION');
   // LEGISLATION is tracked both in actionsAlreadyTaken and via its own flag. It consumes
   // a slot like any other action (R1 opening: max 2 actions total).
@@ -95,6 +104,7 @@ export function buildSolverInput(
     progressAlreadyDone,
     legislationDoneThisRound,
     citizensAchievementClaimed,
+    initialRoundTaxApplied: publicState.currentPhase !== 'OMEN',
     opponents,
     boardTokens,
   };

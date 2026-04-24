@@ -177,6 +177,7 @@ export interface SolverInput {
   progressAlreadyDone: boolean;
   legislationDoneThisRound: boolean;     // true iff LEGISLATION was resolved this round
   citizensAchievementClaimed: boolean;   // true iff 12-citizens achievement already claimed
+  initialRoundTaxApplied: boolean;       // true iff the TAXATION phase has already run this round (false only during OMEN)
 
   // Frozen opponents (for Power / Public Market)
   opponents: FrozenOpponent[];

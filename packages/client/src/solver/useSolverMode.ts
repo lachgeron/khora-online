@@ -3,8 +3,12 @@
  * best plan it has found so far for the viewer's position.
  *
  * - Toggle via `toggle()`. When on, the worker spins up and runs forever.
- * - On any game/private state change, the worker is restarted with fresh input.
- *   The current result is kept but flagged `stale` until a fresh plan arrives.
+ * - On game/private state change, we derive a fresh SolverInput. If it's
+ *   equal (structurally) to the one currently being solved, we do nothing —
+ *   the worker keeps deepening its existing search. Only a change that
+ *   actually affects the SolverInput causes a restart.
+ * - When a restart is triggered, the current result is flagged `stale`
+ *   (greyed in UI) until a fresh plan arrives.
  * - Pauses when the tab is hidden (Page Visibility API) to reclaim CPU.
  */
 
@@ -35,20 +39,13 @@ export function useSolverMode(
 
   const workerRef = useRef<Worker | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestInputRef = useRef<{ gameState: PublicGameState; privateState: PrivatePlayerState; playerId: string } | null>(null);
+  // The key of the input currently being computed by the worker (or the
+  // unavailable-state sentinel if solver can't run). `null` = nothing sent yet.
+  const lastSentKeyRef = useRef<string | null>(null);
 
   const toggle = useCallback(() => {
     setEnabled((v) => !v);
   }, []);
-
-  // Capture latest inputs for the debounced scheduler.
-  useEffect(() => {
-    if (gameState && privateState && currentPlayerId) {
-      latestInputRef.current = { gameState, privateState, playerId: currentPlayerId };
-    } else {
-      latestInputRef.current = null;
-    }
-  }, [gameState, privateState, currentPlayerId]);
 
   // Spawn / tear down the worker when solver mode toggles.
   useEffect(() => {
@@ -61,6 +58,7 @@ export function useSolverMode(
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      lastSentKeyRef.current = null;
       setResult(null);
       setStale(false);
       return;
@@ -74,6 +72,11 @@ export function useSolverMode(
         | { type: 'progress'; plan: Plan }
         | { type: 'unavailable'; reason: string; message: string }
         | { type: 'idle' };
+      // Ignore messages queued from a prior computation that no longer
+      // reflects the current input (e.g. we've since transitioned to an
+      // unavailable phase, or cleared state via toggle-off).
+      const currentKey = lastSentKeyRef.current;
+      if (currentKey === null || currentKey.startsWith('UNAVAILABLE:')) return;
       if (msg.type === 'progress') {
         setResult({ ok: true, plan: msg.plan });
         setStale(false);
@@ -91,57 +94,79 @@ export function useSolverMode(
       console.error('Solver worker error:', err);
     };
 
-    // Kick off an initial computation if we already have inputs.
-    const cur = latestInputRef.current;
-    if (cur) {
-      const input = buildSolverInput(cur.gameState, cur.privateState, cur.playerId);
-      if (input) {
-        worker.postMessage({ type: 'start', input, publicState: cur.gameState });
-      } else {
-        const phaseCheck = canSolveFromPhase(cur.gameState);
-        if (!phaseCheck.ok) {
-          setResult({
-            ok: false,
-            reason: phaseCheck.reason ?? 'UNKNOWN',
-            message: phaseCheck.message ?? 'Unavailable',
-          });
-        }
-      }
-    }
-
     return () => {
       worker.terminate();
       workerRef.current = null;
     };
   }, [enabled]);
 
-  // On state change, debounce a restart.
+  // On any state change, compute the derived SolverInput and compare to the
+  // last one sent. Only restart the worker if it actually differs.
   useEffect(() => {
     if (!enabled) return;
     const worker = workerRef.current;
     if (!worker) return;
+
+    // Always cancel any pending debounce first — a newer state change
+    // supersedes any queued restart.
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
     if (!gameState || !privateState || !currentPlayerId) return;
 
-    // Mark the existing result stale immediately so the UI greys out.
-    setStale(true);
+    // Handle unavailable phases (pre-game, game over).
+    const phaseCheck = canSolveFromPhase(gameState);
+    if (!phaseCheck.ok) {
+      const key = `UNAVAILABLE:${phaseCheck.reason}:${phaseCheck.message}`;
+      if (lastSentKeyRef.current === key) return;
+      // Stop any in-flight search so the worker stops burning CPU on a
+      // position we no longer care about.
+      const hadRunningSearch = lastSentKeyRef.current !== null
+        && !lastSentKeyRef.current.startsWith('UNAVAILABLE:');
+      lastSentKeyRef.current = key;
+      if (hadRunningSearch) worker.postMessage({ type: 'stop' });
+      setResult({
+        ok: false,
+        reason: phaseCheck.reason ?? 'UNKNOWN',
+        message: phaseCheck.message ?? 'Unavailable',
+      });
+      setStale(false);
+      return;
+    }
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const newInput = buildSolverInput(gameState, privateState, currentPlayerId);
+    if (!newInput) return;
+
+    // Structural comparison: if every field the solver consumes is identical,
+    // the worker's in-flight search is still answering the same question —
+    // don't interrupt it. buildSolverInput constructs fields in a fixed order,
+    // so JSON.stringify is a stable equality key.
+    const newKey = JSON.stringify(newInput);
+    if (newKey === lastSentKeyRef.current) {
+      // If we'd previously marked stale (e.g. a flurry of state updates that
+      // all net out to the same SolverInput), clear it — the live result is
+      // still valid.
+      setStale(false);
+      return;
+    }
+
+    // Genuine input change — mark stale immediately for visual feedback, then
+    // debounce the restart so rapid-fire updates don't thrash the worker.
+    setStale(true);
+    const capturedInput = newInput;
+    const capturedPublicState = gameState;
+    const capturedKey = newKey;
+    const isFirstSend = lastSentKeyRef.current === null;
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
-      const input = buildSolverInput(gameState, privateState, currentPlayerId);
-      if (!input) {
-        const phaseCheck = canSolveFromPhase(gameState);
-        if (!phaseCheck.ok) {
-          setResult({
-            ok: false,
-            reason: phaseCheck.reason ?? 'UNKNOWN',
-            message: phaseCheck.message ?? 'Unavailable',
-          });
-          setStale(false);
-        }
-        return;
-      }
-      worker.postMessage({ type: 'restart', input, publicState: gameState });
+      lastSentKeyRef.current = capturedKey;
+      worker.postMessage({
+        type: isFirstSend ? 'start' : 'restart',
+        input: capturedInput,
+        publicState: capturedPublicState,
+      });
     }, RESTART_DEBOUNCE_MS);
   }, [enabled, gameState, privateState, currentPlayerId]);
 
@@ -158,7 +183,6 @@ export function useSolverMode(
         worker.postMessage({ type: 'resume' });
       }
     };
-    // Sync initial state.
     handleVisibility();
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);

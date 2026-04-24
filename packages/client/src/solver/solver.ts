@@ -38,6 +38,7 @@ interface SolverContext {
   beamWidth: number;
   actionTopK: number;
   initialRound: number;    // the first round we were asked to plan for
+  initialRoundTaxApplied: boolean;  // if true, skip tax at end of the first simulated round
 }
 
 function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -137,12 +138,15 @@ function simulateRoundTopK(
 
   const scored: Array<{ score: number; result: RoundResult }> = [];
 
-  // For the initial simulated round (currentRound), taxation has already been applied before
-  // the snapshot was taken (solver only runs at/after DICE phase), so we SKIP applying tax
-  // at the end of that round to avoid double-counting. For subsequent rounds, we apply tax
-  // at end-of-round (this shifts its timing by one round vs the real game's start-of-round
-  // taxation, but the per-round total is correct).
-  const skipTax = s.round === ctx.initialRound;
+  // Tax-timing quirk: the real game applies tax at the START of each round
+  // (TAXATION phase, before DICE). The solver applies tax at the END of each
+  // simulated round — so for rounds 2..N the timing shifts by one round but
+  // the per-round total is correct. For the INITIAL simulated round, we need
+  // to know whether the real game has already applied tax for this round
+  // (phase is TAXATION or later, so the coins in our snapshot include it) —
+  // in that case we skip to avoid double-counting. When the snapshot is taken
+  // during OMEN (before TAXATION), tax hasn't been applied and we DO apply it.
+  const skipTax = s.round === ctx.initialRound && ctx.initialRoundTaxApplied;
 
   for (const ap of actionPlans) {
     if (ctx.shouldAbort()) break;
@@ -474,6 +478,7 @@ export async function runSolver(
       beamWidth,
       actionTopK,
       initialRound: initialState.round,
+      initialRoundTaxApplied: input.initialRoundTaxApplied,
     };
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
