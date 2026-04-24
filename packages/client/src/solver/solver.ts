@@ -41,7 +41,7 @@ interface SolverContext {
   initialRoundTaxApplied: boolean;  // if true, skip tax at end of the first simulated round
 }
 
-function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
+export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
   const knowledge = {
     greenMinor: 0, blueMinor: 0, redMinor: 0,
     greenMajor: 0, blueMajor: 0, redMajor: 0,

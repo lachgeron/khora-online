@@ -9,6 +9,8 @@ import type {
   KnowledgeToken,
 } from '../types';
 import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken } from './types';
+import { buildInitialState } from './solver';
+import { applyTaxPhase } from './scoring';
 
 const ACTION_MAP: Record<ActionType, SolverAction | null> = {
   PHILOSOPHY: 'PHILOSOPHY',
@@ -82,7 +84,7 @@ export function buildSolverInput(
       isPersepolis: t.isPersepolis,
     }));
 
-  return {
+  const rawInput: SolverInput = {
     cityId: me.cityId,
     developmentLevel: me.developmentLevel,
     coins: privateState.coins,
@@ -108,6 +110,32 @@ export function buildSolverInput(
     opponents,
     boardTokens,
   };
+
+  // Canonicalize OMEN to post-tax state. OMEN → TAXATION is an automatic
+  // transition that always changes coins (by taxTrack + stadion/power/market
+  // bonuses) but never changes the solver's plan. By pre-applying the tax
+  // phase on OMEN snapshots, both phases produce identical SolverInputs so
+  // the hook's structural equality check matches and the worker is not
+  // restarted on that transition.
+  if (publicState.currentPhase === 'OMEN') {
+    const cardIds = [...rawInput.handCards, ...rawInput.playedCards].map(c => c.id);
+    const state = buildInitialState(rawInput, cardIds);
+    applyTaxPhase(state, rawInput.opponents, (id) => {
+      const idx = cardIds.indexOf(id);
+      return idx >= 0 && (state.playedMask & (1 << idx)) !== 0;
+    });
+    return {
+      ...rawInput,
+      coins: state.coins,
+      victoryPoints: state.victoryPoints,
+      troopTrack: state.troopTrack,
+      taxTrack: state.taxTrack,
+      gloryTrack: state.gloryTrack,
+      initialRoundTaxApplied: true,
+    };
+  }
+
+  return rawInput;
 }
 
 /** Determine whether the solver can produce a plan from this phase. */
