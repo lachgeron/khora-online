@@ -129,6 +129,7 @@ export interface MacroAction {
 export interface RoundPlan {
   round: number;
   description: string[];                 // human-readable bullets
+  actionTypes: SolverAction[];           // action types the solver wants this round, in order
   vpBefore: number;
   vpAfter: number;
   coinsBefore: number;

@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
-import type { SolverResult, Plan } from './types';
+import type { SolverResult, Plan, SolverAction, SolverInput } from './types';
 import { buildSolverInput, canSolveFromPhase } from './snapshot';
 // eslint-disable-next-line import/no-unresolved
 import SolverWorker from './solver.worker?worker';
@@ -42,6 +42,13 @@ export function useSolverMode(
   // The key of the input currently being computed by the worker (or the
   // unavailable-state sentinel if solver can't run). `null` = nothing sent yet.
   const lastSentKeyRef = useRef<string | null>(null);
+  // Snapshot of the last SolverInput we saw and the plan active at that time.
+  // Used to detect when a newly-resolved action diverges from the solver's
+  // current recommendation — divergence invalidates the in-flight plan, so
+  // we restart immediately instead of waiting for the debounce.
+  const lastInputRef = useRef<SolverInput | null>(null);
+  const resultRef = useRef<SolverResult | null>(null);
+  useEffect(() => { resultRef.current = result; }, [result]);
 
   const toggle = useCallback(() => {
     setEnabled((v) => !v);
@@ -59,6 +66,7 @@ export function useSolverMode(
         debounceRef.current = null;
       }
       lastSentKeyRef.current = null;
+      lastInputRef.current = null;
       setResult(null);
       setStale(false);
       return;
@@ -152,6 +160,17 @@ export function useSolverMode(
       return;
     }
 
+    // Detect divergence from the solver's current plan. If the player locked
+    // in an action this round that isn't in the plan's recommended actions,
+    // the in-flight search is solving an obsolete position — restart now
+    // instead of waiting for the debounce.
+    const diverged = detectPlanDivergence(
+      lastInputRef.current,
+      newInput,
+      resultRef.current,
+    );
+    lastInputRef.current = newInput;
+
     // Genuine input change — mark stale immediately for visual feedback, then
     // debounce the restart so rapid-fire updates don't thrash the worker.
     setStale(true);
@@ -159,6 +178,7 @@ export function useSolverMode(
     const capturedPublicState = gameState;
     const capturedKey = newKey;
     const isFirstSend = lastSentKeyRef.current === null;
+    const delay = diverged ? 0 : RESTART_DEBOUNCE_MS;
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
       lastSentKeyRef.current = capturedKey;
@@ -167,7 +187,7 @@ export function useSolverMode(
         input: capturedInput,
         publicState: capturedPublicState,
       });
-    }, RESTART_DEBOUNCE_MS);
+    }, delay);
   }, [enabled, gameState, privateState, currentPlayerId]);
 
   // Pause/resume on tab visibility change to reclaim CPU when hidden.
@@ -189,4 +209,39 @@ export function useSolverMode(
   }, [enabled]);
 
   return { enabled, toggle, result, stale };
+}
+
+/**
+ * True iff the player just locked in an action this round that isn't among
+ * the solver's recommended actions for the current round. When this happens
+ * the active plan is invalid and we want to restart without debouncing.
+ *
+ * Returns false if:
+ * - there's no prior input (first snapshot),
+ * - rounds changed (mid-round state resets, nothing was "locked in"),
+ * - no new action was resolved this update,
+ * - or there's no current plan to compare against.
+ */
+function detectPlanDivergence(
+  prevInput: SolverInput | null,
+  newInput: SolverInput,
+  result: SolverResult | null,
+): boolean {
+  if (!prevInput) return false;
+  if (prevInput.currentRound !== newInput.currentRound) return false;
+  const prevActions = prevInput.actionsAlreadyTaken;
+  const newActions = newInput.actionsAlreadyTaken;
+  if (newActions.length <= prevActions.length) return false;
+  if (!result || !result.ok || !result.plan.currentRound) return false;
+
+  // Multiset check: the plan's recommended action bag must still contain
+  // every action the player has resolved (including the just-added one).
+  // Any shortfall means the player chose something the plan didn't plan for.
+  const remaining: SolverAction[] = [...result.plan.currentRound.actionTypes];
+  for (const a of newActions) {
+    const idx = remaining.indexOf(a);
+    if (idx < 0) return true;
+    remaining.splice(idx, 1);
+  }
+  return false;
 }

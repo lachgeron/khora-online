@@ -498,6 +498,7 @@ export async function runSolver(
               {
                 round,
                 description: r.description,
+                actionTypes: r.chosenActions.map(c => c.type),
                 vpBefore: r.vpBefore,
                 vpAfter: r.vpAfter,
                 coinsBefore: r.coinsBefore,
