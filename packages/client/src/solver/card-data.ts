@@ -11,7 +11,7 @@ import { advanceProgressTrack, capTaxGloryTrack } from './tracks';
 
 /** Clone a SolverState cheaply (shallow copy is fine — knowledge is replaced below if touched). */
 export function cloneState(s: SolverState): SolverState {
-  return { ...s, knowledge: { ...s.knowledge }, boardTokens: [...s.boardTokens] };
+  return { ...s, knowledge: { ...s.knowledge }, boardTokens: [...s.boardTokens], availableAchievementIds: [...s.availableAchievementIds] };
 }
 
 /** How many knowledge tokens of a given color the player has. */
@@ -110,7 +110,7 @@ export function applyImmediateCardEffect(
   s: SolverState,
   cardId: string,
   opponents: FrozenOpponent[],
-  options?: { scholarlyWelcomeColor?: 'GREEN' | 'BLUE' | 'RED' },
+  options?: { scholarlyWelcomeColor?: 'GREEN' | 'BLUE' | 'RED'; playedCardIndex?: number },
 ): void {
   switch (cardId) {
     // ─── Straightforward effects ───
@@ -141,10 +141,24 @@ export function applyImmediateCardEffect(
       return;
     }
 
-    // Council / Ostracism / Legislation interactions: skipped per spec.
-    case 'council': return;
-    case 'ostracism': return;
+    case 'council':
+      s.handSlots += 2;
+      return;
+    case 'ostracism':
+      returnPlayedCardToHand(s, options?.playedCardIndex);
+      return;
     default: return;
+  }
+}
+
+function returnPlayedCardToHand(s: SolverState, excludeIndex: number | undefined): void {
+  for (let i = 0; i < 31; i++) {
+    if (i === excludeIndex) continue;
+    if (!hasMaskBit(s.playedMask, i)) continue;
+    s.playedMask = removeMaskBit(s.playedMask, i);
+    s.handMask = addMaskBit(s.handMask, i);
+    s.handSlots += 1;
+    return;
   }
 }
 

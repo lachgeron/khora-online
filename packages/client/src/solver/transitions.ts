@@ -50,7 +50,7 @@ export function applyAction(
   allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
   hasCardFn: (id: string) => boolean,
-): void {
+): boolean {
   const cityId = s.cityId;
   const devLevel = s.developmentLevel;
 
@@ -59,13 +59,13 @@ export function applyAction(
       s.philosophyTokens += PHILOSOPHY_SCROLLS;
       applyOngoingOnAction(s, 'PHILOSOPHY', hasCardFn);
       applyDevOngoingOnAction(s, 'PHILOSOPHY', cityId, devLevel);
-      return;
+      return true;
     }
     case 'CULTURE': {
       s.victoryPoints += cultureVP(s);
       applyOngoingOnAction(s, 'CULTURE', hasCardFn);
       applyDevOngoingOnAction(s, 'CULTURE', cityId, devLevel);
-      return;
+      return true;
     }
     case 'TRADE': {
       s.coins += tradeIncome(s);
@@ -78,9 +78,11 @@ export function applyAction(
           if (choice.buyMinor === 'GREEN') s.knowledge.greenMinor += 1;
           else if (choice.buyMinor === 'BLUE') s.knowledge.blueMinor += 1;
           else s.knowledge.redMinor += 1;
+        } else {
+          return false;
         }
       }
-      return;
+      return true;
     }
     case 'MILITARY': {
       // Step 1: Gain troops equal to military track level (matches server military-resolver).
@@ -98,9 +100,9 @@ export function applyAction(
       for (const tok of toExplore) {
         // Requirement: troop TRACK must meet militaryRequirement (note: track, not reserve).
         // Then pay skull cost (troops lost), and gain bonus coins + VP.
-        if (s.troopTrack < tok.militaryRequirement) continue;
+        if (s.troopTrack < tok.militaryRequirement) return false;
         const cost = Math.max(0, tok.skullCost - discount);
-        if (s.troopTrack < cost) continue;
+        if (s.troopTrack < cost) return false;
         s.troopTrack -= cost;
         exploredIds.push(tok.id);
         s.coins += tok.bonusCoins;
@@ -125,24 +127,24 @@ export function applyAction(
         s.boardTokens = s.boardTokens.filter(tok => !consumed.has(tok.id));
       }
       capTroops(s);
-      return;
+      return true;
     }
     case 'POLITICS': {
       const idx = choice.cardIndex;
-      if (idx < 0 || idx >= cardIds.length) return;
-      if (hasMaskBit(s.playedMask, idx)) return;
+      if (idx < 0 || idx >= cardIds.length) return false;
+      if (hasMaskBit(s.playedMask, idx)) return false;
       const inHand = hasMaskBit(s.handMask, idx);
-      if (!inHand && !s.godMode) return; // not in hand
-      if (s.handSlots <= 0) return;
+      if (!inHand && !s.godMode) return false; // not in hand
+      if (s.handSlots <= 0) return false;
       const cardId = cardIds[idx];
       const card = allCards[idx];
-      if (!card) return;
+      if (!card) return false;
       // Pay drachma cost
-      if (s.coins < card.cost) return;
+      if (s.coins < card.cost) return false;
       s.coins -= card.cost;
       // Pay philosophy scrolls to cover missing knowledge (2 scrolls = 1 substitution)
       const pairsNeeded = choice.philosophyPairs ?? 0;
-      if (s.philosophyTokens < pairsNeeded * 2) return;
+      if (s.philosophyTokens < pairsNeeded * 2) return false;
       s.philosophyTokens -= pairsNeeded * 2;
       if (inHand) s.handMask = removeMaskBit(s.handMask, idx);
       else s.handMask = removeLowestValueHandCard(s.handMask, allCards);
@@ -154,22 +156,23 @@ export function applyAction(
       // Immediate effect
       applyImmediateCardEffect(s, cardId, opponents, {
         scholarlyWelcomeColor: choice.scholarlyWelcomeColor,
+        playedCardIndex: idx,
       });
       // Action triggers
       applyOngoingOnAction(s, 'POLITICS', hasCardFn);
       applyDevOngoingOnAction(s, 'POLITICS', cityId, devLevel);
-      return;
+      return true;
     }
     case 'DEVELOPMENT': {
       // Cannot exceed 4 developments
-      if (s.developmentLevel >= 4) return;
+      if (s.developmentLevel >= 4) return false;
       const newLevel = s.developmentLevel + 1;
       const baseCost = devDrachmaCost(cityId, newLevel);
       const cost = Math.max(0, baseCost);
-      if (s.coins < cost) return;
+      if (s.coins < cost) return false;
       // Pay philosophy scrolls to cover missing knowledge
       const pairsNeeded = choice.philosophyPairs ?? 0;
-      if (s.philosophyTokens < pairsNeeded * 2) return;
+      if (s.philosophyTokens < pairsNeeded * 2) return false;
       s.philosophyTokens -= pairsNeeded * 2;
       s.coins -= cost;
       s.developmentLevel = newLevel;
@@ -181,20 +184,23 @@ export function applyAction(
       });
       applyOngoingOnAction(s, 'DEVELOPMENT', hasCardFn);
       applyDevOngoingOnAction(s, 'DEVELOPMENT', cityId, devLevel + 1);
-      return;
+      return true;
     }
     case 'LEGISLATION': {
-      // Free-slot action (does not consume a die). Grants +3 citizens (capped at 15)
+      // Grants +3 citizens (capped at 15)
       // and draws 2 politics cards, keeping 1. Normal mode does not invent the
       // unknown card identity; god-mode can use the added hand slot against
       // its deck-card pool.
-      if (s.legislationDoneThisRound) return;
+      if (s.legislationDoneThisRound) return false;
       s.citizenTrack = Math.min(15, s.citizenTrack + 3);
       s.handSlots += 1;
       s.legislationDoneThisRound = true;
-      return;
+      applyOngoingOnAction(s, 'LEGISLATION', hasCardFn);
+      applyDevOngoingOnAction(s, 'LEGISLATION', cityId, devLevel);
+      return true;
     }
   }
+  return false;
 }
 
 function removeLowestValueHandCard(handMask: number, allCards: PoliticsCard[]): number {

@@ -111,6 +111,7 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     handSlots: input.handCards.length,
     godMode: input.godMode,
     boardTokens: input.boardTokens,
+    availableAchievementIds: input.availableAchievementIds,
     victoryPoints: input.victoryPoints,
   };
 }
@@ -194,10 +195,11 @@ function simulateRoundTopK(
       const startedWithProgressDone = ap.state.progressAlreadyDone;
 
       for (const ev of eventCandidates) {
-        const isInitialRound = ev.state.round === ctx.initialRound;
-        const postAchievementStates = isInitialRound
-          ? applyAchievementPhase(ev.state, ctx.availableAchievementIds, ctx.pendingAchievementChoices)
-          : [{ state: ev.state, claimedNames: [] as string[], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
+        const postAchievementStates = applyAchievementPhase(
+          ev.state,
+          ev.state.availableAchievementIds,
+          ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
+        );
 
         for (const ach of postAchievementStates) {
           const afterTax = cloneState(ach.state);
@@ -284,9 +286,19 @@ function applyAchievementPhase(
     const variant = cloneState(s);
     variant.taxTrack = capTaxGloryTrack(variant.taxTrack + taxAdd);
     variant.gloryTrack = capTaxGloryTrack(variant.gloryTrack + gloryAdd);
+    const claimed = new Set(claimedNames.map(name => achievementIdForName(name, availableAchievementIds)));
+    variant.availableAchievementIds = variant.availableAchievementIds.filter(id => !claimed.has(id));
     branches.push({ state: variant, claimedNames, unnamedClaims, taxAdd, gloryAdd });
   }
   return branches;
+}
+
+function achievementIdForName(name: string, ids: string[]): string {
+  for (const id of ids) {
+    const def = getAchievement(id);
+    if (def?.name === name) return id;
+  }
+  return name;
 }
 
 function formatAchievementDelta(
@@ -449,9 +461,6 @@ function advanceToNextRound(s: SolverState): SolverState {
   next.slotsConsumedThisRound = 0;
   next.progressAlreadyDone = false;
   next.legislationDoneThisRound = false;
-  // Achievements: only the initial round considers claims (per spec — future
-  // rounds assume opponents have grabbed whatever's still on the board), so
-  // there's no per-round flag to reset here.
   return next;
 }
 
@@ -495,7 +504,10 @@ function diversifyBeam<T extends { state: SolverState }>(
     `${s.economyTrack}|${s.cultureTrack}|${s.militaryTrack}|${s.taxTrack}|${s.gloryTrack}|` +
     `${s.troopTrack}|${s.citizenTrack}|${s.developmentLevel}|` +
     `${s.knowledge.greenMinor},${s.knowledge.blueMinor},${s.knowledge.redMinor},` +
-    `${s.knowledge.greenMajor},${s.knowledge.blueMajor},${s.knowledge.redMajor}`;
+    `${s.knowledge.greenMajor},${s.knowledge.blueMajor},${s.knowledge.redMajor}|` +
+    `${s.round}|${s.actionsAlreadyTaken.join(',')}|${s.progressAlreadyDone ? 1 : 0}|` +
+    `${s.legislationDoneThisRound ? 1 : 0}|${s.boardTokens.map(t => t.id).join(',')}|` +
+    `${s.availableAchievementIds.join(',')}`;
 
   const seenExact = new Set<string>();
   const deduped: T[] = [];
@@ -584,6 +596,7 @@ function estimateOpponentVP(
     handSlots: p.handCards.length,
     godMode: false,
     boardTokens: remainingBoardTokens,
+    availableAchievementIds: [],
     victoryPoints: p.victoryPoints,
   };
   const currentFinal = finalizeScore(state, cardIds, p.playedCards).total;

@@ -314,9 +314,9 @@ export function useSolverMode(
       scheduleRestart(0);
       return;
     }
-    // OTHER — opponent moved, board changed, achievement consumed, etc.
-    // The displayed plan is still likely useful, so we leave planValidRef
-    // alone (next worker output only replaces the plan if it's better).
+    // OTHER — material game knowledge moved. The old score may have been
+    // overvalued, so allow the restarted worker to replace it even if lower.
+    planValidRef.current = false;
     setShift(0);
     scheduleRestart(RESTART_DEBOUNCE_MS);
   }, [enabled, gameState, privateState, currentPlayerId, godMode, objective, setShift]);
@@ -445,7 +445,7 @@ function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
   for (let i = 0; i < prev.unresolvedAssignedActions.length; i++) {
     const a = prev.unresolvedAssignedActions[i];
     const b = next.unresolvedAssignedActions[i];
-    if (a.action !== b.action) return true;
+    if (a.action !== b.action || a.dieValue !== b.dieValue || a.citizenCost !== b.citizenCost) return true;
   }
   return false;
 }
@@ -475,6 +475,9 @@ function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
  *   achievement claims are still on the table for us this round.
  */
 function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
+  if (prev.objective !== next.objective || prev.godMode !== next.godMode) return true;
+  if (JSON.stringify(prev.fullState) !== JSON.stringify(next.fullState)) return true;
+  if (JSON.stringify(prev.predeterminedDice) !== JSON.stringify(next.predeterminedDice)) return true;
   if (prev.opponents.length !== next.opponents.length) return true;
   for (let i = 0; i < prev.opponents.length; i++) {
     const a = prev.opponents[i];

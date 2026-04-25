@@ -5,10 +5,8 @@
  * mirrored here as solver-state predicates. Unknown achievement IDs are
  * silently ignored — the solver simply won't count them.
  *
- * Per design: only the *initial* round (the round currently being played in
- * real life) attempts to claim achievements. Future rounds in the search tree
- * assume opponents have already taken whatever is still on the board, so the
- * solver never credits future-round claims. See `useSolverMode` / `solver.ts`.
+ * Remaining achievement IDs are carried in SolverState so future simulated
+ * rounds can claim rewards that are still available along that line.
  */
 
 import type { SolverState } from './types';

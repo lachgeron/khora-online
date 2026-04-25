@@ -49,7 +49,9 @@ function candidateSingleChoices(
   if (canTakeNext('TRADE')) {
     out.push({ type: 'TRADE', buyMinor: null });
     // Enumerate all 3 buy-color options when affordable, not only the "most needed" color.
-    if (s.coins >= 3) {
+    const projectedTradeCoins = s.coins + s.economyTrack + 1 + (hasPlayedCard(s, allCards, 'diolkos') ? 1 : 0);
+    const buyCost = hasPlayedCard(s, allCards, 'corinthian-columns') ? 3 : 5;
+    if (projectedTradeCoins >= buyCost) {
       const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
       for (const c of colors) out.push({ type: 'TRADE', buyMinor: c });
     }
@@ -99,6 +101,11 @@ function candidateSingleChoices(
   }
 
   return out;
+}
+
+function hasPlayedCard(s: SolverState, allCards: PoliticsCard[], cardId: string): boolean {
+  const idx = _cardIdIndex(cardId, allCards);
+  return idx >= 0 && hasMaskBit(s.playedMask, idx);
 }
 
 function canConsiderPoliticsCard(s: SolverState, cardIndex: number): boolean {
@@ -313,6 +320,8 @@ export function enumerateActionPlans(
   options: ActionEnumerationOptions = {},
   usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
   depth: number = 0,
+  currentChoices: ActionChoice[] = [],
+  currentCitizenCost: number = 0,
 ): ActionPlan[] {
   if (slotsLeft <= 0) {
     const finalized = finalizeActionPlan(s, [], [], cardIds, allCards, opponents, options);
@@ -332,11 +341,20 @@ export function enumerateActionPlans(
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
   const baseScore = heuristicScore(s, cardIds);
   for (const c of filteredCandidates) {
+    const prefixChoices = [...currentChoices, c];
+    const prefixAssignment = chooseDiceAssignment(prefixChoices, options, []);
+    if (!prefixAssignment) continue;
+    const incrementalCitizenCost = Math.max(0, prefixAssignment.citizenCost - currentCitizenCost);
+    if (!options.citizenCostsAlreadyPaid && incrementalCitizenCost > s.citizenTrack) continue;
     const next = cloneState(s);
-    applyAction(next, c, cardIds, allCards, opponents, (id) => {
+    if (!options.citizenCostsAlreadyPaid) {
+      next.citizenTrack -= incrementalCitizenCost;
+    }
+    const ok = applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
       return idx >= 0 && hasMaskBit(next.playedMask, idx);
     });
+    if (!ok) continue;
     const score = heuristicScore(next, cardIds) - baseScore;
     scored.push({ choice: c, next, score });
   }
@@ -348,17 +366,23 @@ export function enumerateActionPlans(
     const nextUsed = new Set(usedActions);
     nextUsed.add(t.choice.type);
     // All actions consume 1 slot.
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, options, nextUsed, depth + 1);
+    const nextChoices = [...currentChoices, t.choice];
+    const nextAssignment = chooseDiceAssignment(nextChoices, options, []);
+    const nextCitizenCost = nextAssignment?.citizenCost ?? currentCitizenCost;
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, options, nextUsed, depth + 1, nextChoices, nextCitizenCost);
     for (const sp of subPlans) {
       const choices = [t.choice, ...sp.choices];
-      const finalized = depth === 0
-        ? finalizeActionPlan(s, choices, sp.diceAssignments, cardIds, allCards, opponents, options)
-        : null;
+      if (depth === 0) {
+        const finalized = finalizeActionPlan(s, choices, sp.diceAssignments, cardIds, allCards, opponents, options);
+        if (!finalized) continue;
+        plans.push(finalized);
+        continue;
+      }
       plans.push({
         choices,
-        state: finalized?.state ?? sp.state,
-        diceAssignments: finalized?.diceAssignments ?? sp.diceAssignments,
-        citizenCost: finalized?.citizenCost ?? sp.citizenCost,
+        state: sp.state,
+        diceAssignments: sp.diceAssignments,
+        citizenCost: sp.citizenCost,
       });
     }
   }
@@ -383,10 +407,11 @@ function finalizeActionPlan(
     replay.citizenTrack -= assignment.citizenCost;
   }
   for (const choice of choices) {
-    applyAction(replay, choice, cardIds, allCards, opponents, (id) => {
+    const ok = applyAction(replay, choice, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
       return idx >= 0 && hasMaskBit(replay.playedMask, idx);
     });
+    if (!ok) return null;
   }
   return {
     choices,

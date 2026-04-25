@@ -8,8 +8,10 @@ import type {
   SolverFullPlayerState,
   SolverFullState,
 } from '@khora/shared';
+import { ACTION_NUMBERS } from '@khora/shared';
 import type { ActionChoice, FrozenOpponent, SolverState } from './types';
 import { applyAction } from './transitions';
+import { enumerateActionPlans, heuristicScore } from './action-enum';
 import { cloneState, hasMaskBit, removeMaskBit } from './card-data';
 import { progressCost } from './progress-enum';
 import { advanceProgressTrack, capTaxGloryTrack, capTroops } from './tracks';
@@ -110,6 +112,8 @@ function applyEventById(
       return applyRiseOfPersia(s, ctx, descriptionParts);
     case 'oracle-of-delphi':
       return [applyOracle(s, descriptionParts)];
+    case 'conquest-of-persians':
+      return applyConquestOfPersians(s, ctx, descriptionParts);
     default:
       return [{ state: s, descriptionParts }];
   }
@@ -131,7 +135,7 @@ function applyTroopComparisonEvent(
   const minOpponentEscape = minOpponentMaxTroopsThisRound(ctx);
   const notes = [...descriptionParts];
 
-  if (state.troopTrack > maxOpponent) {
+  if (state.troopTrack >= maxOpponent) {
     spec.win(state);
     notes.push(spec.winText);
   } else if (state.troopTrack <= minOpponentEscape) {
@@ -148,7 +152,7 @@ function applyMilitaryVictory(
   ctx: EventContext,
   descriptionParts: string[],
 ): Array<{ state: SolverState; descriptionParts: string[] }> {
-  if (s.troopTrack <= maxOpponentTroopsThisRound(ctx)) {
+  if (s.troopTrack < maxOpponentTroopsThisRound(ctx)) {
     return [{ state: s, descriptionParts: [...descriptionParts, 'Military Victory lost to opponent ceiling'] }];
   }
   return discountedProgressBranches(s, ctx, ['ECONOMY', 'CULTURE', 'MILITARY'], descriptionParts, 'Military Victory');
@@ -190,7 +194,7 @@ function applyProsperity(
   ctx: EventContext,
   descriptionParts: string[],
 ): Array<{ state: SolverState; descriptionParts: string[] }> {
-  if (s.troopTrack <= maxOpponentTroopsThisRound(ctx)) {
+  if (s.troopTrack < maxOpponentTroopsThisRound(ctx)) {
     return [{ state: s, descriptionParts: [...descriptionParts, 'Prosperity lost to opponent ceiling'] }];
   }
   const branches: Array<{ state: SolverState; descriptionParts: string[]; score: number }> = [
@@ -205,7 +209,7 @@ function applyProsperity(
       : [{ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs }];
     for (const choice of choices) {
       const next = cloneState(s);
-      applyAction(next, choice, ctx.cardIds, ctx.allCards, ctx.opponents, id => hasPlayed(next, id, ctx.cardIds));
+      if (!applyAction(next, choice, ctx.cardIds, ctx.allCards, ctx.opponents, id => hasPlayed(next, id, ctx.cardIds))) continue;
       const name = card.name ?? card.id;
       branches.push({
         state: next,
@@ -216,6 +220,50 @@ function applyProsperity(
   }
   branches.sort((a, b) => b.score - a.score);
   return branches.slice(0, 12).map(({ state, descriptionParts }) => ({ state, descriptionParts }));
+}
+
+function applyConquestOfPersians(
+  s: SolverState,
+  ctx: EventContext,
+  descriptionParts: string[],
+): Array<{ state: SolverState; descriptionParts: string[] }> {
+  const persepolisStillAvailable = s.boardTokens.some(t => t.isPersepolis);
+  if (persepolisStillAvailable) {
+    return [{ state: s, descriptionParts }];
+  }
+  const base = cloneState(s);
+  base.actionsAlreadyTaken = [];
+  base.slotsConsumedThisRound = 0;
+  base.legislationDoneThisRound = false;
+  const branches = enumerateActionPlans(
+    base,
+    1,
+    ctx.cardIds,
+    ctx.allCards,
+    ctx.opponents,
+    40,
+    {},
+  )
+    .filter(plan => plan.choices.length === 1 && plan.choices[0].type !== 'MILITARY')
+    .map(plan => ({
+      state: plan.state,
+      descriptionParts: [...descriptionParts, `Conquest of the Persians: ${describeConquestChoice(plan.choices[0], ctx.allCards)}`],
+      score: heuristicScore(plan.state, ctx.cardIds),
+    }));
+  branches.push({
+    state: s,
+    descriptionParts: [...descriptionParts, 'Conquest of the Persians: skip action'],
+    score: heuristicScore(s, ctx.cardIds),
+  });
+  branches.sort((a, b) => b.score - a.score);
+  return branches.slice(0, 12).map(({ state, descriptionParts }) => ({ state, descriptionParts }));
+}
+
+function describeConquestChoice(choice: ActionChoice, allCards: PoliticsCard[]): string {
+  if (choice.type === 'POLITICS') {
+    return `play "${allCards[choice.cardIndex]?.name ?? 'card'}"`;
+  }
+  return choice.type.charAt(0) + choice.type.slice(1).toLowerCase();
 }
 
 function applyOracle(s: SolverState, descriptionParts: string[]): { state: SolverState; descriptionParts: string[] } {
@@ -296,10 +344,48 @@ function possibleOpponentTroopGains(player: SolverFullPlayerState, ctx: EventCon
     return [];
   }
   const maxSlots = player.cultureTrack >= 4 ? 3 : 2;
-  const gains: number[] = ['PHILOSOPHY', 'LEGISLATION', 'CULTURE', 'TRADE', 'MILITARY', 'POLITICS', 'DEVELOPMENT']
-    .map(action => opponentTroopGainForAction(player, action as ActionType));
-  gains.sort((a, b) => b - a);
-  return gains.slice(0, maxSlots);
+  const actions = (['PHILOSOPHY', 'LEGISLATION', 'CULTURE', 'TRADE', 'MILITARY', 'POLITICS', 'DEVELOPMENT'] as ActionType[])
+    .map(action => ({ action, gain: opponentTroopGainForAction(player, action) }));
+  return bestAffordableOpponentGains(player, ctx, actions, maxSlots);
+}
+
+function bestAffordableOpponentGains(
+  player: SolverFullPlayerState,
+  ctx: EventContext,
+  actions: Array<{ action: ActionType; gain: number }>,
+  maxSlots: number,
+): number[] {
+  const dice = ctx.fullState?.predeterminedDice?.[ctx.round ?? ctx.initialRound]?.[player.playerId]
+    ?.slice(0, maxSlots) ?? [];
+  if (dice.length === 0) {
+    return actions.map(a => a.gain).sort((a, b) => b - a).slice(0, maxSlots);
+  }
+  let best: { gains: number[]; totalGain: number } = { gains: [], totalGain: 0 };
+  const usedActions = new Set<ActionType>();
+  const usedDice = new Set<number>();
+  const current: number[] = [];
+  const visit = (startActionIndex: number, citizenCost: number, totalGain: number): void => {
+    if (citizenCost > player.citizenTrack) return;
+    if (totalGain > best.totalGain) best = { gains: [...current], totalGain };
+    if (current.length >= maxSlots) return;
+    for (let aIndex = startActionIndex; aIndex < actions.length; aIndex++) {
+      const item = actions[aIndex];
+      if (usedActions.has(item.action)) continue;
+      usedActions.add(item.action);
+      for (let dIndex = 0; dIndex < dice.length; dIndex++) {
+        if (usedDice.has(dIndex)) continue;
+        usedDice.add(dIndex);
+        const cost = Math.max(0, (ACTION_NUMBERS[item.action] ?? 0) - dice[dIndex]);
+        current.push(item.gain);
+        visit(aIndex + 1, citizenCost + cost, totalGain + Math.max(0, item.gain));
+        current.pop();
+        usedDice.delete(dIndex);
+      }
+      usedActions.delete(item.action);
+    }
+  };
+  visit(0, 0, 0);
+  return best.gains.sort((a, b) => b - a);
 }
 
 function opponentTroopGainForAction(player: SolverFullPlayerState, action: ActionType): number {

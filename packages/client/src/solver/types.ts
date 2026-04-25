@@ -4,7 +4,7 @@
  * Assumptions (per feature spec):
  * - Events are modeled from full-state knowledge; competitive events are
  *   conservative against opponents' current-round troop ceiling.
- * - Only current-round achievements are pursued.
+ * - Remaining achievements are carried through simulated rounds.
  * - Dice/citizen costs are enforced when known or predetermined.
  * - Any knowledge token can be acquired via Military exploration.
  * - Citizens are tracked for action feasibility and scoring.
@@ -118,6 +118,7 @@ export interface SolverState {
 
   // Public board tokens still available along this simulated line.
   boardTokens: BoardExplorationToken[];
+  availableAchievementIds: string[];
 
   // Score track
   victoryPoints: number;
