@@ -43,6 +43,10 @@ interface SolverContext {
   // Achievements still on the board THIS round (the initial round only).
   // Future rounds in the search assume these are gone (taken by opponents).
   availableAchievementIds: string[];
+  // Achievement Tax/Glory picks already due to the player this round (the
+  // server has decided which were claimed, only the choice remains). Set
+  // when the snapshot is taken during the ACHIEVEMENT phase; 0 otherwise.
+  pendingAchievementChoices: number;
 }
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -164,12 +168,19 @@ function simulateRoundTopK(
     for (const pState of progressCandidates) {
       // Achievement phase. Per spec, only the *initial* simulated round
       // attempts to claim — future rounds assume opponents have grabbed
-      // whatever's still available. Each qualifying achievement contributes
-      // a +1 Tax or +1 Glory choice; we branch over all (i Tax, N-i Glory)
-      // splits so the beam picks whichever serves end-game scoring best.
-      const postAchievementStates = pState.round === ctx.initialRound
-        ? applyAchievementPhase(pState, ctx.availableAchievementIds)
-        : [{ state: pState, claimedNames: [] as string[], taxAdd: 0, gloryAdd: 0 }];
+      // whatever's still available. Two sub-cases on the initial round:
+      //   - Pre-ACHIEVEMENT phase: predict which achievements we'll qualify
+      //     for at end of round (`availableAchievementIds`).
+      //   - During ACHIEVEMENT phase: claims already determined; only the
+      //     +1 Tax / +1 Glory pick remains (`pendingAchievementChoices`).
+      // Either way, branch over all (i Tax, N-i Glory) splits — the beam
+      // picks whichever serves end-game scoring best.
+      const isInitialRound = pState.round === ctx.initialRound;
+      const postAchievementStates = isInitialRound
+        ? applyAchievementPhase(pState, ctx.availableAchievementIds, ctx.pendingAchievementChoices)
+        : [{ state: pState, claimedNames: [] as string[], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
+
+      const startedWithProgressDone = ap.state.progressAlreadyDone;
 
       for (const ach of postAchievementStates) {
         const afterTax = cloneState(ach.state);
@@ -179,8 +190,9 @@ function simulateRoundTopK(
         const score = heuristicScore(afterTax, ctx.cardIds);
         const progressTracks = diffProgressTracks(ap.state, pState);
         const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-        const achievementDelta = ach.claimedNames.length > 0
-          ? formatAchievementDelta(ach.claimedNames, ach.taxAdd, ach.gloryAdd)
+        const totalClaims = ach.claimedNames.length + ach.unnamedClaims;
+        const achievementDelta = totalClaims > 0
+          ? formatAchievementDelta(ach.claimedNames, ach.unnamedClaims, ach.taxAdd, ach.gloryAdd)
           : null;
         scored.push({
           score,
@@ -197,6 +209,7 @@ function simulateRoundTopK(
               ctx.allCards,
               hasCard(pState, 'old-guard', ctx.cardIds),
               achievementDelta,
+              startedWithProgressDone,
             ),
             vpBefore,
             vpAfter: afterTax.victoryPoints,
@@ -215,44 +228,60 @@ function simulateRoundTopK(
 /**
  * Achievement-phase resolution (initial round only — see caller).
  *
- * Looks at every achievement still on the board, checks which the state
- * qualifies for, and returns one branch per (taxAdd, gloryAdd) split:
- * for N qualifying achievements there are N+1 branches (i Tax + (N-i) Glory
- * for i in 0..N). Each claim is independent — multiple achievements stack.
+ * Two sources of claims feed in:
+ *   1. `availableAchievementIds` — achievements still on the board. The
+ *      solver checks which the state qualifies for (named claims).
+ *   2. `pendingChoices` — count of ACHIEVEMENT_TRACK_CHOICE decisions already
+ *      pending for the player (server has determined the claim, only the
+ *      Tax/Glory pick remains). These are "unnamed" from the solver's POV.
  *
- * The per-achievement +1 Tax / +1 Glory choice collapses to N+1 outcomes
- * (rather than 2^N) because the resulting state depends only on the totals,
- * not which specific achievement got which choice.
+ * For N total claims (named + unnamed) we emit N+1 branches: one per
+ * (taxAdd, gloryAdd) split with taxAdd in 0..N. Each branch carries the
+ * named-claim list + unnamed count + the Tax/Glory totals. The per-claim
+ * choice collapses to N+1 outcomes (rather than 2^N) because the resulting
+ * state depends only on the totals, not which specific claim got which pick.
  */
 function applyAchievementPhase(
   s: SolverState,
   availableAchievementIds: string[],
-): Array<{ state: SolverState; claimedNames: string[]; taxAdd: number; gloryAdd: number }> {
+  pendingChoices: number,
+): Array<{ state: SolverState; claimedNames: string[]; unnamedClaims: number; taxAdd: number; gloryAdd: number }> {
   const claimedNames: string[] = [];
   for (const id of availableAchievementIds) {
     const def = getAchievement(id);
     if (def && def.qualifies(s)) claimedNames.push(def.name);
   }
-  if (claimedNames.length === 0) {
-    return [{ state: s, claimedNames: [], taxAdd: 0, gloryAdd: 0 }];
+  const unnamedClaims = Math.max(0, pendingChoices);
+  const total = claimedNames.length + unnamedClaims;
+  if (total === 0) {
+    return [{ state: s, claimedNames: [], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
   }
 
-  const branches: Array<{ state: SolverState; claimedNames: string[]; taxAdd: number; gloryAdd: number }> = [];
-  for (let taxAdd = 0; taxAdd <= claimedNames.length; taxAdd++) {
-    const gloryAdd = claimedNames.length - taxAdd;
+  const branches: Array<{ state: SolverState; claimedNames: string[]; unnamedClaims: number; taxAdd: number; gloryAdd: number }> = [];
+  for (let taxAdd = 0; taxAdd <= total; taxAdd++) {
+    const gloryAdd = total - taxAdd;
     const variant = cloneState(s);
     variant.taxTrack += taxAdd;
     variant.gloryTrack += gloryAdd;
-    branches.push({ state: variant, claimedNames, taxAdd, gloryAdd });
+    branches.push({ state: variant, claimedNames, unnamedClaims, taxAdd, gloryAdd });
   }
   return branches;
 }
 
-function formatAchievementDelta(names: string[], taxAdd: number, gloryAdd: number): string {
+function formatAchievementDelta(
+  names: string[],
+  unnamedCount: number,
+  taxAdd: number,
+  gloryAdd: number,
+): string {
   const parts: string[] = [];
   if (taxAdd > 0) parts.push(`+${taxAdd} Tax`);
   if (gloryAdd > 0) parts.push(`+${gloryAdd} Glory`);
-  return `${names.join(', ')} (${parts.join(', ')})`;
+  const labels: string[] = [];
+  if (names.length > 0) labels.push(names.join(', '));
+  if (unnamedCount > 0) labels.push(`${unnamedCount} pending pick${unnamedCount === 1 ? '' : 's'}`);
+  const labelText = labels.join(' + ') || 'claim';
+  return parts.length > 0 ? `${labelText} (${parts.join(', ')})` : labelText;
 }
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
@@ -288,26 +317,33 @@ function describeRound(
   allCards: PoliticsCard[],
   hasOldGuard: boolean,
   achievementDelta: string | null,
+  startedWithProgressDone: boolean,
 ): string[] {
   const bullets: string[] = [];
   for (const c of choices) {
     bullets.push(describeChoice(c, cardIds, allCards));
   }
-  if (progressTracks.length > 0) {
-    const counts = { ECONOMY: 0, CULTURE: 0, MILITARY: 0 };
-    for (const t of progressTracks) counts[t]++;
-    const parts: string[] = [];
-    if (counts.ECONOMY) parts.push(`+${counts.ECONOMY} Economy`);
-    if (counts.CULTURE) parts.push(`+${counts.CULTURE} Culture`);
-    if (counts.MILITARY) parts.push(`+${counts.MILITARY} Military`);
-    let msg = `Progress: ${parts.join(', ')}`;
-    if (philosophySpent > 0) msg += ` (spent ${philosophySpent} scrolls)`;
-    bullets.push(msg);
-  } else {
-    bullets.push(hasOldGuard ? 'Progress: skip (Old Guard +4 VP)' : 'Progress: skip (nothing affordable)');
+  // Progress bullet: omit entirely when the progress phase already resolved
+  // before this snapshot was taken (the player has nothing to decide). When
+  // we *do* have a progress decision to make, always emit a bullet — either
+  // the chosen advances or an explicit skip.
+  if (!startedWithProgressDone) {
+    if (progressTracks.length > 0) {
+      const counts = { ECONOMY: 0, CULTURE: 0, MILITARY: 0 };
+      for (const t of progressTracks) counts[t]++;
+      const parts: string[] = [];
+      if (counts.ECONOMY) parts.push(`+${counts.ECONOMY} Economy`);
+      if (counts.CULTURE) parts.push(`+${counts.CULTURE} Culture`);
+      if (counts.MILITARY) parts.push(`+${counts.MILITARY} Military`);
+      let msg = `Progress: ${parts.join(', ')}`;
+      if (philosophySpent > 0) msg += ` (spent ${philosophySpent} scrolls)`;
+      bullets.push(msg);
+    } else {
+      bullets.push(hasOldGuard ? 'Progress: skip (Old Guard +4 VP)' : 'Progress: skip (nothing affordable)');
+    }
   }
   if (achievementDelta) {
-    bullets.push(`Achievement: 12 Citizens (${achievementDelta})`);
+    bullets.push(`Achievement: ${achievementDelta}`);
   }
   return bullets;
 }
@@ -505,6 +541,7 @@ export async function runSolver(
       initialRound: initialState.round,
       initialRoundTaxApplied: input.initialRoundTaxApplied,
       availableAchievementIds: input.availableAchievementIds,
+      pendingAchievementChoices: input.pendingAchievementChoices,
     };
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];

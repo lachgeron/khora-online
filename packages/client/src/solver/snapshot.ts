@@ -57,23 +57,41 @@ export function buildSolverInput(
     .filter((a): a is SolverAction => a !== null);
   const slotsConsumedThisRound = resolvedSlots.length;
 
-  // Progress already done? Detect from phase: after PROGRESS phase of the current round.
+  // Progress already done? Each player resolves a single PROGRESS_TRACK
+  // decision (or SKIP_PHASE) during the PROGRESS phase, after which the
+  // server removes the decision. So progress is done if we're past the phase
+  // OR we're in PROGRESS phase but our pending decision has been resolved.
+  const myPendingDecisionTypes = (publicState.pendingDecisions ?? [])
+    .filter(d => d.playerId === myPlayerId)
+    .map(d => d.decisionType);
+  const progressDecisionPending = myPendingDecisionTypes.includes('PROGRESS_TRACK');
   const progressAlreadyDone =
-    publicState.currentPhase === 'GLORY' || publicState.currentPhase === 'ACHIEVEMENT';
+    publicState.currentPhase === 'GLORY' ||
+    publicState.currentPhase === 'ACHIEVEMENT' ||
+    (publicState.currentPhase === 'PROGRESS' && !progressDecisionPending);
 
-  // Achievements still claimable THIS round. The server keeps unclaimed
-  // achievements in `availableAchievements`; once the achievement phase runs,
-  // anything claimed is removed from that list. So once we've reached the
-  // ACHIEVEMENT phase of a round, this round's claim opportunity is gone —
-  // pass an empty list so the solver doesn't double-count. The solver itself
-  // only ever attempts to claim on the *initial* simulated round (per spec:
-  // future-round achievements are assumed to be taken by opponents).
+  // Achievements pending for THIS round split into two sub-cases.
+  //
+  // (1) Pre-ACHIEVEMENT phase: the solver predicts which achievements we'll
+  //     QUALIFY for at end of round, choosing actions/progress so that we hit
+  //     them. `availableAchievementIds` lists what's still on the board.
+  //
+  // (2) ACHIEVEMENT phase: claims have already been determined server-side,
+  //     and what remains for the player is one Tax/Glory pick per claim.
+  //     `availableAchievementIds` is empty (we're past the qualify check),
+  //     and `pendingAchievementChoices` carries the count of pending picks
+  //     so the solver can branch on the best (Tax, Glory) split.
+  //
+  // Per spec, only the *initial* simulated round considers either case —
+  // future rounds in the search assume opponents have grabbed the rest.
   const achievementPhaseDone = publicState.currentPhase === 'ACHIEVEMENT';
   const availableAchievementIds = achievementPhaseDone
     ? []
     : (publicState.availableAchievements ?? [])
       .map(a => a.id)
       .filter(id => getAchievement(id) !== null);
+  const pendingAchievementChoices = myPendingDecisionTypes
+    .filter(t => t === 'ACHIEVEMENT_TRACK_CHOICE').length;
 
   const knowledgeTokens: KnowledgeToken[] = privateState.knowledgeTokens;
 
@@ -114,6 +132,7 @@ export function buildSolverInput(
     progressAlreadyDone,
     legislationDoneThisRound,
     availableAchievementIds,
+    pendingAchievementChoices,
     initialRoundTaxApplied: publicState.currentPhase !== 'OMEN',
     opponents,
     boardTokens,

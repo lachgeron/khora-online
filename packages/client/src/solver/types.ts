@@ -184,6 +184,12 @@ export interface SolverInput {
    * search tree assume opponents have grabbed whatever is left, per spec.
    */
   availableAchievementIds: string[];
+  /**
+   * Number of ACHIEVEMENT_TRACK_CHOICE decisions pending for this player. Set
+   * during the ACHIEVEMENT phase (claims already determined server-side, only
+   * the +1 Tax / +1 Glory pick remains). Zero outside that phase.
+   */
+  pendingAchievementChoices: number;
   initialRoundTaxApplied: boolean;       // true iff the TAXATION phase has already run this round (false only during OMEN)
 
   // Frozen opponents (for Power / Public Market)
