@@ -64,6 +64,7 @@ export interface SolverModeState {
 type ChangeClassification =
   | 'CONSISTENT_PROGRESS'
   | 'CONSISTENT_TRANSITION'
+  | 'STALE_CONSTRAINT'
   | 'DIVERGENT_ACTION'
   | 'OTHER';
 
@@ -307,6 +308,12 @@ export function useSolverMode(
       scheduleRestart(0);
       return;
     }
+    if (classification === 'STALE_CONSTRAINT') {
+      planValidRef.current = false;
+      setShift(0);
+      scheduleRestart(0);
+      return;
+    }
     // OTHER — opponent moved, board changed, achievement consumed, etc.
     // The displayed plan is still likely useful, so we leave planValidRef
     // alone (next worker output only replaces the plan if it's better).
@@ -409,6 +416,7 @@ function classifyChange(
       return 'OTHER';
     }
     // Same action set. Restart only if something the worker can't predict moved.
+    if (hardConstraintChanged(prev, next)) return 'STALE_CONSTRAINT';
     if (externalStateChanged(prev, next)) return 'OTHER';
     return 'CONSISTENT_PROGRESS';
   }
@@ -416,20 +424,32 @@ function classifyChange(
   if (next.currentRound === prev.currentRound + 1) {
     // Round advanced by exactly one. Consistent only if every action the
     // player resolved last round matches the plan's recommended bag.
-    if (!activeRoundPlan) return 'OTHER';
+    if (!activeRoundPlan) return 'STALE_CONSTRAINT';
     const prevActs = prev.actionsAlreadyTaken;
-    if (prevActs.length !== activeRoundPlan.actionTypes.length) return 'OTHER';
+    if (prevActs.length !== activeRoundPlan.actionTypes.length) return 'STALE_CONSTRAINT';
     const planned: SolverAction[] = [...activeRoundPlan.actionTypes];
     for (const a of prevActs) {
       const idx = planned.indexOf(a);
-      if (idx < 0) return 'OTHER';
+      if (idx < 0) return 'STALE_CONSTRAINT';
       planned.splice(idx, 1);
     }
     return 'CONSISTENT_TRANSITION';
   }
 
   // Round changed by more than one (or backwards) — bail to a full restart.
-  return 'OTHER';
+  return 'STALE_CONSTRAINT';
+}
+
+function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
+  if (prev.currentPhase !== next.currentPhase) return true;
+  if ((prev.diceRoll ?? []).join(',') !== (next.diceRoll ?? []).join(',')) return true;
+  if (prev.unresolvedAssignedActions.length !== next.unresolvedAssignedActions.length) return true;
+  for (let i = 0; i < prev.unresolvedAssignedActions.length; i++) {
+    const a = prev.unresolvedAssignedActions[i];
+    const b = next.unresolvedAssignedActions[i];
+    if (a.action !== b.action || a.dieValue !== b.dieValue || a.citizenCost !== b.citizenCost) return true;
+  }
+  return false;
 }
 
 /**
@@ -471,13 +491,6 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
   if (prev.availableAchievementIds.length !== next.availableAchievementIds.length) return true;
   for (let i = 0; i < prev.availableAchievementIds.length; i++) {
     if (prev.availableAchievementIds[i] !== next.availableAchievementIds[i]) return true;
-  }
-  if ((prev.diceRoll ?? []).join(',') !== (next.diceRoll ?? []).join(',')) return true;
-  if (prev.unresolvedAssignedActions.length !== next.unresolvedAssignedActions.length) return true;
-  for (let i = 0; i < prev.unresolvedAssignedActions.length; i++) {
-    const a = prev.unresolvedAssignedActions[i];
-    const b = next.unresolvedAssignedActions[i];
-    if (a.action !== b.action || a.dieValue !== b.dieValue || a.citizenCost !== b.citizenCost) return true;
   }
   return false;
 }
