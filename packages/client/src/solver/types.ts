@@ -103,6 +103,8 @@ export interface SolverState {
   // We store bits; lookup is via the card index table attached to the solver.
   handMask: number;
   playedMask: number;
+  handSlots: number;
+  godMode: boolean;
 
   // Public board tokens still available along this simulated line.
   boardTokens: BoardExplorationToken[];

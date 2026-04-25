@@ -8,6 +8,7 @@
 
 import type { SolverState, FrozenOpponent, ActionChoice, SolverAction, BoardExplorationToken } from './types';
 import type { KnowledgeColor, PoliticsCard, ProgressTrackType } from '../types';
+import { ACTION_NUMBERS } from '../types';
 import { applyAction } from './transitions';
 import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount, exploreTroopDiscount, endGameCardVP, hasMaskBit } from './card-data';
 import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3, hasSpartaDev1 } from './city-data';
@@ -29,10 +30,15 @@ function candidateSingleChoices(
   usedActions: Set<SolverAction>,
 ): ActionChoice[] {
   const out: ActionChoice[] = [];
+  const canTakeNext = (action: SolverAction): boolean =>
+    !usedActions.has(action) && actionNumber(action) > highestUsedActionNumber(usedActions);
 
-  if (!usedActions.has('PHILOSOPHY')) out.push({ type: 'PHILOSOPHY' });
-  if (!usedActions.has('CULTURE')) out.push({ type: 'CULTURE' });
-  if (!usedActions.has('TRADE')) {
+  if (canTakeNext('PHILOSOPHY')) out.push({ type: 'PHILOSOPHY' });
+  if (canTakeNext('LEGISLATION') && s.round === 1 && !s.legislationDoneThisRound) {
+    out.push({ type: 'LEGISLATION' });
+  }
+  if (canTakeNext('CULTURE')) out.push({ type: 'CULTURE' });
+  if (canTakeNext('TRADE')) {
     out.push({ type: 'TRADE', buyMinor: null });
     // Enumerate all 3 buy-color options when affordable, not only the "most needed" color.
     if (s.coins >= 3) {
@@ -40,15 +46,15 @@ function candidateSingleChoices(
       for (const c of colors) out.push({ type: 'TRADE', buyMinor: c });
     }
   }
-  if (!usedActions.has('MILITARY')) {
+  if (canTakeNext('MILITARY')) {
     const exploreOptions = enumerateExploreChoices(s, allCards);
     for (const ex of exploreOptions) out.push({ type: 'MILITARY', explore: ex });
   }
 
   // POLITICS — one choice per playable card in hand (the politics slot can play 1 card)
-  if (!usedActions.has('POLITICS')) {
+  if (canTakeNext('POLITICS')) {
     for (let i = 0; i < cardIds.length; i++) {
-      if (!hasMaskBit(s.handMask, i)) continue;
+      if (!canConsiderPoliticsCard(s, i)) continue;
       const card = allCards[i];
       if (!card) continue;
       if (!canPlayCard(s, card)) continue;
@@ -64,14 +70,8 @@ function candidateSingleChoices(
     }
   }
 
-  // LEGISLATION — free-slot action, only considered in round 1 (for the 12-citizens
-  // achievement opening). Outside round 1 the solver ignores it entirely.
-  if (s.round === 1 && !s.legislationDoneThisRound) {
-    out.push({ type: 'LEGISLATION' });
-  }
-
   // DEVELOPMENT — if a new level is unlockable
-  if (!usedActions.has('DEVELOPMENT') && s.developmentLevel < 4) {
+  if (canTakeNext('DEVELOPMENT') && s.developmentLevel < 4) {
     const nextLvl = s.developmentLevel + 1;
     const req = devKnowledgeRequirement(s.cityId, nextLvl);
     const cost = devDrachmaCost(s.cityId, nextLvl);
@@ -91,6 +91,24 @@ function candidateSingleChoices(
   }
 
   return out;
+}
+
+function canConsiderPoliticsCard(s: SolverState, cardIndex: number): boolean {
+  if (hasMaskBit(s.playedMask, cardIndex)) return false;
+  if (hasMaskBit(s.handMask, cardIndex)) return true;
+  return s.godMode && s.handSlots > 0;
+}
+
+function actionNumber(action: SolverAction): number {
+  return ACTION_NUMBERS[action];
+}
+
+function highestUsedActionNumber(usedActions: Set<SolverAction>): number {
+  let highest = -1;
+  for (const action of usedActions) {
+    highest = Math.max(highest, actionNumber(action));
+  }
+  return highest;
 }
 
 function pushDevelopmentChoices(
@@ -254,7 +272,7 @@ function deficitMap(s: SolverState, allCards: PoliticsCard[]): { g: number; b: n
   const r = s.knowledge.redMinor + s.knowledge.redMajor;
   let dg = 0, db = 0, dr = 0;
   for (let i = 0; i < allCards.length; i++) {
-    if (!hasMaskBit(s.handMask, i)) continue;
+    if (!canConsiderPoliticsCard(s, i)) continue;
     const card = allCards[i];
     if (!card) continue;
     const req = card.knowledgeRequirement;
@@ -374,14 +392,19 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
   // Hand cards: each unplayed card has latent value (future immediate + ongoing + endgame).
   // If cardIds is available, we can estimate potential endgame contribution for hand cards
   // crudely — ignore for now but boost the generic per-card weight.
-  const handCount = popcount(s.handMask);
+  const handCount = s.handSlots;
   const playedCount = popcount(s.playedMask);
   const perHandLatent = roundsLeft >= 4 ? 3.2 : roundsLeft >= 2 ? 2.0 : 0.8;
   const handLatent = Math.min(handCount, roundsLeft) * perHandLatent;
 
-  // Played cards: generic ongoing-bonus accrual. Each play nets ~1 VP immediately on
-  // avg + ~1 VP/round in ongoing effects. Avoid double-counting against endgame VP below.
-  const playedVal = playedCount * (1.0 + 0.8 * roundsLeft);
+  // Played cards: generic ongoing-bonus accrual for non-endgame cards. End-game
+  // cards are scored by their actual current formula below; adding a generic
+  // played-card premium on top of that overvalues cards such as Proskenion
+  // when the citizen track is still low.
+  const playedNonEndGameCount = cardIds
+    ? countPlayedNonEndGameCards(s, cardIds)
+    : playedCount;
+  const playedVal = playedNonEndGameCount * (1.0 + 0.8 * roundsLeft);
 
   // Played cards end-game VP: for cards with explicit endgame scoring (bank, austerity,
   // central-government, hall-of-statues, gold-reserve, heavy-taxes, proskenion,
@@ -412,6 +435,27 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
     playedVal +
     playedEndGameVP
   );
+}
+
+function countPlayedNonEndGameCards(s: SolverState, cardIds: string[]): number {
+  let count = 0;
+  for (let i = 0; i < cardIds.length; i++) {
+    if (!hasMaskBit(s.playedMask, i)) continue;
+    if (isEndGameCardId(cardIds[i])) continue;
+    count++;
+  }
+  return count;
+}
+
+function isEndGameCardId(cardId: string): boolean {
+  return cardId === 'bank'
+    || cardId === 'austerity'
+    || cardId === 'proskenion'
+    || cardId === 'diversification'
+    || cardId === 'central-government'
+    || cardId === 'gold-reserve'
+    || cardId === 'heavy-taxes'
+    || cardId === 'hall-of-statues';
 }
 
 /**

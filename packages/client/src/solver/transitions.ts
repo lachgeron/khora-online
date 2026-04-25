@@ -130,7 +130,10 @@ export function applyAction(
     case 'POLITICS': {
       const idx = choice.cardIndex;
       if (idx < 0 || idx >= cardIds.length) return;
-      if (!hasMaskBit(s.handMask, idx)) return; // not in hand
+      if (hasMaskBit(s.playedMask, idx)) return;
+      const inHand = hasMaskBit(s.handMask, idx);
+      if (!inHand && !s.godMode) return; // not in hand
+      if (s.handSlots <= 0) return;
       const cardId = cardIds[idx];
       const card = allCards[idx];
       if (!card) return;
@@ -141,7 +144,9 @@ export function applyAction(
       const pairsNeeded = choice.philosophyPairs ?? 0;
       if (s.philosophyTokens < pairsNeeded * 2) return;
       s.philosophyTokens -= pairsNeeded * 2;
-      s.handMask = removeMaskBit(s.handMask, idx);
+      if (inHand) s.handMask = removeMaskBit(s.handMask, idx);
+      else s.handMask = removeLowestValueHandCard(s.handMask, allCards);
+      s.handSlots -= 1;
       s.playedMask = addMaskBit(s.playedMask, idx);
       // Play-card triggers
       applyOngoingOnPlayCard(s, hasCardFn, cardId);
@@ -180,14 +185,31 @@ export function applyAction(
     }
     case 'LEGISLATION': {
       // Free-slot action (does not consume a die). Grants +3 citizens (capped at 15)
-      // and draws 2 politics cards, keeping 1. Card identity is unknown to the solver,
-      // so we only model the +3 citizens — the key effect for the 12-citizens achievement.
+      // and draws 2 politics cards, keeping 1. Normal mode does not invent the
+      // unknown card identity; god-mode can use the added hand slot against
+      // its deck-card pool.
       if (s.legislationDoneThisRound) return;
       s.citizenTrack = Math.min(15, s.citizenTrack + 3);
+      s.handSlots += 1;
       s.legislationDoneThisRound = true;
       return;
     }
   }
+}
+
+function removeLowestValueHandCard(handMask: number, allCards: PoliticsCard[]): number {
+  let removeIndex = -1;
+  let removeScore = Infinity;
+  for (let i = 0; i < allCards.length; i++) {
+    if (!hasMaskBit(handMask, i)) continue;
+    const card = allCards[i];
+    const score = (card?.cost ?? 0) + (card?.type === 'END_GAME' ? 3 : 0);
+    if (score < removeScore) {
+      removeScore = score;
+      removeIndex = i;
+    }
+  }
+  return removeIndex >= 0 ? removeMaskBit(handMask, removeIndex) : handMask;
 }
 
 /** Actions-phase action name from ActionChoice. */

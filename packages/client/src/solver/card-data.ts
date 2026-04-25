@@ -207,10 +207,9 @@ export function endGameCardVP(cardId: string, s: SolverState): number {
     case 'bank': return Math.floor(s.coins / 2);
     case 'austerity': {
       // "VP per card in hand". After game ends, handMask bits remaining = hand size.
-      const handCount = popcount(s.handMask);
-      return handCount * 3;
+      return s.handSlots * 3;
     }
-    case 'proskenion': return s.citizenTrack;
+    case 'proskenion': return Math.max(0, Math.min(15, s.citizenTrack));
     case 'diversification':
       return 3 * Math.min(s.economyTrack, s.cultureTrack, s.militaryTrack);
     case 'central-government': {

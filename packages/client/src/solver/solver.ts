@@ -72,12 +72,6 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     const idx = cardIds.indexOf(c.id);
     if (idx >= 0) handMask = addMaskBit(handMask, idx);
   }
-  if (input.godMode) {
-    for (const c of input.availableGodModeCards) {
-      const idx = cardIds.indexOf(c.id);
-      if (idx >= 0) handMask = addMaskBit(handMask, idx);
-    }
-  }
   for (const c of input.playedCards) {
     const idx = cardIds.indexOf(c.id);
     if (idx >= 0) playedMask = addMaskBit(playedMask, idx);
@@ -103,6 +97,8 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     developmentLevel: input.developmentLevel,
     handMask,
     playedMask,
+    handSlots: input.handCards.length,
+    godMode: input.godMode,
     boardTokens: input.boardTokens,
     victoryPoints: input.victoryPoints,
   };
@@ -434,8 +430,8 @@ function diversifyBeam<T extends { state: SolverState }>(
     return `${devCap}-${cult4}-${mil4}-${mt}-${playedT}-${taxBin}-${coinBin}-${scrollBin}`;
   };
 
-  const exactKey = (s: SolverState): string =>
-    `${s.handMask}|${s.playedMask}|${s.victoryPoints}|${s.coins}|${s.philosophyTokens}|` +
+    const exactKey = (s: SolverState): string =>
+    `${s.handMask}|${s.playedMask}|${s.handSlots}|${s.victoryPoints}|${s.coins}|${s.philosophyTokens}|` +
     `${s.economyTrack}|${s.cultureTrack}|${s.militaryTrack}|${s.taxTrack}|${s.gloryTrack}|` +
     `${s.troopTrack}|${s.citizenTrack}|${s.developmentLevel}|` +
     `${s.knowledge.greenMinor},${s.knowledge.blueMinor},${s.knowledge.redMinor},` +
