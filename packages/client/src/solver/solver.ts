@@ -22,9 +22,10 @@ import type { PoliticsCard, ProgressTrackType } from '../types';
 import { enumerateActionPlans, heuristicScore } from './action-enum';
 import { enumerateProgressPlans } from './progress-enum';
 import { applyTaxPhase, finalizeScore } from './scoring';
-import { cloneState, popcount } from './card-data';
-import { canSolveFromPhase } from './snapshot';
+import { addMaskBit, cloneState, hasMaskBit, popcount } from './card-data';
+import { canSolveFromPhase, cardsForSolver } from './snapshot';
 import { getAchievement } from './achievements';
+import { capTaxGloryTrack } from './tracks';
 import type { PublicGameState } from '../types';
 
 // ─── Setup: build cardIds/allCards list and initial state ───────────────────
@@ -33,7 +34,6 @@ interface SolverContext {
   cardIds: string[];
   allCards: PoliticsCard[];
   opponents: FrozenOpponent[];
-  boardTokens: BoardExplorationToken[];
   shouldAbort: () => boolean;
   nodesExplored: { count: number };
   beamWidth: number;
@@ -70,11 +70,17 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
   let playedMask = 0;
   for (const c of input.handCards) {
     const idx = cardIds.indexOf(c.id);
-    if (idx >= 0) handMask |= 1 << idx;
+    if (idx >= 0) handMask = addMaskBit(handMask, idx);
+  }
+  if (input.godMode) {
+    for (const c of input.availableGodModeCards) {
+      const idx = cardIds.indexOf(c.id);
+      if (idx >= 0) handMask = addMaskBit(handMask, idx);
+    }
   }
   for (const c of input.playedCards) {
     const idx = cardIds.indexOf(c.id);
-    if (idx >= 0) playedMask |= 1 << idx;
+    if (idx >= 0) playedMask = addMaskBit(playedMask, idx);
   }
 
   return {
@@ -97,6 +103,7 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     developmentLevel: input.developmentLevel,
     handMask,
     playedMask,
+    boardTokens: input.boardTokens,
     victoryPoints: input.victoryPoints,
   };
 }
@@ -138,7 +145,6 @@ function simulateRoundTopK(
     ctx.cardIds,
     ctx.allCards,
     ctx.opponents,
-    ctx.boardTokens,
     ctx.actionTopK,
   );
   ctx.nodesExplored.count += actionPlans.length;
@@ -261,8 +267,8 @@ function applyAchievementPhase(
   for (let taxAdd = 0; taxAdd <= total; taxAdd++) {
     const gloryAdd = total - taxAdd;
     const variant = cloneState(s);
-    variant.taxTrack += taxAdd;
-    variant.gloryTrack += gloryAdd;
+    variant.taxTrack = capTaxGloryTrack(variant.taxTrack + taxAdd);
+    variant.gloryTrack = capTaxGloryTrack(variant.gloryTrack + gloryAdd);
     branches.push({ state: variant, claimedNames, unnamedClaims, taxAdd, gloryAdd });
   }
   return branches;
@@ -286,7 +292,7 @@ function formatAchievementDelta(
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
   const idx = cardIds.indexOf(id);
-  return idx >= 0 && (s.playedMask & (1 << idx)) !== 0;
+  return idx >= 0 && hasMaskBit(s.playedMask, idx);
 }
 
 function devUnlocked(s: SolverState, id: string): boolean {
@@ -495,7 +501,7 @@ export async function runSolver(
   const { shouldAbort, onProgress, yieldToHost = () => Promise.resolve() } = options;
   const start = Date.now();
 
-  const allCardObjs = [...input.handCards, ...input.playedCards];
+  const allCardObjs = cardsForSolver(input);
   const cardIds = allCardObjs.map(c => c.id);
 
   const initialState = buildInitialState(input, cardIds);
@@ -533,7 +539,6 @@ export async function runSolver(
       cardIds,
       allCards: allCardObjs,
       opponents: input.opponents,
-      boardTokens: input.boardTokens,
       shouldAbort,
       nodesExplored: nodesExploredShared,
       beamWidth,

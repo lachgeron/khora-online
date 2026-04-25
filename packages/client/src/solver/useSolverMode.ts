@@ -53,6 +53,8 @@ const RESTART_DEBOUNCE_MS = 150;
 export interface SolverModeState {
   enabled: boolean;
   toggle: () => void;
+  godMode: boolean;
+  setGodMode: (enabled: boolean) => void;
   result: SolverResult | null;
   stale: boolean;
 }
@@ -69,6 +71,7 @@ export function useSolverMode(
   currentPlayerId: string,
 ): SolverModeState {
   const [enabled, setEnabled] = useState(false);
+  const [godMode, setGodModeState] = useState(false);
   const [result, setResult] = useState<SolverResult | null>(null);
   const [stale, setStale] = useState(false);
   // Number of complete rounds the live game has progressed past the snapshot
@@ -105,6 +108,10 @@ export function useSolverMode(
 
   const toggle = useCallback(() => {
     setEnabled((v) => !v);
+  }, []);
+
+  const setGodMode = useCallback((next: boolean) => {
+    setGodModeState(next);
   }, []);
 
   // Spawn / tear down the worker when solver mode toggles.
@@ -219,7 +226,7 @@ export function useSolverMode(
       return;
     }
 
-    const newInput = buildSolverInput(gameState, privateState, currentPlayerId);
+    const newInput = buildSolverInput(gameState, privateState, currentPlayerId, godMode);
     if (!newInput) return;
 
     // Structural comparison: if every field the solver consumes is identical,
@@ -298,7 +305,7 @@ export function useSolverMode(
     // alone (next worker output only replaces the plan if it's better).
     setShift(0);
     scheduleRestart(RESTART_DEBOUNCE_MS);
-  }, [enabled, gameState, privateState, currentPlayerId, setShift]);
+  }, [enabled, gameState, privateState, currentPlayerId, godMode, setShift]);
 
   // Pause/resume on tab visibility change to reclaim CPU when hidden.
   useEffect(() => {
@@ -343,7 +350,7 @@ export function useSolverMode(
     };
   }, [result, shiftRounds]);
 
-  return { enabled, toggle, result: shiftedResult, stale };
+  return { enabled, toggle, godMode, setGodMode, result: shiftedResult, stale };
 }
 
 /**

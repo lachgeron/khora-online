@@ -7,9 +7,9 @@
  */
 
 import type { SolverState, FrozenOpponent, ActionChoice, SolverAction, BoardExplorationToken } from './types';
-import type { KnowledgeColor, PoliticsCard } from '../types';
+import type { KnowledgeColor, PoliticsCard, ProgressTrackType } from '../types';
 import { applyAction } from './transitions';
-import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount, exploreTroopDiscount, endGameCardVP } from './card-data';
+import { cloneState, totalKnowledge, majorCount, popcount, knowledgeCount, exploreTroopDiscount, endGameCardVP, hasMaskBit } from './card-data';
 import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3, hasSpartaDev1 } from './city-data';
 
 /** Candidate action-phase outcome: a sequence of choices + resulting state. */
@@ -26,7 +26,6 @@ function candidateSingleChoices(
   s: SolverState,
   cardIds: string[],
   allCards: PoliticsCard[],
-  boardTokens: BoardExplorationToken[],
   usedActions: Set<SolverAction>,
 ): ActionChoice[] {
   const out: ActionChoice[] = [];
@@ -42,20 +41,26 @@ function candidateSingleChoices(
     }
   }
   if (!usedActions.has('MILITARY')) {
-    const exploreOptions = enumerateExploreChoices(s, allCards, boardTokens);
+    const exploreOptions = enumerateExploreChoices(s, allCards);
     for (const ex of exploreOptions) out.push({ type: 'MILITARY', explore: ex });
   }
 
   // POLITICS — one choice per playable card in hand (the politics slot can play 1 card)
   if (!usedActions.has('POLITICS')) {
     for (let i = 0; i < cardIds.length; i++) {
-      const bit = 1 << i;
-      if ((s.handMask & bit) === 0) continue;
+      if (!hasMaskBit(s.handMask, i)) continue;
       const card = allCards[i];
       if (!card) continue;
       if (!canPlayCard(s, card)) continue;
       const pairs = philosophyPairsNeeded(s, card);
-      out.push({ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs });
+      if (card.id === 'scholarly-welcome') {
+        const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
+        for (const color of colors) {
+          out.push({ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs, scholarlyWelcomeColor: color });
+        }
+      } else {
+        out.push({ type: 'POLITICS', cardIndex: i, philosophyPairs: pairs });
+      }
     }
   }
 
@@ -72,12 +77,12 @@ function candidateSingleChoices(
     const cost = devDrachmaCost(s.cityId, nextLvl);
     if (s.coins >= cost) {
       if (meetsReqSolver(s, req, 0)) {
-        out.push({ type: 'DEVELOPMENT', philosophyPairs: 0 });
+        pushDevelopmentChoices(out, s, nextLvl, 0);
       } else {
         for (let pairs = 1; pairs <= 4; pairs++) {
           if (s.philosophyTokens < pairs * 2) break;
           if (meetsReqSolver(s, req, pairs)) {
-            out.push({ type: 'DEVELOPMENT', philosophyPairs: pairs });
+            pushDevelopmentChoices(out, s, nextLvl, pairs);
             break;
           }
         }
@@ -86,6 +91,39 @@ function candidateSingleChoices(
   }
 
   return out;
+}
+
+function pushDevelopmentChoices(
+  out: ActionChoice[],
+  s: SolverState,
+  nextLevel: number,
+  philosophyPairs: number,
+): void {
+  if (s.cityId === 'miletus' && nextLevel === 2) {
+    const pairs: Array<[ProgressTrackType, ProgressTrackType]> = [
+      ['ECONOMY', 'CULTURE'],
+      ['ECONOMY', 'MILITARY'],
+      ['CULTURE', 'MILITARY'],
+    ];
+    for (const tracks of pairs) out.push({ type: 'DEVELOPMENT', philosophyPairs, miletusDev2Tracks: tracks });
+    return;
+  }
+  if (s.cityId === 'sparta' && nextLevel === 3) {
+    const colors: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
+    for (const a of colors) {
+      for (const b of colors) {
+        out.push({ type: 'DEVELOPMENT', philosophyPairs, spartaDev3Colors: [a, b] });
+      }
+    }
+    return;
+  }
+  if (s.cityId === 'argos' && nextLevel === 2) {
+    for (const reward of ['TROOPS', 'COINS', 'VP', 'CITIZENS'] as const) {
+      out.push({ type: 'DEVELOPMENT', philosophyPairs, argosDev2Reward: reward });
+    }
+    return;
+  }
+  out.push({ type: 'DEVELOPMENT', philosophyPairs });
 }
 
 function canPlayCard(s: SolverState, card: PoliticsCard): boolean {
@@ -134,7 +172,6 @@ function meetsReqSolver(
 function enumerateExploreChoices(
   s: SolverState,
   allCards: PoliticsCard[],
-  boardTokens: BoardExplorationToken[],
 ): BoardExplorationToken[][] {
   const options: BoardExplorationToken[][] = [];
   options.push([]); // skip
@@ -144,7 +181,7 @@ function enumerateExploreChoices(
   const availableTroops = s.troopTrack + s.militaryTrack;
   const hasCardFn = (id: string): boolean => {
     const idx = _cardIdIndex(id, allCards);
-    return idx >= 0 && (s.playedMask & (1 << idx)) !== 0;
+    return idx >= 0 && hasMaskBit(s.playedMask, idx);
   };
   const discount = exploreTroopDiscount(hasCardFn) + (hasSpartaDev1(s.cityId, s.developmentLevel) ? 1 : 0);
 
@@ -152,7 +189,7 @@ function enumerateExploreChoices(
 
   // Score each token for inclusion. Higher = better candidate.
   const scored: { tok: BoardExplorationToken; score: number }[] = [];
-  for (const tok of boardTokens) {
+  for (const tok of s.boardTokens) {
     if (tok.militaryRequirement > availableTroops) continue;
     const cost = Math.max(0, tok.skullCost - discount);
     if (cost > availableTroops) continue;
@@ -217,8 +254,7 @@ function deficitMap(s: SolverState, allCards: PoliticsCard[]): { g: number; b: n
   const r = s.knowledge.redMinor + s.knowledge.redMajor;
   let dg = 0, db = 0, dr = 0;
   for (let i = 0; i < allCards.length; i++) {
-    const bit = 1 << i;
-    if ((s.handMask & bit) === 0) continue;
+    if (!hasMaskBit(s.handMask, i)) continue;
     const card = allCards[i];
     if (!card) continue;
     const req = card.knowledgeRequirement;
@@ -247,13 +283,12 @@ export function enumerateActionPlans(
   cardIds: string[],
   allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
-  boardTokens: BoardExplorationToken[],
   topK: number,
   usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
 ): ActionPlan[] {
   if (slotsLeft <= 0) return [{ choices: [], state: s }];
 
-  const candidates = candidateSingleChoices(s, cardIds, allCards, boardTokens, usedActions);
+  const candidates = candidateSingleChoices(s, cardIds, allCards, usedActions);
   if (candidates.length === 0) return [{ choices: [], state: s }];
 
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
@@ -262,7 +297,7 @@ export function enumerateActionPlans(
     const next = cloneState(s);
     applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
-      return idx >= 0 && (next.playedMask & (1 << idx)) !== 0;
+      return idx >= 0 && hasMaskBit(next.playedMask, idx);
     });
     const score = heuristicScore(next, cardIds) - baseScore;
     scored.push({ choice: c, next, score });
@@ -274,14 +309,8 @@ export function enumerateActionPlans(
   for (const t of top) {
     const nextUsed = new Set(usedActions);
     nextUsed.add(t.choice.type);
-    // Mutate boardTokens view for subsequent slots: remove ids that were consumed by MILITARY explore.
-    let nextTokens = boardTokens;
-    if (t.choice.type === 'MILITARY' && t.choice.explore.length > 0) {
-      const consumed = new Set(t.choice.explore.map(x => x.id));
-      nextTokens = boardTokens.filter(x => !consumed.has(x.id));
-    }
     // All actions consume 1 slot (including LEGISLATION in R1).
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, nextTokens, topK, nextUsed);
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, nextUsed);
     for (const sp of subPlans) {
       plans.push({
         choices: [t.choice, ...sp.choices],
@@ -360,8 +389,7 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
   let playedEndGameVP = 0;
   if (cardIds) {
     for (let i = 0; i < cardIds.length; i++) {
-      const bit = 1 << i;
-      if ((s.playedMask & bit) === 0) continue;
+      if (!hasMaskBit(s.playedMask, i)) continue;
       playedEndGameVP += endGameCardVP(cardIds[i], s);
     }
   }

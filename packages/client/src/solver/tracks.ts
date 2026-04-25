@@ -10,7 +10,12 @@ import type { SolverState } from './types';
 interface Milestone { citizens?: number; vp?: number; taxes?: number; glory?: number }
 
 const MAX_CITIZEN_TRACK = 15;
+export const MAX_TAX_GLORY_TRACK = 10;
 export const MAX_TROOP_TRACK = 15;
+
+export function capTaxGloryTrack(value: number): number {
+  return Math.max(0, Math.min(value, MAX_TAX_GLORY_TRACK));
+}
 
 const TRACK_MILESTONES: Record<'ECONOMY' | 'CULTURE' | 'MILITARY', Record<number, Milestone>> = {
   ECONOMY: {
@@ -58,8 +63,8 @@ export function advanceProgressTrack(
     if (!reward) continue;
     if (reward.citizens) s.citizenTrack = Math.min(s.citizenTrack + reward.citizens, MAX_CITIZEN_TRACK);
     if (reward.vp) s.victoryPoints += reward.vp;
-    if (reward.taxes) s.taxTrack += reward.taxes;
-    if (reward.glory) s.gloryTrack += reward.glory;
+    if (reward.taxes) s.taxTrack = capTaxGloryTrack(s.taxTrack + reward.taxes);
+    if (reward.glory) s.gloryTrack = capTaxGloryTrack(s.gloryTrack + reward.glory);
   }
 }
 

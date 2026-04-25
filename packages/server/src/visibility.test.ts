@@ -21,7 +21,7 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     cultureTrack: 3,
     militaryTrack: 1,
     handCards: [
-      { id: 'pc1', name: 'Card1', cost: 3, knowledgeRequirement: { green: 0, blue: 0, red: 0 }, type: 'ONGOING', effect: { type: 'GAIN_VP', amount: 1 }, endGameScoring: null },
+      { id: 'pc1', name: 'Card1', description: '', cost: 3, knowledgeRequirement: { green: 0, blue: 0, red: 0 }, type: 'ONGOING', effect: { type: 'GAIN_VP', amount: 1 }, endGameScoring: null },
     ],
     diceRoll: [3, 5],
     actionSlots: [null, null, null],

@@ -4,7 +4,7 @@
 
 import type { SolverState, FrozenOpponent } from './types';
 import type { PoliticsCard } from '../types';
-import { applyOngoingOnTaxPhase, endGameCardVP, majorCount, popcount } from './card-data';
+import { applyOngoingOnTaxPhase, endGameCardVP, hasMaskBit, majorCount, popcount } from './card-data';
 import { devEndGameVP, maybeApplyThebesDev2 } from './city-data';
 import { capTroops } from './tracks';
 
@@ -48,8 +48,7 @@ export function finalizeScore(
 } {
   let politicsVP = 0;
   for (let i = 0; i < cardIds.length; i++) {
-    const bit = 1 << i;
-    if ((s.playedMask & bit) === 0) continue;
+    if (!hasMaskBit(s.playedMask, i)) continue;
     politicsVP += endGameCardVP(cardIds[i], s);
   }
 

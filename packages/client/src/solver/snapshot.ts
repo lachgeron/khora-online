@@ -7,11 +7,13 @@ import type {
   PrivatePlayerState,
   ActionType,
   KnowledgeToken,
+  PoliticsCard,
 } from '../types';
 import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken } from './types';
 import { buildInitialState } from './solver';
 import { applyTaxPhase } from './scoring';
 import { getAchievement } from './achievements';
+import { hasMaskBit } from './card-data';
 
 const ACTION_MAP: Record<ActionType, SolverAction | null> = {
   PHILOSOPHY: 'PHILOSOPHY',
@@ -28,6 +30,7 @@ export function buildSolverInput(
   publicState: PublicGameState,
   privateState: PrivatePlayerState,
   myPlayerId: string,
+  godMode = false,
 ): SolverInput | null {
   const me = publicState.players.find(p => p.playerId === myPlayerId);
   if (!me) return null;
@@ -126,6 +129,8 @@ export function buildSolverInput(
     victoryPoints: me.victoryPoints,
     handCards: privateState.handCards,
     playedCards: privateState.playedCards,
+    availableGodModeCards: privateState.availableGodModeCards,
+    godMode,
     currentRound: publicState.roundNumber,
     actionsAlreadyTaken,
     slotsConsumedThisRound,
@@ -145,11 +150,11 @@ export function buildSolverInput(
   // the hook's structural equality check matches and the worker is not
   // restarted on that transition.
   if (publicState.currentPhase === 'OMEN') {
-    const cardIds = [...rawInput.handCards, ...rawInput.playedCards].map(c => c.id);
+    const cardIds = cardsForSolver(rawInput).map(c => c.id);
     const state = buildInitialState(rawInput, cardIds);
     applyTaxPhase(state, rawInput.opponents, (id) => {
       const idx = cardIds.indexOf(id);
-      return idx >= 0 && (state.playedMask & (1 << idx)) !== 0;
+      return idx >= 0 && hasMaskBit(state.playedMask, idx);
     });
     return {
       ...rawInput,
@@ -163,6 +168,29 @@ export function buildSolverInput(
   }
 
   return rawInput;
+}
+
+export function cardsForSolver(input: Pick<SolverInput, 'handCards' | 'playedCards' | 'availableGodModeCards' | 'godMode'>): PoliticsCard[] {
+  const cards: PoliticsCard[] = [];
+  const seen = new Set<string>();
+  for (const c of input.handCards) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    cards.push(c);
+  }
+  for (const c of input.playedCards) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    cards.push(c);
+  }
+  if (input.godMode) {
+    for (const c of input.availableGodModeCards) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      cards.push(c);
+    }
+  }
+  return cards;
 }
 
 /** Determine whether the solver can produce a plan from this phase. */

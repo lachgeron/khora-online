@@ -61,8 +61,7 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
   // Troop track can temporarily exceed 15 (e.g. during military action for exploration).
   // It is capped at 15 at the end of the Action Phase.
 
-  // No track can go below 0
-  newLevel = Math.max(0, newLevel);
+  newLevel = clampTrackValue(track, newLevel);
 
   let updated = { ...player, [field]: newLevel };
 
@@ -83,14 +82,29 @@ export function advanceTrack(player: PlayerState, track: TrackType, amount: numb
 interface Milestone { citizens?: number; vp?: number; taxes?: number; glory?: number }
 
 const MAX_CITIZEN_TRACK = 15;
+export const MAX_TAX_GLORY_TRACK = 10;
 export const MAX_TROOP_TRACK = 15;
+
+function clampTrackValue(track: TrackType, value: number): number {
+  let capped = value;
+  if (track === 'ECONOMY' || track === 'CULTURE' || track === 'MILITARY') {
+    capped = Math.min(capped, 7);
+  }
+  if (track === 'TAX' || track === 'GLORY') {
+    capped = Math.min(capped, MAX_TAX_GLORY_TRACK);
+  }
+  if (track === 'CITIZEN') {
+    capped = Math.min(capped, MAX_CITIZEN_TRACK);
+  }
+  return Math.max(0, capped);
+}
 
 function applyMilestone(p: PlayerState, m: Milestone): PlayerState {
   let updated = p;
   if (m.citizens) updated = { ...updated, citizenTrack: Math.min(updated.citizenTrack + m.citizens, MAX_CITIZEN_TRACK) };
   if (m.vp) updated = { ...updated, victoryPoints: updated.victoryPoints + m.vp };
-  if (m.taxes) updated = { ...updated, taxTrack: updated.taxTrack + m.taxes };
-  if (m.glory) updated = { ...updated, gloryTrack: updated.gloryTrack + m.glory };
+  if (m.taxes) updated = { ...updated, taxTrack: Math.min(updated.taxTrack + m.taxes, MAX_TAX_GLORY_TRACK) };
+  if (m.glory) updated = { ...updated, gloryTrack: Math.min(updated.gloryTrack + m.glory, MAX_TAX_GLORY_TRACK) };
   return updated;
 }
 
@@ -122,7 +136,7 @@ const TRACK_MILESTONES: Record<string, Record<number, Milestone>> = {
  */
 export function setTrack(player: PlayerState, track: TrackType, value: number): PlayerState {
   const field = trackField(track);
-  return { ...player, [field]: value };
+  return { ...player, [field]: clampTrackValue(track, value) };
 }
 
 /**

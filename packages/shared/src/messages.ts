@@ -140,6 +140,8 @@ export interface PrivatePlayerState {
   actionSlots: ActionSlotTuple;
   handCards: PoliticsCard[];
   playedCards: PoliticsCard[];
+  /** Cards still in the draw deck. Used only by client-side solver god-mode. */
+  availableGodModeCards: PoliticsCard[];
   // Draft phase fields (null when not in a draft phase)
   offeredCities: CityCard[] | null;       // 3 cities offered during CITY_SELECTION (only for current picker)
   draftPack: PoliticsCard[] | null;       // Current pack of cards during DRAFT_POLITICS

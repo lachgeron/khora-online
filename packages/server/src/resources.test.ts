@@ -105,6 +105,26 @@ describe('advanceTrack', () => {
     expect(updated.victoryPoints).toBe(5);
     expect(updated.playerId).toBe('player-1');
   });
+
+  it('caps tax track at 10', () => {
+    const player = makeTestPlayer({ taxTrack: 9 });
+    const updated = advanceTrack(player, 'TAX', 3);
+    expect(updated.taxTrack).toBe(10);
+  });
+
+  it('caps glory track at 10', () => {
+    const player = makeTestPlayer({ gloryTrack: 9 });
+    const updated = advanceTrack(player, 'GLORY', 3);
+    expect(updated.gloryTrack).toBe(10);
+  });
+
+  it('caps tax and glory milestone rewards at 10', () => {
+    const culturePlayer = makeTestPlayer({ cultureTrack: 6, taxTrack: 9 });
+    const militaryPlayer = makeTestPlayer({ militaryTrack: 6, gloryTrack: 9 });
+
+    expect(advanceTrack(culturePlayer, 'CULTURE', 1).taxTrack).toBe(10);
+    expect(advanceTrack(militaryPlayer, 'MILITARY', 1).gloryTrack).toBe(10);
+  });
 });
 
 describe('setTrack', () => {
@@ -118,6 +138,11 @@ describe('setTrack', () => {
     const player = makeTestPlayer({ militaryTrack: 1 });
     setTrack(player, 'MILITARY', 5);
     expect(player.militaryTrack).toBe(1);
+  });
+
+  it('caps tax and glory tracks at 10', () => {
+    expect(setTrack(makeTestPlayer(), 'TAX', 12).taxTrack).toBe(10);
+    expect(setTrack(makeTestPlayer(), 'GLORY', 12).gloryTrack).toBe(10);
   });
 });
 

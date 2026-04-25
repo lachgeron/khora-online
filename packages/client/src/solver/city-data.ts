@@ -6,7 +6,8 @@
  */
 
 import type { SolverState, FrozenOpponent, SolverAction, KnowledgeCounts } from './types';
-import { advanceProgressTrack } from './tracks';
+import type { KnowledgeColor, ProgressTrackType } from '../types';
+import { advanceProgressTrack, capTaxGloryTrack } from './tracks';
 import { totalKnowledge, knowledgeCount } from './card-data';
 
 /** Drachma cost required to unlock dev N of the given city. */
@@ -86,11 +87,19 @@ export function applyDevImmediateEffect(
   s: SolverState,
   cityId: string,
   level: number,
+  options: {
+    miletusDev2Tracks?: [ProgressTrackType, ProgressTrackType];
+    spartaDev3Colors?: [KnowledgeColor, KnowledgeColor];
+    argosDev2Reward?: 'TROOPS' | 'COINS' | 'VP' | 'CITIZENS';
+    hasCard?: (id: string) => boolean;
+  } = {},
 ): void {
   // corinth
   if (cityId === 'corinth' && level === 1) { s.coins += 4; return; }
   if (cityId === 'corinth' && level === 2) {
-    s.taxTrack += totalKnowledge(s);
+    const tokenCount = totalKnowledge(s);
+    s.taxTrack = capTaxGloryTrack(s.taxTrack + tokenCount);
+    s.philosophyTokens += tokenCount;
     return;
   }
   // thebes
@@ -99,15 +108,9 @@ export function applyDevImmediateEffect(
   // miletus
   if (cityId === 'miletus' && level === 1) { advanceProgressTrack(s, 'ECONOMY', 1); return; }
   if (cityId === 'miletus' && level === 2) {
-    // Pick any 2 tracks to move up one each (free). Heuristic: pick the two lowest progress tracks.
-    const tracks: Array<{ t: 'ECONOMY' | 'CULTURE' | 'MILITARY'; lvl: number }> = [
-      { t: 'ECONOMY', lvl: s.economyTrack },
-      { t: 'CULTURE', lvl: s.cultureTrack },
-      { t: 'MILITARY', lvl: s.militaryTrack },
-    ];
-    tracks.sort((a, b) => a.lvl - b.lvl);
-    advanceProgressTrack(s, tracks[0].t, 1);
-    advanceProgressTrack(s, tracks[1].t, 1);
+    const tracks = options.miletusDev2Tracks ?? ['ECONOMY', 'CULTURE'];
+    advanceProgressTrack(s, tracks[0], 1);
+    advanceProgressTrack(s, tracks[1], 1);
     return;
   }
   if (cityId === 'miletus' && level === 4) { s.victoryPoints += 15; return; }
@@ -118,47 +121,50 @@ export function applyDevImmediateEffect(
     // useful color (since skull cost is small at minor level, we still pay roughly 2 troops each).
     // Sparta dev-2 ongoing (+1 tax on military) is always unlocked here, so add +2 tax.
     s.troopTrack += 2 * s.militaryTrack;
-    if (s.cityId === 'sparta' && s.developmentLevel >= 2) s.taxTrack += 2;
+    if (s.cityId === 'sparta' && s.developmentLevel >= 2) s.taxTrack = capTaxGloryTrack(s.taxTrack + 2);
     // Rough model: pay 2 troops per minor explore (after Sparta dev-1 discount: 1 each)
     const discount = 1; // sparta dev-1 is unlocked once at dev-3
     const costPerExplore = Math.max(1, 2 - discount);
+    const colors = options.spartaDev3Colors ?? ['BLUE', 'BLUE'];
     for (let i = 0; i < 2; i++) {
       if (s.troopTrack >= costPerExplore) {
         s.troopTrack -= costPerExplore;
-        // Default to blue (Sparta dev-4 scores per blue, otherwise useful generally)
-        s.knowledge.blueMinor += 1;
+        const color = colors[i];
+        if (color === 'GREEN') s.knowledge.greenMinor += 1;
+        else if (color === 'BLUE') s.knowledge.blueMinor += 1;
+        else s.knowledge.redMinor += 1;
       }
     }
     return;
   }
   // olympia
-  if (cityId === 'olympia' && level === 1) { s.taxTrack += 1; return; }
+  if (cityId === 'olympia' && level === 1) { s.taxTrack = capTaxGloryTrack(s.taxTrack + 1); return; }
   if (cityId === 'olympia' && level === 3) { advanceProgressTrack(s, 'CULTURE', 2); return; }
   if (cityId === 'olympia' && level === 4) {
     // Take 3 culture actions. Each culture action grants VP = cultureTrack.
     // We also apply Olympia dev-2's ongoing bonus (+1 troop +1 scroll on culture) per action.
-    // Other ongoing card bonuses (Stoa Poikile +2 coins, Persians +2 troops) are not known
-    // here without access to the hasCard predicate; the action-resolver wiring handles those
-    // separately for regular culture actions, but dev-4 is an immediate burst — we conservatively
-    // include only the base VP gain + Olympia dev-2 ongoing effect.
     for (let i = 0; i < 3; i++) {
       s.victoryPoints += s.cultureTrack;
       // Olympia dev-2 is guaranteed here (dev-4 implies all lower devs unlocked)
       s.troopTrack += 1;
       s.philosophyTokens += 1;
+      if (options.hasCard?.('stoa-poikile')) s.coins += 2;
+      if (options.hasCard?.('persians')) s.troopTrack += 2;
     }
     return;
   }
   // argos
   if (cityId === 'argos' && level === 1) { s.troopTrack += 2; return; }
   if (cityId === 'argos' && level === 2) {
-    // 4-way choice: 2 troops / 3 drachma / 4 VP / 5 citizens. Heuristic: pick highest-value.
-    // 4 VP is typically best; pick VP.
-    s.victoryPoints += 4;
+    const reward = options.argosDev2Reward ?? 'VP';
+    if (reward === 'TROOPS') s.troopTrack += 2;
+    else if (reward === 'COINS') s.coins += 3;
+    else if (reward === 'CITIZENS') s.citizenTrack = Math.min(15, s.citizenTrack + 5);
+    else s.victoryPoints += 4;
     return;
   }
   if (cityId === 'argos' && level === 3) { advanceProgressTrack(s, 'MILITARY', 1); return; }
-  if (cityId === 'argos' && level === 4) { s.gloryTrack += 2; return; }
+  if (cityId === 'argos' && level === 4) { s.gloryTrack = capTaxGloryTrack(s.gloryTrack + 2); return; }
   // athens
   if (cityId === 'athens' && level === 1) { s.philosophyTokens += 3; return; }
 }
@@ -183,7 +189,7 @@ export function applyDevOngoingOnAction(
   }
   // Sparta dev-2: +1 taxes on military
   if (cityId === 'sparta' && devLevel >= 2 && action === 'MILITARY') {
-    s.taxTrack += 1;
+    s.taxTrack = capTaxGloryTrack(s.taxTrack + 1);
   }
 }
 
@@ -228,7 +234,7 @@ export function devEndGameVP(cityId: string, devLevel: number, s: SolverState, p
   if (cityId === 'corinth') return 2 * totalKnowledge(s);
   if (cityId === 'thebes') {
     const minors = s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
-    return 2 * minors;
+    return 3 * minors;
   }
   if (cityId === 'sparta') return 4 * knowledgeCount(s, 'BLUE');
   if (cityId === 'athens') return 3 * politicsCardCount;

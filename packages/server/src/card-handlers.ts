@@ -16,7 +16,7 @@
 import type { GameState, PlayerState, ActionType, PoliticsCard, ActionChoices } from '@khora/shared';
 import { createMinorToken } from './knowledge-tokens';
 import { applyEffectToPlayer } from './effects';
-import { advanceTrack } from './resources';
+import { advanceTrack, MAX_TAX_GLORY_TRACK } from './resources';
 
 // ─── ONGOING CARD TRIGGERS ───────────────────────────────────────────────────
 
@@ -219,10 +219,10 @@ const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, ch
   'colossus-of-rhodes': (s, pid) => updatePlayer(s, pid, p => ({ ...p, victoryPoints: p.victoryPoints + 10 })),
 
   // Quarry: gain 1 taxes
-  'quarry': (s, pid) => updatePlayer(s, pid, p => ({ ...p, taxTrack: p.taxTrack + 1 })),
+  'quarry': (s, pid) => updatePlayer(s, pid, p => ({ ...p, taxTrack: Math.min(p.taxTrack + 1, MAX_TAX_GLORY_TRACK) })),
 
   // Silver Mining: gain 2 taxes
-  'silver-mining': (s, pid) => updatePlayer(s, pid, p => ({ ...p, taxTrack: p.taxTrack + 2 })),
+  'silver-mining': (s, pid) => updatePlayer(s, pid, p => ({ ...p, taxTrack: Math.min(p.taxTrack + 2, MAX_TAX_GLORY_TRACK) })),
 
   // Peripteros: move up 1 culture for free (with milestone rewards)
   'peripteros': (s, pid) => updatePlayer(s, pid, p => advanceTrack(p, 'CULTURE', 1)),

@@ -4,6 +4,8 @@ import type { SolverResult, RoundPlan, Plan } from '../types';
 interface SolverPanelProps {
   result: SolverResult | null;
   stale: boolean;
+  godMode: boolean;
+  onGodModeChange: (enabled: boolean) => void;
   onClose: () => void;
 }
 
@@ -15,7 +17,7 @@ interface SolverPanelProps {
  * While stale (after a state change, before a fresh result arrives) the
  * content is greyed out and a spinner is shown.
  */
-export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, onClose }) => {
+export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode, onGodModeChange, onClose }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -29,6 +31,15 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, onClose
             Live
           </span>
         </div>
+        <label className="flex items-center gap-2 text-xs text-sand-700">
+          <input
+            type="checkbox"
+            checked={godMode}
+            onChange={(e) => onGodModeChange(e.currentTarget.checked)}
+            className="h-3.5 w-3.5 accent-terracotta"
+          />
+          <span>God-mode</span>
+        </label>
         <button
           onClick={onClose}
           className="text-sand-500 hover:text-sand-800 transition-colors text-xl leading-none"
@@ -44,7 +55,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, onClose
         ) : !result.ok ? (
           <UnavailableView message={result.message} stale={stale} />
         ) : (
-          <PlanView plan={result.plan} stale={stale} expanded={expanded} onToggleExpanded={() => setExpanded((v) => !v)} />
+          <PlanView plan={result.plan} stale={stale} godMode={godMode} expanded={expanded} onToggleExpanded={() => setExpanded((v) => !v)} />
         )}
       </div>
     </div>
@@ -68,9 +79,10 @@ const UnavailableView: React.FC<{ message: string; stale: boolean }> = ({ messag
 const PlanView: React.FC<{
   plan: Plan;
   stale: boolean;
+  godMode: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, expanded, onToggleExpanded }) => {
+}> = ({ plan, stale, godMode, expanded, onToggleExpanded }) => {
   const bestMove = plan.currentRound?.description?.[0] ?? null;
 
   return (
@@ -143,9 +155,14 @@ const PlanView: React.FC<{
       )}
 
       {/* Footer */}
-      <div className="px-5 py-2 border-t border-sand-200 text-[0.65rem] text-sand-500 shrink-0 flex gap-3 mt-auto">
-        <span>last update {plan.computeMs}ms</span>
-        <span>nodes: {plan.exploredNodes.toLocaleString()}</span>
+      <div className="px-5 py-2 border-t border-sand-200 text-[0.65rem] text-sand-500 shrink-0 mt-auto">
+        <div className="flex gap-3">
+          <span>last update {plan.computeMs}ms</span>
+          <span>nodes: {plan.exploredNodes.toLocaleString()}</span>
+        </div>
+        <p className="mt-1">
+          Assumes opponents frozen, future achievements contested, and {godMode ? 'deck cards are swappable.' : 'only known hand cards are playable.'}
+        </p>
       </div>
     </div>
   );

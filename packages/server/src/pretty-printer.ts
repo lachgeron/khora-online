@@ -157,6 +157,7 @@ export function parseGameState(text: string): GameState {
     politicsDeck: new Array(deckSize).fill(null).map((_, i) => ({
       id: `deck-placeholder-${i}`,
       name: '',
+      description: '',
       cost: 0,
       knowledgeRequirement: { green: 0, blue: 0, red: 0 },
       type: 'IMMEDIATE' as const,
@@ -175,7 +176,9 @@ export function parseGameState(text: string): GameState {
     gameLog: [],
     pendingDecisions: [],
     disconnectedPlayers: new Map(),
+    draftMode: 'STANDARD',
     draftState: null,
+    finalScores: null,
     createdAt,
     updatedAt,
   };

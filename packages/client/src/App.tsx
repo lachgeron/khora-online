@@ -546,6 +546,8 @@ export const App: React.FC = () => {
         <SolverPanel
           result={solverMode.result}
           stale={solverMode.stale}
+          godMode={solverMode.godMode}
+          onGodModeChange={solverMode.setGodMode}
           onClose={solverMode.toggle}
         />
       )}

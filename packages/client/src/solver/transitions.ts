@@ -9,11 +9,14 @@
 import type { SolverState, SolverAction, FrozenOpponent, ActionChoice } from './types';
 import type { PoliticsCard } from '../types';
 import {
+  addMaskBit,
   cloneState,
+  hasMaskBit,
   applyOngoingOnAction,
   applyOngoingOnPlayCard,
   applyImmediateCardEffect,
   minorBuyCost,
+  removeMaskBit,
   exploreTroopDiscount,
 } from './card-data';
 import { capTroops } from './tracks';
@@ -91,6 +94,7 @@ export function applyAction(
 
       // Per solver spec: explore[] may contain up to `maxExplore` tokens.
       const toExplore = choice.explore.slice(0, maxExplore);
+      const exploredIds: string[] = [];
       for (const tok of toExplore) {
         // Requirement: troop TRACK must meet militaryRequirement (note: track, not reserve).
         // Then pay skull cost (troops lost), and gain bonus coins + VP.
@@ -98,6 +102,7 @@ export function applyAction(
         const cost = Math.max(0, tok.skullCost - discount);
         if (s.troopTrack < cost) continue;
         s.troopTrack -= cost;
+        exploredIds.push(tok.id);
         s.coins += tok.bonusCoins;
         s.victoryPoints += tok.bonusVP;
         if (tok.isPersepolis) {
@@ -115,14 +120,17 @@ export function applyAction(
           else s.knowledge.redMinor += 1;
         }
       }
+      if (exploredIds.length > 0) {
+        const consumed = new Set(exploredIds);
+        s.boardTokens = s.boardTokens.filter(tok => !consumed.has(tok.id));
+      }
       capTroops(s);
       return;
     }
     case 'POLITICS': {
       const idx = choice.cardIndex;
       if (idx < 0 || idx >= cardIds.length) return;
-      const cardBit = 1 << idx;
-      if ((s.handMask & cardBit) === 0) return; // not in hand
+      if (!hasMaskBit(s.handMask, idx)) return; // not in hand
       const cardId = cardIds[idx];
       const card = allCards[idx];
       if (!card) return;
@@ -133,13 +141,15 @@ export function applyAction(
       const pairsNeeded = choice.philosophyPairs ?? 0;
       if (s.philosophyTokens < pairsNeeded * 2) return;
       s.philosophyTokens -= pairsNeeded * 2;
-      s.handMask &= ~cardBit;
-      s.playedMask |= cardBit;
+      s.handMask = removeMaskBit(s.handMask, idx);
+      s.playedMask = addMaskBit(s.playedMask, idx);
       // Play-card triggers
       applyOngoingOnPlayCard(s, hasCardFn, cardId);
       applyDevOngoingOnPlayCard(s, cityId, devLevel);
       // Immediate effect
-      applyImmediateCardEffect(s, cardId, opponents);
+      applyImmediateCardEffect(s, cardId, opponents, {
+        scholarlyWelcomeColor: choice.scholarlyWelcomeColor,
+      });
       // Action triggers
       applyOngoingOnAction(s, 'POLITICS', hasCardFn);
       applyDevOngoingOnAction(s, 'POLITICS', cityId, devLevel);
@@ -158,7 +168,12 @@ export function applyAction(
       s.philosophyTokens -= pairsNeeded * 2;
       s.coins -= cost;
       s.developmentLevel = newLevel;
-      applyDevImmediateEffect(s, cityId, newLevel);
+      applyDevImmediateEffect(s, cityId, newLevel, {
+        miletusDev2Tracks: choice.miletusDev2Tracks,
+        spartaDev3Colors: choice.spartaDev3Colors,
+        argosDev2Reward: choice.argosDev2Reward,
+        hasCard: hasCardFn,
+      });
       applyOngoingOnAction(s, 'DEVELOPMENT', hasCardFn);
       applyDevOngoingOnAction(s, 'DEVELOPMENT', cityId, devLevel + 1);
       return;

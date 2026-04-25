@@ -9,7 +9,7 @@
 import type { GameState, PlayerState } from '@khora/shared';
 import type { ActionChoices } from '@khora/shared';
 import { explore } from './knowledge-tokens';
-import { advanceTrack, addVP } from './resources';
+import { advanceTrack, addVP, MAX_TAX_GLORY_TRACK } from './resources';
 import { applyOngoingEffects } from './card-handlers';
 
 function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) => PlayerState): GameState {
@@ -25,9 +25,11 @@ function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) =
  * Called when the development is unlocked via the Development action.
  */
 export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, choices?: ActionChoices) => GameState> = {
-  // Corinth dev 2: Gain taxes equal to the number of tokens you have
+  // Corinth dev 2: Gain taxes and scrolls equal to the number of tokens you have
   'corinth-dev-2': (s, pid) => updatePlayer(s, pid, p => ({
-    ...p, taxTrack: p.taxTrack + p.knowledgeTokens.length,
+    ...p,
+    taxTrack: Math.min(p.taxTrack + p.knowledgeTokens.length, MAX_TAX_GLORY_TRACK),
+    philosophyTokens: p.philosophyTokens + p.knowledgeTokens.length,
   })),
 
   // Miletus dev 2: Choose 2 tracks, move up 1 each free (with milestone rewards)
@@ -63,7 +65,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
 
     // Apply Sparta dev 2 ongoing bonus (+1 tax per military action)
     if (player && hasDevUnlocked(player, 'sparta-dev-2')) {
-      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: p.taxTrack + 1 }));
+      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: Math.min(p.taxTrack + 1, MAX_TAX_GLORY_TRACK) }));
     }
 
     // Optionally explore first knowledge token
@@ -82,7 +84,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
 
     // Apply Sparta dev 2 ongoing bonus again (+1 tax)
     if (player && hasDevUnlocked(player, 'sparta-dev-2')) {
-      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: p.taxTrack + 1 }));
+      state = updatePlayer(state, pid, p => ({ ...p, taxTrack: Math.min(p.taxTrack + 1, MAX_TAX_GLORY_TRACK) }));
     }
 
     // Optionally explore second knowledge token
@@ -167,7 +169,7 @@ export function applyOngoingDevEffects(
 
   // Sparta dev 2: +1 taxes on military action
   if (actionType === 'MILITARY' && hasDevUnlocked(player, 'sparta-dev-2')) {
-    state = updatePlayer(state, playerId, p => ({ ...p, taxTrack: p.taxTrack + 1 }));
+    state = updatePlayer(state, playerId, p => ({ ...p, taxTrack: Math.min(p.taxTrack + 1, MAX_TAX_GLORY_TRACK) }));
   }
 
   // Miletus dev 3: +3 VP on trade action
@@ -245,9 +247,9 @@ export function calculateDevEndGameScore(player: PlayerState): number {
     score += player.knowledgeTokens.length * 2;
   }
 
-  // Thebes dev 4: 2 VP per minor token
+  // Thebes dev 4: 3 VP per minor token
   if (hasDevUnlocked(player, 'thebes-dev-4')) {
-    score += player.knowledgeTokens.filter(t => t.tokenType === 'MINOR').length * 2;
+    score += player.knowledgeTokens.filter(t => t.tokenType === 'MINOR').length * 3;
   }
 
   // Sparta dev 4: 4 VP per blue token

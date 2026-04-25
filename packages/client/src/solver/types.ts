@@ -8,6 +8,7 @@
  * - Any knowledge token can be acquired via Military exploration.
  * - Citizens are effectively unbounded (but citizen track is still tracked for scoring).
  * - Only cards currently in hand are considered (Legislation / Council draws skipped).
+ * - God-mode may opt into treating unpicked deck cards as playable.
  * - Opponents are frozen at calculation time.
  */
 
@@ -103,6 +104,9 @@ export interface SolverState {
   handMask: number;
   playedMask: number;
 
+  // Public board tokens still available along this simulated line.
+  boardTokens: BoardExplorationToken[];
+
   // Score track
   victoryPoints: number;
 }
@@ -113,8 +117,14 @@ export type ActionChoice =
   | { type: 'CULTURE' }
   | { type: 'TRADE'; buyMinor: KnowledgeColor | null }
   | { type: 'MILITARY'; explore: BoardExplorationToken[] }
-  | { type: 'POLITICS'; cardIndex: number; philosophyPairs: number }
-  | { type: 'DEVELOPMENT'; philosophyPairs: number }
+  | { type: 'POLITICS'; cardIndex: number; philosophyPairs: number; scholarlyWelcomeColor?: KnowledgeColor }
+  | {
+      type: 'DEVELOPMENT';
+      philosophyPairs: number;
+      miletusDev2Tracks?: [ProgressTrackType, ProgressTrackType];
+      spartaDev3Colors?: [KnowledgeColor, KnowledgeColor];
+      argosDev2Reward?: 'TROOPS' | 'COINS' | 'VP' | 'CITIZENS';
+    }
   | { type: 'LEGISLATION' };
 
 /** The full choice set for one round. */
@@ -169,6 +179,8 @@ export interface SolverInput {
   victoryPoints: number;
   handCards: PoliticsCard[];
   playedCards: PoliticsCard[];
+  availableGodModeCards: PoliticsCard[];
+  godMode: boolean;
 
   // Round state
   currentRound: number;                  // 1–9

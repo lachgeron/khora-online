@@ -19,6 +19,7 @@ describe('ScoringEngine', () => {
           {
             id: 'pc1',
             name: 'End Game Card',
+            description: '',
             cost: 3,
             knowledgeRequirement: { green: 0, blue: 0, red: 0 },
             type: 'END_GAME',
@@ -103,6 +104,7 @@ describe('ScoringEngine', () => {
           {
             id: 'pc1',
             name: 'Immediate Card',
+            description: '',
             cost: 2,
             knowledgeRequirement: { green: 0, blue: 0, red: 0 },
             type: 'IMMEDIATE',
@@ -112,6 +114,7 @@ describe('ScoringEngine', () => {
           {
             id: 'pc2',
             name: 'Ongoing Card',
+            description: '',
             cost: 3,
             knowledgeRequirement: { green: 0, blue: 0, red: 0 },
             type: 'ONGOING',

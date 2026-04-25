@@ -7,11 +7,11 @@
  */
 
 import type { SolverState, FrozenOpponent, SolverAction } from './types';
-import { advanceProgressTrack } from './tracks';
+import { advanceProgressTrack, capTaxGloryTrack } from './tracks';
 
 /** Clone a SolverState cheaply (shallow copy is fine — knowledge is replaced below if touched). */
 export function cloneState(s: SolverState): SolverState {
-  return { ...s, knowledge: { ...s.knowledge } };
+  return { ...s, knowledge: { ...s.knowledge }, boardTokens: [...s.boardTokens] };
 }
 
 /** How many knowledge tokens of a given color the player has. */
@@ -32,6 +32,22 @@ export function majorCount(s: SolverState): number {
 
 export function minorCount(s: SolverState): number {
   return s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
+}
+
+export function bitFor(index: number): number {
+  return 2 ** index;
+}
+
+export function hasMaskBit(mask: number, index: number): boolean {
+  return Math.floor(mask / bitFor(index)) % 2 === 1;
+}
+
+export function addMaskBit(mask: number, index: number): number {
+  return hasMaskBit(mask, index) ? mask : mask + bitFor(index);
+}
+
+export function removeMaskBit(mask: number, index: number): number {
+  return hasMaskBit(mask, index) ? mask - bitFor(index) : mask;
 }
 
 // ─── Per-trigger effects (mutate state in place — state is assumed cloned by caller) ───
@@ -94,6 +110,7 @@ export function applyImmediateCardEffect(
   s: SolverState,
   cardId: string,
   opponents: FrozenOpponent[],
+  options?: { scholarlyWelcomeColor?: 'GREEN' | 'BLUE' | 'RED' },
 ): void {
   switch (cardId) {
     // ─── Straightforward effects ───
@@ -101,8 +118,8 @@ export function applyImmediateCardEffect(
     case 'archives': s.philosophyTokens += 3; return;
     case 'tunnel-of-eupalinos': s.victoryPoints += 6; return;
     case 'colossus-of-rhodes': s.victoryPoints += 10; return;
-    case 'quarry': s.taxTrack += 1; return;
-    case 'silver-mining': s.taxTrack += 2; return;
+    case 'quarry': s.taxTrack = capTaxGloryTrack(s.taxTrack + 1); return;
+    case 'silver-mining': s.taxTrack = capTaxGloryTrack(s.taxTrack + 2); return;
     case 'greek-fire': s.troopTrack += 4; return;
     case 'peripteros': advanceProgressTrack(s, 'CULTURE', 1); return;
 
@@ -117,11 +134,9 @@ export function applyImmediateCardEffect(
     }
 
     case 'scholarly-welcome': {
-      // Solver assumption: "any token from the store". Pick whatever color maximizes
-      // future card/dev unlocks. Cheap heuristic: pick the color with least supply.
-      const minColor = pickLeastStockedColor(s);
-      if (minColor === 'GREEN') s.knowledge.greenMinor += 1;
-      else if (minColor === 'BLUE') s.knowledge.blueMinor += 1;
+      const color = options?.scholarlyWelcomeColor ?? pickLeastStockedColor(s);
+      if (color === 'GREEN') s.knowledge.greenMinor += 1;
+      else if (color === 'BLUE') s.knowledge.blueMinor += 1;
       else s.knowledge.redMinor += 1;
       return;
     }
@@ -212,6 +227,10 @@ export function endGameCardVP(cardId: string, s: SolverState): number {
 
 export function popcount(n: number): number {
   let c = 0;
-  while (n) { n &= (n - 1); c++; }
+  let remaining = Math.floor(n);
+  while (remaining > 0) {
+    if (remaining % 2 === 1) c++;
+    remaining = Math.floor(remaining / 2);
+  }
   return c;
 }
