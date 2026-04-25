@@ -43,7 +43,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
-import type { SolverResult, Plan, SolverAction, SolverInput, RoundPlan } from './types';
+import type { SolverResult, Plan, SolverAction, SolverInput, RoundPlan, SolverObjective } from './types';
 import { buildSolverInput, canSolveFromPhase } from './snapshot';
 // eslint-disable-next-line import/no-unresolved
 import SolverWorker from './solver.worker?worker';
@@ -55,6 +55,8 @@ export interface SolverModeState {
   toggle: () => void;
   godMode: boolean;
   setGodMode: (enabled: boolean) => void;
+  objective: SolverObjective;
+  setObjective: (objective: SolverObjective) => void;
   result: SolverResult | null;
   stale: boolean;
 }
@@ -72,6 +74,7 @@ export function useSolverMode(
 ): SolverModeState {
   const [enabled, setEnabled] = useState(false);
   const [godMode, setGodModeState] = useState(false);
+  const [objective, setObjectiveState] = useState<SolverObjective>('MAX_VP');
   const [result, setResult] = useState<SolverResult | null>(null);
   const [stale, setStale] = useState(false);
   // Number of complete rounds the live game has progressed past the snapshot
@@ -112,6 +115,10 @@ export function useSolverMode(
 
   const setGodMode = useCallback((next: boolean) => {
     setGodModeState(next);
+  }, []);
+
+  const setObjective = useCallback((next: SolverObjective) => {
+    setObjectiveState(next);
   }, []);
 
   // Spawn / tear down the worker when solver mode toggles.
@@ -160,7 +167,7 @@ export function useSolverMode(
             planValidRef.current = true;
             return { ok: true, plan: incoming };
           }
-          if (incoming.projectedFinalVP >= prev.plan.projectedFinalVP) {
+          if (incoming.objectiveScore >= prev.plan.objectiveScore) {
             return { ok: true, plan: incoming };
           }
           return prev;
@@ -226,7 +233,7 @@ export function useSolverMode(
       return;
     }
 
-    const newInput = buildSolverInput(gameState, privateState, currentPlayerId, godMode);
+    const newInput = buildSolverInput(gameState, privateState, currentPlayerId, godMode, objective);
     if (!newInput) return;
 
     // Structural comparison: if every field the solver consumes is identical,
@@ -305,7 +312,7 @@ export function useSolverMode(
     // alone (next worker output only replaces the plan if it's better).
     setShift(0);
     scheduleRestart(RESTART_DEBOUNCE_MS);
-  }, [enabled, gameState, privateState, currentPlayerId, godMode, setShift]);
+  }, [enabled, gameState, privateState, currentPlayerId, godMode, objective, setShift]);
 
   // Pause/resume on tab visibility change to reclaim CPU when hidden.
   useEffect(() => {
@@ -350,7 +357,7 @@ export function useSolverMode(
     };
   }, [result, shiftRounds]);
 
-  return { enabled, toggle, godMode, setGodMode, result: shiftedResult, stale };
+  return { enabled, toggle, godMode, setGodMode, objective, setObjective, result: shiftedResult, stale };
 }
 
 /**
@@ -464,6 +471,13 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
   if (prev.availableAchievementIds.length !== next.availableAchievementIds.length) return true;
   for (let i = 0; i < prev.availableAchievementIds.length; i++) {
     if (prev.availableAchievementIds[i] !== next.availableAchievementIds[i]) return true;
+  }
+  if ((prev.diceRoll ?? []).join(',') !== (next.diceRoll ?? []).join(',')) return true;
+  if (prev.unresolvedAssignedActions.length !== next.unresolvedAssignedActions.length) return true;
+  for (let i = 0; i < prev.unresolvedAssignedActions.length; i++) {
+    const a = prev.unresolvedAssignedActions[i];
+    const b = next.unresolvedAssignedActions[i];
+    if (a.action !== b.action || a.dieValue !== b.dieValue || a.citizenCost !== b.citizenCost) return true;
   }
   return false;
 }

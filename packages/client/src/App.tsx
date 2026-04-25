@@ -543,13 +543,15 @@ export const App: React.FC = () => {
       )}
 
       {solverMode.enabled && (
-        <SolverPanel
-          result={solverMode.result}
-          stale={solverMode.stale}
-          godMode={solverMode.godMode}
-          onGodModeChange={solverMode.setGodMode}
-          onClose={solverMode.toggle}
-        />
+          <SolverPanel
+            result={solverMode.result}
+            stale={solverMode.stale}
+            godMode={solverMode.godMode}
+            onGodModeChange={solverMode.setGodMode}
+            objective={solverMode.objective}
+            onObjectiveChange={solverMode.setObjective}
+            onClose={solverMode.toggle}
+          />
       )}
 
       {adminPanel === 'events' && adminEventCards && (

@@ -146,6 +146,7 @@ export function parseGameState(text: string): GameState {
     roundNumber,
     currentPhase,
     players,
+    predeterminedDice: {},
     eventDeck: new Array(eventDeckSize).fill(null).map((_, i) => ({
       id: `event-placeholder-${i}`,
       name: '',

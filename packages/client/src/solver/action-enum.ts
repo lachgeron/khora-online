@@ -6,7 +6,7 @@
  * the branching factor manageable.
  */
 
-import type { SolverState, FrozenOpponent, ActionChoice, SolverAction, BoardExplorationToken } from './types';
+import type { SolverState, FrozenOpponent, ActionChoice, SolverAction, BoardExplorationToken, SolverDiceAssignment } from './types';
 import type { KnowledgeColor, PoliticsCard, ProgressTrackType } from '../types';
 import { ACTION_NUMBERS } from '../types';
 import { applyAction } from './transitions';
@@ -17,6 +17,14 @@ import { devKnowledgeRequirement, devDrachmaCost, hasThebesDev3, hasSpartaDev1 }
 export interface ActionPlan {
   choices: ActionChoice[];
   state: SolverState;
+  diceAssignments: SolverDiceAssignment[];
+  citizenCost: number;
+}
+
+export interface ActionEnumerationOptions {
+  diceRoll?: number[] | null;
+  forcedAssignments?: SolverDiceAssignment[];
+  citizenCostsAlreadyPaid?: boolean;
 }
 
 /**
@@ -34,7 +42,7 @@ function candidateSingleChoices(
     !usedActions.has(action) && actionNumber(action) > highestUsedActionNumber(usedActions);
 
   if (canTakeNext('PHILOSOPHY')) out.push({ type: 'PHILOSOPHY' });
-  if (canTakeNext('LEGISLATION') && s.round === 1 && !s.legislationDoneThisRound) {
+  if (canTakeNext('LEGISLATION') && !s.legislationDoneThisRound) {
     out.push({ type: 'LEGISLATION' });
   }
   if (canTakeNext('CULTURE')) out.push({ type: 'CULTURE' });
@@ -302,16 +310,28 @@ export function enumerateActionPlans(
   allCards: PoliticsCard[],
   opponents: FrozenOpponent[],
   topK: number,
+  options: ActionEnumerationOptions = {},
   usedActions: Set<SolverAction> = new Set(s.actionsAlreadyTaken),
+  depth: number = 0,
 ): ActionPlan[] {
-  if (slotsLeft <= 0) return [{ choices: [], state: s }];
+  if (slotsLeft <= 0) {
+    const finalized = finalizeActionPlan(s, [], [], cardIds, allCards, opponents, options);
+    return finalized ? [finalized] : [];
+  }
 
   const candidates = candidateSingleChoices(s, cardIds, allCards, usedActions);
-  if (candidates.length === 0) return [{ choices: [], state: s }];
+  const forcedAction = options.forcedAssignments?.[depth]?.action;
+  const filteredCandidates = forcedAction
+    ? candidates.filter(c => c.type === forcedAction)
+    : candidates;
+  if (filteredCandidates.length === 0) {
+    const finalized = finalizeActionPlan(s, [], [], cardIds, allCards, opponents, options);
+    return finalized ? [finalized] : [];
+  }
 
   const scored: { choice: ActionChoice; next: SolverState; score: number }[] = [];
   const baseScore = heuristicScore(s, cardIds);
-  for (const c of candidates) {
+  for (const c of filteredCandidates) {
     const next = cloneState(s);
     applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
@@ -327,16 +347,109 @@ export function enumerateActionPlans(
   for (const t of top) {
     const nextUsed = new Set(usedActions);
     nextUsed.add(t.choice.type);
-    // All actions consume 1 slot (including LEGISLATION in R1).
-    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, nextUsed);
+    // All actions consume 1 slot.
+    const subPlans = enumerateActionPlans(t.next, slotsLeft - 1, cardIds, allCards, opponents, topK, options, nextUsed, depth + 1);
     for (const sp of subPlans) {
+      const choices = [t.choice, ...sp.choices];
+      const finalized = depth === 0
+        ? finalizeActionPlan(s, choices, sp.diceAssignments, cardIds, allCards, opponents, options)
+        : null;
       plans.push({
-        choices: [t.choice, ...sp.choices],
-        state: sp.state,
+        choices,
+        state: finalized?.state ?? sp.state,
+        diceAssignments: finalized?.diceAssignments ?? sp.diceAssignments,
+        citizenCost: finalized?.citizenCost ?? sp.citizenCost,
       });
     }
   }
   return plans;
+}
+
+function finalizeActionPlan(
+  initial: SolverState,
+  choices: ActionChoice[],
+  existingAssignments: SolverDiceAssignment[],
+  cardIds: string[],
+  allCards: PoliticsCard[],
+  opponents: FrozenOpponent[],
+  options: ActionEnumerationOptions,
+): ActionPlan | null {
+  const assignment = chooseDiceAssignment(choices, options, existingAssignments);
+  if (!assignment) return null;
+  if (!options.citizenCostsAlreadyPaid && assignment.citizenCost > initial.citizenTrack) return null;
+
+  const replay = cloneState(initial);
+  if (!options.citizenCostsAlreadyPaid) {
+    replay.citizenTrack -= assignment.citizenCost;
+  }
+  for (const choice of choices) {
+    applyAction(replay, choice, cardIds, allCards, opponents, (id) => {
+      const idx = cardIds.indexOf(id);
+      return idx >= 0 && hasMaskBit(replay.playedMask, idx);
+    });
+  }
+  return {
+    choices,
+    state: replay,
+    diceAssignments: assignment.assignments,
+    citizenCost: assignment.citizenCost,
+  };
+}
+
+function chooseDiceAssignment(
+  choices: ActionChoice[],
+  options: ActionEnumerationOptions,
+  existingAssignments: SolverDiceAssignment[],
+): { assignments: SolverDiceAssignment[]; citizenCost: number } | null {
+  if (options.forcedAssignments && options.forcedAssignments.length > 0) {
+    const assignments = options.forcedAssignments.slice(0, choices.length);
+    if (assignments.length !== choices.length) return null;
+    for (let i = 0; i < choices.length; i++) {
+      if (assignments[i].action !== choices[i].type) return null;
+    }
+    const citizenCost = options.citizenCostsAlreadyPaid
+      ? 0
+      : assignments.reduce((sum, a) => sum + a.citizenCost, 0);
+    return { assignments, citizenCost };
+  }
+
+  const dice = options.diceRoll ?? null;
+  if (!dice || dice.length === 0) {
+    return { assignments: existingAssignments, citizenCost: 0 };
+  }
+  if (choices.length > dice.length) return null;
+  return bestDiceAssignment(choices.map(c => c.type), dice);
+}
+
+function bestDiceAssignment(
+  actions: SolverAction[],
+  dice: number[],
+): { assignments: SolverDiceAssignment[]; citizenCost: number } | null {
+  let best: { assignments: SolverDiceAssignment[]; citizenCost: number } | null = null;
+  const used = new Set<number>();
+  const current: SolverDiceAssignment[] = [];
+
+  const visit = (index: number, cost: number): void => {
+    if (best && cost >= best.citizenCost) return;
+    if (index >= actions.length) {
+      best = { assignments: [...current], citizenCost: cost };
+      return;
+    }
+    const action = actions[index];
+    for (let i = 0; i < dice.length; i++) {
+      if (used.has(i)) continue;
+      const dieValue = dice[i];
+      const citizenCost = Math.max(0, actionNumber(action) - dieValue);
+      used.add(i);
+      current.push({ action, dieValue, citizenCost });
+      visit(index + 1, cost + citizenCost);
+      current.pop();
+      used.delete(i);
+    }
+  };
+
+  visit(0, 0);
+  return best;
 }
 
 /** Cheap heuristic: estimate state value for ranking action candidates. */

@@ -21,6 +21,7 @@ import type {
   PrivatePlayerState,
   DraftState,
   DraftMode,
+  SolverFullState,
 } from '@khora/shared';
 import type { KnowledgeToken } from '@khora/shared';
 
@@ -68,6 +69,65 @@ function shuffle<T>(array: T[]): T[] {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
+}
+
+function rollDie(): number {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function buildPredeterminedDice(players: PlayerInfo[]): GameState['predeterminedDice'] {
+  const schedule: GameState['predeterminedDice'] = {};
+  for (let round = 1; round <= 9; round++) {
+    schedule[round] = {};
+    for (const p of players) {
+      schedule[round][p.playerId] = [rollDie(), rollDie(), rollDie()];
+    }
+  }
+  return schedule;
+}
+
+function buildSolverFullState(state: GameState): SolverFullState {
+  return {
+    roundNumber: state.roundNumber,
+    currentPhase: state.currentPhase,
+    currentEvent: state.currentEvent,
+    eventDeck: state.eventDeck,
+    predeterminedDice: state.predeterminedDice,
+    politicsDeck: state.politicsDeck,
+    centralBoardTokens: state.centralBoardTokens,
+    availableAchievements: state.availableAchievements,
+    claimedAchievements: Object.fromEntries(state.claimedAchievements),
+    players: state.players.map(p => ({
+      playerId: p.playerId,
+      playerName: p.playerName,
+      cityId: p.cityId,
+      coins: p.coins,
+      philosophyTokens: p.philosophyTokens,
+      knowledgeTokens: p.knowledgeTokens,
+      economyTrack: p.economyTrack,
+      cultureTrack: p.cultureTrack,
+      militaryTrack: p.militaryTrack,
+      taxTrack: p.taxTrack,
+      gloryTrack: p.gloryTrack,
+      troopTrack: p.troopTrack,
+      citizenTrack: p.citizenTrack,
+      handCards: p.handCards,
+      playedCards: p.playedCards,
+      developmentLevel: p.developmentLevel,
+      diceRoll: p.diceRoll,
+      actionSlots: p.actionSlots,
+      victoryPoints: p.victoryPoints,
+      isConnected: p.isConnected,
+    })),
+    pendingDecisions: state.pendingDecisions.map(d => ({
+      playerId: d.playerId,
+      decisionType: d.decisionType,
+      timeoutAt: d.timeoutAt,
+      usingTimeBank: d.usingTimeBank,
+    })),
+    turnOrder: state.turnOrder,
+    startPlayerId: state.startPlayerId,
+  };
 }
 
 export class GameEngine {
@@ -131,6 +191,7 @@ export class GameEngine {
 
     const eventDeck = [...eventCards];
     const shuffledPolitics = shuffle([...politicsDeck]);
+    const predeterminedDice = buildPredeterminedDice(players);
     const turnOrder = playerStates.map(p => p.playerId);
     const startPlayerId = turnOrder[0] ?? '';
 
@@ -145,6 +206,7 @@ export class GameEngine {
       roundNumber: 1,
       currentPhase: 'CITY_SELECTION',
       players: playerStates,
+      predeterminedDice,
       eventDeck,
       currentEvent: null,
       politicsDeck: shuffledPolitics,
@@ -417,6 +479,7 @@ export class GameEngine {
           handCards: player.handCards,
           playedCards: player.playedCards,
           availableGodModeCards: state.politicsDeck,
+          solverFullState: buildSolverFullState(state),
           offeredCities: offeredCities && offeredCities.length > 0 ? offeredCities : null,
           draftPack,
           draftedCards,
@@ -431,6 +494,7 @@ export class GameEngine {
           handCards: [],
           playedCards: [],
           availableGodModeCards: [],
+          solverFullState: null,
           offeredCities: null,
           draftPack: null,
           draftedCards: null,

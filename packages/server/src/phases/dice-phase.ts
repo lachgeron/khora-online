@@ -92,13 +92,13 @@ export class DicePhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'ALREADY_ROLLED', message: 'Dice already rolled' } };
     }
 
-    // Roll dice
+    // Reveal the dice roll predetermined at game start.
     const hasThirdDie = player.cultureTrack >= THIRD_DIE_CULTURE_LEVEL;
     const diceCount = hasThirdDie ? 3 : 2;
-    const diceRoll: number[] = [];
-    for (let i = 0; i < diceCount; i++) {
-      diceRoll.push(Math.floor(Math.random() * 6) + 1);
-    }
+    const scheduled = state.predeterminedDice[state.roundNumber]?.[playerId];
+    const diceRoll = scheduled
+      ? scheduled.slice(0, diceCount)
+      : Array.from({ length: diceCount }, () => Math.floor(Math.random() * 6) + 1);
 
     const updatedPlayers = [...state.players];
     updatedPlayers[playerIndex] = { ...player, diceRoll };

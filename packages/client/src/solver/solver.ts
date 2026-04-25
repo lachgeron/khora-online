@@ -17,7 +17,10 @@ import type {
   FrozenOpponent,
   ActionChoice,
   BoardExplorationToken,
+  SolverDiceAssignment,
+  SolverObjective,
 } from './types';
+import type { GamePhase, KnowledgeToken, PredeterminedDiceSchedule, SolverFullPlayerState, SolverFullState } from '@khora/shared';
 import type { PoliticsCard, ProgressTrackType } from '../types';
 import { enumerateActionPlans, heuristicScore } from './action-enum';
 import { enumerateProgressPlans } from './progress-enum';
@@ -27,6 +30,7 @@ import { canSolveFromPhase, cardsForSolver } from './snapshot';
 import { getAchievement } from './achievements';
 import { capTaxGloryTrack } from './tracks';
 import type { PublicGameState } from '../types';
+import { applyEventPhase } from './events';
 
 // ─── Setup: build cardIds/allCards list and initial state ───────────────────
 
@@ -47,6 +51,13 @@ interface SolverContext {
   // server has decided which were claimed, only the choice remains). Set
   // when the snapshot is taken during the ACHIEVEMENT phase; 0 otherwise.
   pendingAchievementChoices: number;
+  currentPhase: GamePhase;
+  fullState: SolverFullState | null;
+  objective: SolverObjective;
+  playerId: string;
+  predeterminedDice: PredeterminedDiceSchedule | null;
+  diceRoll: number[] | null;
+  unresolvedAssignedActions: SolverDiceAssignment[];
 }
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -135,13 +146,15 @@ function simulateRoundTopK(
   // 1. Action phase: enumerate action plans for remaining slots.
   const maxSlots = s.cultureTrack >= 4 ? 3 : 2;
   const slotsLeft = Math.max(0, maxSlots - s.slotsConsumedThisRound);
+  const actionOptions = actionEnumerationOptions(s, ctx);
   const actionPlans = enumerateActionPlans(
     s,
-    slotsLeft,
+    actionOptions.forcedAssignments ? actionOptions.forcedAssignments.length : slotsLeft,
     ctx.cardIds,
     ctx.allCards,
     ctx.opponents,
     ctx.actionTopK,
+    actionOptions,
   );
   ctx.nodesExplored.count += actionPlans.length;
 
@@ -168,6 +181,7 @@ function simulateRoundTopK(
     ctx.nodesExplored.count += progressCandidates.length;
 
     for (const pState of progressCandidates) {
+      const eventCandidates = applyEventPhase(pState, ctx);
       // Achievement phase. Per spec, only the *initial* simulated round
       // attempts to claim — future rounds assume opponents have grabbed
       // whatever's still available. Two sub-cases on the initial round:
@@ -177,48 +191,53 @@ function simulateRoundTopK(
       //     +1 Tax / +1 Glory pick remains (`pendingAchievementChoices`).
       // Either way, branch over all (i Tax, N-i Glory) splits — the beam
       // picks whichever serves end-game scoring best.
-      const isInitialRound = pState.round === ctx.initialRound;
-      const postAchievementStates = isInitialRound
-        ? applyAchievementPhase(pState, ctx.availableAchievementIds, ctx.pendingAchievementChoices)
-        : [{ state: pState, claimedNames: [] as string[], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
-
       const startedWithProgressDone = ap.state.progressAlreadyDone;
 
-      for (const ach of postAchievementStates) {
-        const afterTax = cloneState(ach.state);
-        if (!skipTax) {
-          applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
-        }
-        const score = heuristicScore(afterTax, ctx.cardIds);
-        const progressTracks = diffProgressTracks(ap.state, pState);
-        const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-        const totalClaims = ach.claimedNames.length + ach.unnamedClaims;
-        const achievementDelta = totalClaims > 0
-          ? formatAchievementDelta(ach.claimedNames, ach.unnamedClaims, ach.taxAdd, ach.gloryAdd)
-          : null;
-        scored.push({
-          score,
-          result: {
-            stateAfter: afterTax,
-            chosenActions: ap.choices,
-            progressTracks,
-            philosophySpent,
-            description: describeRound(
-              ap.choices,
+      for (const ev of eventCandidates) {
+        const isInitialRound = ev.state.round === ctx.initialRound;
+        const postAchievementStates = isInitialRound
+          ? applyAchievementPhase(ev.state, ctx.availableAchievementIds, ctx.pendingAchievementChoices)
+          : [{ state: ev.state, claimedNames: [] as string[], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
+
+        for (const ach of postAchievementStates) {
+          const afterTax = cloneState(ach.state);
+          if (!skipTax) {
+            applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
+          }
+          const score = rankState(afterTax, ctx);
+          const progressTracks = diffProgressTracks(ap.state, pState);
+          const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
+          const totalClaims = ach.claimedNames.length + ach.unnamedClaims;
+          const achievementDelta = totalClaims > 0
+            ? formatAchievementDelta(ach.claimedNames, ach.unnamedClaims, ach.taxAdd, ach.gloryAdd)
+            : null;
+          scored.push({
+            score,
+            result: {
+              stateAfter: afterTax,
+              chosenActions: ap.choices,
               progressTracks,
               philosophySpent,
-              ctx.cardIds,
-              ctx.allCards,
-              hasCard(pState, 'old-guard', ctx.cardIds),
-              achievementDelta,
-              startedWithProgressDone,
-            ),
-            vpBefore,
-            vpAfter: afterTax.victoryPoints,
-            coinsBefore,
-            coinsAfter: afterTax.coins,
-          },
-        });
+              description: describeRound(
+                ap.choices,
+                progressTracks,
+                philosophySpent,
+                ctx.cardIds,
+                ctx.allCards,
+                hasCard(pState, 'old-guard', ctx.cardIds),
+                ev.description,
+                ap.diceAssignments,
+                ap.citizenCost,
+                achievementDelta,
+                startedWithProgressDone,
+              ),
+              vpBefore,
+              vpAfter: afterTax.victoryPoints,
+              coinsBefore,
+              coinsAfter: afterTax.coins,
+            },
+          });
+        }
       }
     }
   }
@@ -318,10 +337,19 @@ function describeRound(
   cardIds: string[],
   allCards: PoliticsCard[],
   hasOldGuard: boolean,
+  eventDelta: string | null,
+  diceAssignments: SolverDiceAssignment[],
+  citizenCost: number,
   achievementDelta: string | null,
   startedWithProgressDone: boolean,
 ): string[] {
   const bullets: string[] = [];
+  if (diceAssignments.length > 0 && citizenCost > 0) {
+    const parts = diceAssignments
+      .filter(a => a.citizenCost > 0)
+      .map(a => `${formatActionName(a.action)} with ${a.dieValue} (-${a.citizenCost})`);
+    bullets.push(`Dice: spend ${citizenCost} citizens (${parts.join(', ')})`);
+  }
   for (const c of choices) {
     bullets.push(describeChoice(c, cardIds, allCards));
   }
@@ -344,10 +372,42 @@ function describeRound(
       bullets.push(hasOldGuard ? 'Progress: skip (Old Guard +4 VP)' : 'Progress: skip (nothing affordable)');
     }
   }
+  if (eventDelta) {
+    bullets.push(eventDelta);
+  }
   if (achievementDelta) {
     bullets.push(`Achievement: ${achievementDelta}`);
   }
   return bullets;
+}
+
+function formatActionName(action: SolverDiceAssignment['action']): string {
+  return action.charAt(0) + action.slice(1).toLowerCase();
+}
+
+function actionEnumerationOptions(
+  s: SolverState,
+  ctx: SolverContext,
+): {
+  diceRoll?: number[] | null;
+  forcedAssignments?: SolverDiceAssignment[];
+  citizenCostsAlreadyPaid?: boolean;
+} {
+  if (s.round === ctx.initialRound && ctx.currentPhase === 'ACTIONS' && ctx.unresolvedAssignedActions.length > 0) {
+    return {
+      forcedAssignments: ctx.unresolvedAssignedActions,
+      citizenCostsAlreadyPaid: true,
+    };
+  }
+  if (s.round === ctx.initialRound && ctx.currentPhase === 'DICE' && ctx.diceRoll && ctx.diceRoll.length > 0) {
+    return { diceRoll: ctx.diceRoll };
+  }
+  const scheduled = ctx.predeterminedDice?.[s.round]?.[ctx.playerId];
+  if (scheduled && scheduled.length > 0) {
+    const diceCount = s.cultureTrack >= 4 ? 3 : 2;
+    return { diceRoll: scheduled.slice(0, diceCount) };
+  }
+  return {};
 }
 
 function describeChoice(
@@ -466,6 +526,117 @@ function diversifyBeam<T extends { state: SolverState }>(
   return chosen;
 }
 
+function rankState(s: SolverState, ctx: SolverContext): number {
+  const ownScore = heuristicScore(s, ctx.cardIds);
+  if (ctx.objective !== 'WIN_MARGIN') return ownScore;
+  return ownScore - estimateStrongestOpponentVP(s, ctx);
+}
+
+function finalObjectiveScore(
+  s: SolverState,
+  ctx: SolverContext,
+  cardIds: string[],
+  allCards: PoliticsCard[],
+): number {
+  const ownVP = finalizeScore(s, cardIds, allCards).total;
+  if (ctx.objective !== 'WIN_MARGIN') return ownVP;
+  return ownVP - estimateStrongestOpponentVP(s, ctx);
+}
+
+function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext): number {
+  if (!ctx.fullState) return 0;
+  let strongest = 0;
+  for (const p of ctx.fullState.players) {
+    if (p.playerId === ctx.playerId || !p.isConnected) continue;
+    strongest = Math.max(strongest, estimateOpponentVP(p, s.boardTokens, ctx.fullState.roundNumber));
+  }
+  return strongest;
+}
+
+function estimateOpponentVP(
+  p: SolverFullPlayerState,
+  remainingBoardTokens: BoardExplorationToken[],
+  currentRound: number,
+): number {
+  const cardIds = p.playedCards.map(c => c.id);
+  let playedMask = 0;
+  for (let i = 0; i < cardIds.length; i++) playedMask = addMaskBit(playedMask, i);
+  const state: SolverState = {
+    round: currentRound,
+    actionsAlreadyTaken: [],
+    slotsConsumedThisRound: 0,
+    progressAlreadyDone: false,
+    legislationDoneThisRound: false,
+    economyTrack: p.economyTrack,
+    cultureTrack: p.cultureTrack,
+    militaryTrack: p.militaryTrack,
+    taxTrack: p.taxTrack,
+    gloryTrack: p.gloryTrack,
+    troopTrack: p.troopTrack,
+    citizenTrack: p.citizenTrack,
+    coins: p.coins,
+    philosophyTokens: p.philosophyTokens,
+    knowledge: knowledgeFromTokens(p.knowledgeTokens),
+    cityId: p.cityId,
+    developmentLevel: p.developmentLevel,
+    handMask: 0,
+    playedMask,
+    handSlots: p.handCards.length,
+    godMode: false,
+    boardTokens: remainingBoardTokens,
+    victoryPoints: p.victoryPoints,
+  };
+  const currentFinal = finalizeScore(state, cardIds, p.playedCards).total;
+  const roundsLeft = Math.max(0, 10 - currentRound);
+  const tempo = roundsLeft * (
+    2.5 +
+    p.economyTrack * 0.9 +
+    p.cultureTrack * 1.1 +
+    p.militaryTrack * 1.1 +
+    p.taxTrack * 0.7 +
+    p.gloryTrack * 0.4
+  );
+  const handPotential = Math.min(p.handCards.length, roundsLeft) * 2.5;
+  const boardPotential = estimateOpponentBoardPotential(p, remainingBoardTokens, roundsLeft);
+  return currentFinal + tempo + handPotential + boardPotential;
+}
+
+function knowledgeFromTokens(tokens: KnowledgeToken[]): SolverState['knowledge'] {
+  const knowledge = {
+    greenMinor: 0, blueMinor: 0, redMinor: 0,
+    greenMajor: 0, blueMajor: 0, redMajor: 0,
+  };
+  for (const t of tokens) {
+    if (t.tokenType === 'MAJOR') {
+      if (t.color === 'GREEN') knowledge.greenMajor++;
+      else if (t.color === 'BLUE') knowledge.blueMajor++;
+      else knowledge.redMajor++;
+    } else {
+      if (t.color === 'GREEN') knowledge.greenMinor++;
+      else if (t.color === 'BLUE') knowledge.blueMinor++;
+      else knowledge.redMinor++;
+    }
+  }
+  return knowledge;
+}
+
+function estimateOpponentBoardPotential(
+  p: SolverFullPlayerState,
+  remainingBoardTokens: BoardExplorationToken[],
+  roundsLeft: number,
+): number {
+  if (roundsLeft <= 0 || remainingBoardTokens.length === 0) return 0;
+  const potentialTroops = Math.min(15, p.troopTrack + p.militaryTrack * roundsLeft);
+  const values = remainingBoardTokens
+    .filter(t => t.militaryRequirement <= potentialTroops)
+    .map(t => {
+      const majorValue = t.isPersepolis ? p.gloryTrack * 3 + 8 : t.tokenType === 'MAJOR' ? p.gloryTrack + 2 : 1;
+      return t.bonusVP + t.bonusCoins * 0.5 + majorValue - Math.max(0, t.skullCost) * 0.2;
+    })
+    .sort((a, b) => b - a);
+  return values.slice(0, Math.min(roundsLeft, 4)).reduce((sum, v) => sum + Math.max(0, v), 0);
+}
+
 // ─── Entry point ────────────────────────────────────────────────────────────
 
 export interface RunSolverOptions {
@@ -509,6 +680,27 @@ export async function runSolver(
 
   const nodesExploredShared = { count: 0 };
 
+  const makeContext = (beamWidth: number, actionTopK: number): SolverContext => ({
+    cardIds,
+    allCards: allCardObjs,
+    opponents: input.opponents,
+    shouldAbort,
+    nodesExplored: nodesExploredShared,
+    beamWidth,
+    actionTopK,
+    initialRound: initialState.round,
+    initialRoundTaxApplied: input.initialRoundTaxApplied,
+    availableAchievementIds: input.availableAchievementIds,
+    pendingAchievementChoices: input.pendingAchievementChoices,
+    currentPhase: input.currentPhase,
+    fullState: input.fullState,
+    objective: input.objective,
+    playerId: input.playerId,
+    predeterminedDice: input.predeterminedDice,
+    diceRoll: input.diceRoll,
+    unresolvedAssignedActions: input.unresolvedAssignedActions,
+  });
+
   /**
    * Deterministic jitter for ranking diversity in restart passes. Amplitude scales
    * with |seed| so later restarts perturb rankings more aggressively and expose
@@ -531,19 +723,7 @@ export async function runSolver(
 
   /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if aborted. */
   const runBeam = async (beamWidth: number, actionTopK: number, seed: number = 0): Promise<BeamEntry | null> => {
-    const ctx: SolverContext = {
-      cardIds,
-      allCards: allCardObjs,
-      opponents: input.opponents,
-      shouldAbort,
-      nodesExplored: nodesExploredShared,
-      beamWidth,
-      actionTopK,
-      initialRound: initialState.round,
-      initialRoundTaxApplied: input.initialRoundTaxApplied,
-      availableAchievementIds: input.availableAchievementIds,
-      pendingAchievementChoices: input.pendingAchievementChoices,
-    };
+    const ctx = makeContext(beamWidth, actionTopK);
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
@@ -574,8 +754,8 @@ export async function runSolver(
       }
       if (nextBeam.length === 0) return null;
       nextBeam.sort((a, b) =>
-        (heuristicScore(b.state, cardIds) + rankJitter(b.state, seed)) -
-        (heuristicScore(a.state, cardIds) + rankJitter(a.state, seed))
+        (rankState(b.state, ctx) + rankJitter(b.state, seed)) -
+        (rankState(a.state, ctx) + rankJitter(a.state, seed))
       );
       beam = diversifyBeam(nextBeam, beamWidth);
       // Yield to host event loop between rounds so pending worker messages
@@ -586,7 +766,7 @@ export async function runSolver(
     let best: BeamEntry | null = null;
     let bestScore = -Infinity;
     for (const entry of beam) {
-      const sc = finalizeScore(entry.state, cardIds, allCardObjs).total;
+      const sc = finalObjectiveScore(entry.state, ctx, cardIds, allCardObjs);
       if (sc > bestScore) { bestScore = sc; best = entry; }
     }
     return best;
@@ -596,11 +776,11 @@ export async function runSolver(
   let overallBestVP = -Infinity;
 
   const reportIfBetter = (result: BeamEntry): void => {
-    const vp = finalizeScore(result.state, cardIds, allCardObjs).total;
-    if (vp <= overallBestVP) return;
-    overallBestVP = vp;
+    const objectiveScore = finalObjectiveScore(result.state, makeContext(0, 0), cardIds, allCardObjs);
+    if (objectiveScore <= overallBestVP) return;
+    overallBestVP = objectiveScore;
     overallBest = result;
-    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start));
+    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start, makeContext(0, 0)));
   };
 
   // Phase 1: iterative deepening — start narrow (fast first result) and widen
@@ -660,6 +840,10 @@ export async function runSolver(
       ok: true,
       plan: {
         projectedFinalVP: 0,
+        objective: input.objective,
+        objectiveScore: 0,
+        projectedWinMargin: null,
+        strongestOpponentVP: null,
         vpBreakdown: { scoreTrack: 0, politicsCards: 0, developments: 0, gloryTimesMajors: 0 },
         currentRound: null,
         futureRounds: [],
@@ -672,7 +856,7 @@ export async function runSolver(
 
   return {
     ok: true,
-    plan: buildPlan(overallBest, cardIds, allCardObjs, nodesExploredShared, start),
+    plan: buildPlan(overallBest, cardIds, allCardObjs, nodesExploredShared, start, makeContext(0, 0)),
   };
 }
 
@@ -682,12 +866,22 @@ function buildPlan(
   allCardObjs: PoliticsCard[],
   nodesExploredShared: { count: number },
   start: number,
+  ctx: SolverContext,
 ): Plan {
   const finalized = finalizeScore(best.state, cardIds, allCardObjs);
+  const strongestOpponentVP = ctx.fullState ? estimateStrongestOpponentVP(best.state, ctx) : null;
+  const projectedWinMargin = strongestOpponentVP === null ? null : finalized.total - strongestOpponentVP;
+  const objectiveScore = ctx.objective === 'WIN_MARGIN' && projectedWinMargin !== null
+    ? projectedWinMargin
+    : finalized.total;
   const currentRound = best.roundPlans.length > 0 ? best.roundPlans[0] : null;
   const futureRounds = best.roundPlans.slice(1);
   return {
     projectedFinalVP: finalized.total,
+    objective: ctx.objective,
+    objectiveScore,
+    projectedWinMargin,
+    strongestOpponentVP,
     vpBreakdown: finalized.breakdown,
     currentRound,
     futureRounds,

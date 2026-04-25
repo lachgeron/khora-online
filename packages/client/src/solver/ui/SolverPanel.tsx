@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import type { SolverResult, RoundPlan, Plan } from '../types';
+import type { SolverObjective, SolverResult, RoundPlan, Plan } from '../types';
 
 interface SolverPanelProps {
   result: SolverResult | null;
   stale: boolean;
   godMode: boolean;
   onGodModeChange: (enabled: boolean) => void;
+  objective: SolverObjective;
+  onObjectiveChange: (objective: SolverObjective) => void;
   onClose: () => void;
 }
 
@@ -17,7 +19,7 @@ interface SolverPanelProps {
  * While stale (after a state change, before a fresh result arrives) the
  * content is greyed out and a spinner is shown.
  */
-export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode, onGodModeChange, onClose }) => {
+export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode, onGodModeChange, objective, onObjectiveChange, onClose }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -30,6 +32,20 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode
           <span className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold px-1.5 py-0.5 bg-terracotta/10 rounded">
             Live
           </span>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-sand-700">
+          <button
+            onClick={() => onObjectiveChange('MAX_VP')}
+            className={`px-2 py-1 rounded border ${objective === 'MAX_VP' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-200'}`}
+          >
+            Max VP
+          </button>
+          <button
+            onClick={() => onObjectiveChange('WIN_MARGIN')}
+            className={`px-2 py-1 rounded border ${objective === 'WIN_MARGIN' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-200'}`}
+          >
+            Win
+          </button>
         </div>
         <label className="flex items-center gap-2 text-xs text-sand-700">
           <input
@@ -104,6 +120,12 @@ const PlanView: React.FC<{
           <span>Devs: <b>{plan.vpBreakdown.developments}</b></span>
           <span>Glory×majors: <b>{plan.vpBreakdown.gloryTimesMajors}</b></span>
         </div>
+        {plan.objective === 'WIN_MARGIN' && plan.projectedWinMargin !== null && (
+          <div className="mt-2 text-[0.7rem] text-sand-700 flex flex-wrap gap-x-3">
+            <span>Margin: <b>{formatSigned(plan.projectedWinMargin)}</b></span>
+            <span>Strongest opponent: <b>{Math.round(plan.strongestOpponentVP ?? 0)}</b></span>
+          </div>
+        )}
       </div>
 
       {/* Best next move */}
@@ -161,7 +183,8 @@ const PlanView: React.FC<{
           <span>nodes: {plan.exploredNodes.toLocaleString()}</span>
         </div>
         <p className="mt-1">
-          Assumes opponents frozen, future achievements contested, and {godMode ? 'deck cards are swappable.' : 'only known hand cards are playable.'}
+          {plan.objective === 'WIN_MARGIN' ? 'Win mode ranks by estimated margin over the strongest opponent. ' : ''}
+          Assumes {godMode ? 'deck cards are swappable.' : 'only known hand cards are playable.'}
         </p>
       </div>
     </div>
@@ -182,3 +205,8 @@ const RoundBody: React.FC<{ round: RoundPlan }> = ({ round }) => (
     </p>
   </div>
 );
+
+function formatSigned(n: number): string {
+  const rounded = Math.round(n);
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}

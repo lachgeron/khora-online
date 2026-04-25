@@ -11,6 +11,7 @@ import type {
   PublicGameState,
   PublicPlayerState,
   PrivatePlayerState,
+  SolverFullState,
 } from '@khora/shared';
 import { ACTION_NUMBERS } from '@khora/shared';
 import { getAllCityCards } from './game-data';
@@ -63,10 +64,55 @@ export function buildPrivatePlayerState(player: PlayerState): PrivatePlayerState
     handCards: player.handCards,
     playedCards: player.playedCards,
     availableGodModeCards: [],
+    solverFullState: null,
     offeredCities: null,
     draftPack: null,
     draftedCards: null,
     legislationDraw: null,
+  };
+}
+
+export function buildSolverFullState(state: GameState): SolverFullState {
+  return {
+    roundNumber: state.roundNumber,
+    currentPhase: state.currentPhase,
+    currentEvent: state.currentEvent,
+    eventDeck: state.eventDeck,
+    predeterminedDice: state.predeterminedDice,
+    politicsDeck: state.politicsDeck,
+    centralBoardTokens: state.centralBoardTokens,
+    availableAchievements: state.availableAchievements,
+    claimedAchievements: Object.fromEntries(state.claimedAchievements),
+    players: state.players.map(p => ({
+      playerId: p.playerId,
+      playerName: p.playerName,
+      cityId: p.cityId,
+      coins: p.coins,
+      philosophyTokens: p.philosophyTokens,
+      knowledgeTokens: p.knowledgeTokens,
+      economyTrack: p.economyTrack,
+      cultureTrack: p.cultureTrack,
+      militaryTrack: p.militaryTrack,
+      taxTrack: p.taxTrack,
+      gloryTrack: p.gloryTrack,
+      troopTrack: p.troopTrack,
+      citizenTrack: p.citizenTrack,
+      handCards: p.handCards,
+      playedCards: p.playedCards,
+      developmentLevel: p.developmentLevel,
+      diceRoll: p.diceRoll,
+      actionSlots: p.actionSlots,
+      victoryPoints: p.victoryPoints,
+      isConnected: p.isConnected,
+    })),
+    pendingDecisions: state.pendingDecisions.map(d => ({
+      playerId: d.playerId,
+      decisionType: d.decisionType,
+      timeoutAt: d.timeoutAt,
+      usingTimeBank: d.usingTimeBank,
+    })),
+    turnOrder: state.turnOrder,
+    startPlayerId: state.startPlayerId,
   };
 }
 
@@ -179,6 +225,7 @@ export function getStateForPlayer(
     ? {
         ...buildPrivatePlayerState(player),
         availableGodModeCards: state.politicsDeck,
+        solverFullState: buildSolverFullState(state),
         offeredCities,
         draftPack,
         draftedCards,
@@ -193,6 +240,7 @@ export function getStateForPlayer(
         handCards: [],
         playedCards: [],
         availableGodModeCards: [],
+        solverFullState: null,
         offeredCities: null,
         draftPack: null,
         draftedCards: null,

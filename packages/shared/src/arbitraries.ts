@@ -291,6 +291,7 @@ export const arbGameState: fc.Arbitrary<GameState> = fc
         minLength: playerCount,
         maxLength: playerCount,
       }),
+      predeterminedDice: fc.constant({}),
       eventDeck: fc.array(arbEventCard, { minLength: 0, maxLength: 9 }),
       currentEvent: fc.option(arbEventCard, { nil: null }),
       politicsDeck: fc.array(arbPoliticsCard, { minLength: 0, maxLength: 30 }),

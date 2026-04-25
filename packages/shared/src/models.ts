@@ -25,6 +25,9 @@ export interface ActionSlot {
 /** Tuple of action slots: 2 base + optional 3rd from culture track level 4. */
 export type ActionSlotTuple = [ActionSlot | null, ActionSlot | null, ActionSlot | null];
 
+/** Hidden dice schedule generated at game start: round -> player -> three dice. */
+export type PredeterminedDiceSchedule = Record<number, Record<string, number[]>>;
+
 /** Complete state for one player. */
 export interface PlayerState {
   playerId: string;
@@ -160,6 +163,7 @@ export interface GameState {
   roundNumber: number;           // 1–9
   currentPhase: GamePhase;
   players: PlayerState[];
+  predeterminedDice: PredeterminedDiceSchedule;
   eventDeck: EventCard[];        // Remaining event cards
   currentEvent: EventCard | null;
   politicsDeck: PoliticsCard[];  // Draw pile for Legislation

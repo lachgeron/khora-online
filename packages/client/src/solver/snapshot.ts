@@ -9,7 +9,9 @@ import type {
   KnowledgeToken,
   PoliticsCard,
 } from '../types';
-import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken } from './types';
+import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken, SolverDiceAssignment } from './types';
+import type { SolverObjective } from './types';
+import { ACTION_NUMBERS } from '../types';
 import { buildInitialState } from './solver';
 import { applyTaxPhase } from './scoring';
 import { getAchievement } from './achievements';
@@ -31,16 +33,35 @@ export function buildSolverInput(
   privateState: PrivatePlayerState,
   myPlayerId: string,
   godMode = false,
+  objective: SolverObjective = 'MAX_VP',
 ): SolverInput | null {
   const me = publicState.players.find(p => p.playerId === myPlayerId);
   if (!me) return null;
 
+  const fullState = privateState.solverFullState;
+  const fullMe = fullState?.players.find(p => p.playerId === myPlayerId);
   const others = publicState.players.filter(p => p.playerId !== myPlayerId);
-  const opponents: FrozenOpponent[] = others.map(o => ({
-    economyTrack: o.economyTrack,
-    cultureTrack: o.cultureTrack,
-    militaryTrack: o.militaryTrack,
-  }));
+  const opponents: FrozenOpponent[] = fullState
+    ? fullState.players
+      .filter(p => p.playerId !== myPlayerId)
+      .map(o => ({
+        playerId: o.playerId,
+        economyTrack: o.economyTrack,
+        cultureTrack: o.cultureTrack,
+        militaryTrack: o.militaryTrack,
+        coins: o.coins,
+        philosophyTokens: o.philosophyTokens,
+        knowledgeTokens: o.knowledgeTokens,
+        handCards: o.handCards,
+        playedCards: o.playedCards,
+        actionSlots: o.actionSlots,
+      }))
+    : others.map(o => ({
+        playerId: o.playerId,
+        economyTrack: o.economyTrack,
+        cultureTrack: o.cultureTrack,
+        militaryTrack: o.militaryTrack,
+      }));
 
   // Action slots only get cleared when the DICE phase begins. During OMEN /
   // TAXATION of round N, the slots still hold the resolved actions from round
@@ -59,6 +80,18 @@ export function buildSolverInput(
     .map(s => ACTION_MAP[s.actionType])
     .filter((a): a is SolverAction => a !== null);
   const slotsConsumedThisRound = resolvedSlots.length;
+  const privateActionSlots = fullMe?.actionSlots ?? privateState.actionSlots;
+  const unresolvedAssignedActions: SolverDiceAssignment[] = slotsAreFresh
+    ? []
+    : privateActionSlots
+      .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
+      .map(s => ({
+        action: ACTION_MAP[s.actionType]!,
+        dieValue: s.assignedDie,
+        citizenCost: s.citizenCost,
+      }))
+      .filter(a => a.action !== null)
+      .sort((a, b) => ACTION_NUMBERS[a.action] - ACTION_NUMBERS[b.action]);
 
   // Progress already done? Each player resolves a single PROGRESS_TRACK
   // decision (or SKIP_PHASE) during the PROGRESS phase, after which the
@@ -114,24 +147,31 @@ export function buildSolverInput(
     }));
 
   const rawInput: SolverInput = {
+    playerId: myPlayerId,
     cityId: me.cityId,
     developmentLevel: me.developmentLevel,
-    coins: privateState.coins,
-    philosophyTokens: privateState.philosophyTokens,
-    knowledgeTokens,
-    economyTrack: me.economyTrack,
-    cultureTrack: me.cultureTrack,
-    militaryTrack: me.militaryTrack,
-    taxTrack: me.taxTrack,
-    gloryTrack: me.gloryTrack,
-    troopTrack: me.troopTrack,
-    citizenTrack: me.citizenTrack,
-    victoryPoints: me.victoryPoints,
-    handCards: privateState.handCards,
-    playedCards: privateState.playedCards,
-    availableGodModeCards: privateState.availableGodModeCards,
+    coins: fullMe?.coins ?? privateState.coins,
+    philosophyTokens: fullMe?.philosophyTokens ?? privateState.philosophyTokens,
+    knowledgeTokens: fullMe?.knowledgeTokens ?? knowledgeTokens,
+    economyTrack: fullMe?.economyTrack ?? me.economyTrack,
+    cultureTrack: fullMe?.cultureTrack ?? me.cultureTrack,
+    militaryTrack: fullMe?.militaryTrack ?? me.militaryTrack,
+    taxTrack: fullMe?.taxTrack ?? me.taxTrack,
+    gloryTrack: fullMe?.gloryTrack ?? me.gloryTrack,
+    troopTrack: fullMe?.troopTrack ?? me.troopTrack,
+    citizenTrack: fullMe?.citizenTrack ?? me.citizenTrack,
+    victoryPoints: fullMe?.victoryPoints ?? me.victoryPoints,
+    handCards: fullMe?.handCards ?? privateState.handCards,
+    playedCards: fullMe?.playedCards ?? privateState.playedCards,
+    availableGodModeCards: fullState?.politicsDeck ?? privateState.availableGodModeCards,
     godMode,
+    objective,
+    fullState,
+    predeterminedDice: fullState?.predeterminedDice ?? null,
     currentRound: publicState.roundNumber,
+    currentPhase: publicState.currentPhase,
+    diceRoll: fullMe?.diceRoll ?? privateState.diceRoll,
+    unresolvedAssignedActions,
     actionsAlreadyTaken,
     slotsConsumedThisRound,
     progressAlreadyDone,

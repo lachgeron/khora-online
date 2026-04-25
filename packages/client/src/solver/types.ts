@@ -2,27 +2,22 @@
  * Internal types for the optimal-play solver.
  *
  * Assumptions (per feature spec):
- * - Events are ignored entirely.
- * - Achievements are not pursued.
- * - Dice rolls are always perfect (no citizen cost for actions).
+ * - Events are modeled from full-state knowledge; competitive events are
+ *   conservative against opponents' current-round troop ceiling.
+ * - Only current-round achievements are pursued.
+ * - Dice/citizen costs are enforced when known or predetermined.
  * - Any knowledge token can be acquired via Military exploration.
- * - Citizens are effectively unbounded (but citizen track is still tracked for scoring).
- * - Only cards currently in hand are considered (Legislation / Council draws skipped).
+ * - Citizens are tracked for action feasibility and scoring.
+ * - Only cards currently in hand are considered; Legislation adds hand slots
+ *   but normal mode does not invent unknown card identities.
  * - God-mode may opt into treating unpicked deck cards as playable.
  * - Opponents are frozen at calculation time.
  */
 
-import type { KnowledgeColor, PoliticsCard, KnowledgeToken, ProgressTrackType } from '@khora/shared';
+import type { ActionSlotTuple, GamePhase, KnowledgeColor, PoliticsCard, KnowledgeToken, PredeterminedDiceSchedule, ProgressTrackType, SolverFullState } from '@khora/shared';
 // KnowledgeToken kept for historical snapshot shape; not used in ActionChoice.
 
-/**
- * Actions the solver considers.
- *
- * LEGISLATION is only offered as a candidate during round 1 (to reach the
- * 12-citizens achievement via Philosophy + Legislation + 2×Economy progress).
- * It's a "free" slot — does not consume a die slot. Outside of round 1 the
- * solver ignores Legislation entirely.
- */
+/** Actions the solver considers. */
 export type SolverAction =
   | 'PHILOSOPHY'
   | 'CULTURE'
@@ -31,6 +26,14 @@ export type SolverAction =
   | 'POLITICS'
   | 'DEVELOPMENT'
   | 'LEGISLATION';
+
+export interface SolverDiceAssignment {
+  action: SolverAction;
+  dieValue: number;
+  citizenCost: number;
+}
+
+export type SolverObjective = 'MAX_VP' | 'WIN_MARGIN';
 
 export const SOLVER_ACTIONS: SolverAction[] = [
   'PHILOSOPHY',
@@ -63,9 +66,16 @@ export const EMPTY_KNOWLEDGE: KnowledgeCounts = {
 
 /** Snapshot of a frozen opponent used for opponent-dependent card conditions. */
 export interface FrozenOpponent {
+  playerId?: string;
   economyTrack: number;
   cultureTrack: number;
   militaryTrack: number;
+  coins?: number;
+  philosophyTokens?: number;
+  knowledgeTokens?: KnowledgeToken[];
+  handCards?: PoliticsCard[];
+  playedCards?: PoliticsCard[];
+  actionSlots?: ActionSlotTuple;
 }
 
 /**
@@ -76,10 +86,10 @@ export interface SolverState {
   round: number;                       // 1–9 (the round we are about to plan)
 
   // Mid-round fixed state (from snapshot). On round advance, reset.
-  actionsAlreadyTaken: SolverAction[]; // already resolved this round (excluding LEGISLATION)
-  slotsConsumedThisRound: number;      // total dice slots used this round (incl. skipped LEGISLATION)
+  actionsAlreadyTaken: SolverAction[]; // already resolved this round
+  slotsConsumedThisRound: number;      // total dice slots used this round
   progressAlreadyDone: boolean;
-  legislationDoneThisRound: boolean;   // true iff LEGISLATION resolved this round (free-slot tracking)
+  legislationDoneThisRound: boolean;   // true iff LEGISLATION resolved this round
 
   // Tracks
   economyTrack: number;
@@ -150,6 +160,10 @@ export interface RoundPlan {
 /** Final plan returned to the UI. */
 export interface Plan {
   projectedFinalVP: number;
+  objective: SolverObjective;
+  objectiveScore: number;
+  projectedWinMargin: number | null;
+  strongestOpponentVP: number | null;
   vpBreakdown: {
     scoreTrack: number;
     developments: number;
@@ -166,6 +180,7 @@ export interface Plan {
 /** Input to the solver — what the client extracts from game + private state. */
 export interface SolverInput {
   // Direct state fields
+  playerId: string;
   cityId: string;
   developmentLevel: number;
   coins: number;
@@ -183,10 +198,16 @@ export interface SolverInput {
   playedCards: PoliticsCard[];
   availableGodModeCards: PoliticsCard[];
   godMode: boolean;
+  objective: SolverObjective;
+  fullState: SolverFullState | null;
+  predeterminedDice: PredeterminedDiceSchedule | null;
 
   // Round state
   currentRound: number;                  // 1–9
-  actionsAlreadyTaken: SolverAction[];   // in the current round (excluding LEGISLATION)
+  currentPhase: GamePhase;
+  diceRoll: number[] | null;
+  unresolvedAssignedActions: SolverDiceAssignment[];
+  actionsAlreadyTaken: SolverAction[];   // in the current round
   slotsConsumedThisRound: number;        // total resolved dice slots this round
   progressAlreadyDone: boolean;
   legislationDoneThisRound: boolean;     // true iff LEGISLATION was resolved this round

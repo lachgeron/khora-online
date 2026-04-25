@@ -56,6 +56,12 @@ export function makeTestGameState(overrides: Partial<GameState> = {}): GameState
     roundNumber: 1,
     currentPhase: 'OMEN' as GamePhase,
     players,
+    predeterminedDice: Object.fromEntries(
+      Array.from({ length: 9 }, (_, i) => [
+        i + 1,
+        Object.fromEntries(players.map(p => [p.playerId, [1, 2, 3]])),
+      ]),
+    ),
     eventDeck: [],
     currentEvent: null,
     politicsDeck: [],
