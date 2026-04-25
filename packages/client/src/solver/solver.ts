@@ -24,6 +24,7 @@ import { enumerateProgressPlans } from './progress-enum';
 import { applyTaxPhase, finalizeScore } from './scoring';
 import { cloneState, popcount } from './card-data';
 import { canSolveFromPhase } from './snapshot';
+import { getAchievement } from './achievements';
 import type { PublicGameState } from '../types';
 
 // ─── Setup: build cardIds/allCards list and initial state ───────────────────
@@ -39,6 +40,9 @@ interface SolverContext {
   actionTopK: number;
   initialRound: number;    // the first round we were asked to plan for
   initialRoundTaxApplied: boolean;  // if true, skip tax at end of the first simulated round
+  // Achievements still on the board THIS round (the initial round only).
+  // Future rounds in the search assume these are gone (taken by opponents).
+  availableAchievementIds: string[];
 }
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -75,7 +79,6 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     slotsConsumedThisRound: input.slotsConsumedThisRound,
     progressAlreadyDone: input.progressAlreadyDone,
     legislationDoneThisRound: input.legislationDoneThisRound,
-    citizensAchievementClaimed: input.citizensAchievementClaimed,
     economyTrack: input.economyTrack,
     cultureTrack: input.cultureTrack,
     militaryTrack: input.militaryTrack,
@@ -159,22 +162,25 @@ function simulateRoundTopK(
     ctx.nodesExplored.count += progressCandidates.length;
 
     for (const pState of progressCandidates) {
-      // Achievement phase: 12-citizens award (only in round 1, uncontested in practice).
-      // If citizens ≥ 12 and not already claimed, branch into two variants: +1 tax or +1 glory.
-      // This is the only achievement the solver models — elsewhere achievements are ignored.
-      const postAchievementStates = maybeClaimCitizensAchievement(pState);
+      // Achievement phase. Per spec, only the *initial* simulated round
+      // attempts to claim — future rounds assume opponents have grabbed
+      // whatever's still available. Each qualifying achievement contributes
+      // a +1 Tax or +1 Glory choice; we branch over all (i Tax, N-i Glory)
+      // splits so the beam picks whichever serves end-game scoring best.
+      const postAchievementStates = pState.round === ctx.initialRound
+        ? applyAchievementPhase(pState, ctx.availableAchievementIds)
+        : [{ state: pState, claimedNames: [] as string[], taxAdd: 0, gloryAdd: 0 }];
 
-      for (const achState of postAchievementStates) {
-        const afterTax = cloneState(achState);
+      for (const ach of postAchievementStates) {
+        const afterTax = cloneState(ach.state);
         if (!skipTax) {
           applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
         }
         const score = heuristicScore(afterTax, ctx.cardIds);
         const progressTracks = diffProgressTracks(ap.state, pState);
         const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-        const claimedNow = achState.citizensAchievementClaimed && !pState.citizensAchievementClaimed;
-        const achievementDelta = claimedNow
-          ? (achState.taxTrack > pState.taxTrack ? '+1 Tax' : '+1 Glory')
+        const achievementDelta = ach.claimedNames.length > 0
+          ? formatAchievementDelta(ach.claimedNames, ach.taxAdd, ach.gloryAdd)
           : null;
         scored.push({
           score,
@@ -207,29 +213,46 @@ function simulateRoundTopK(
 }
 
 /**
- * 12-Citizens achievement (round 1 only).
+ * Achievement-phase resolution (initial round only — see caller).
  *
- * If citizens ≥ 12 and achievement not yet claimed, returns two state variants:
- * one with +1 Tax track, one with +1 Glory track. Beam search evaluates both.
- * Otherwise returns the input state unchanged.
+ * Looks at every achievement still on the board, checks which the state
+ * qualifies for, and returns one branch per (taxAdd, gloryAdd) split:
+ * for N qualifying achievements there are N+1 branches (i Tax + (N-i) Glory
+ * for i in 0..N). Each claim is independent — multiple achievements stack.
  *
- * Intentionally the only achievement modeled — per user direction, it's the
- * only one that's effectively uncontested in practice (R1 opening).
+ * The per-achievement +1 Tax / +1 Glory choice collapses to N+1 outcomes
+ * (rather than 2^N) because the resulting state depends only on the totals,
+ * not which specific achievement got which choice.
  */
-function maybeClaimCitizensAchievement(s: SolverState): SolverState[] {
-  if (s.citizensAchievementClaimed) return [s];
-  if (s.round !== 1) return [s];
-  if (s.citizenTrack < 12) return [s];
+function applyAchievementPhase(
+  s: SolverState,
+  availableAchievementIds: string[],
+): Array<{ state: SolverState; claimedNames: string[]; taxAdd: number; gloryAdd: number }> {
+  const claimedNames: string[] = [];
+  for (const id of availableAchievementIds) {
+    const def = getAchievement(id);
+    if (def && def.qualifies(s)) claimedNames.push(def.name);
+  }
+  if (claimedNames.length === 0) {
+    return [{ state: s, claimedNames: [], taxAdd: 0, gloryAdd: 0 }];
+  }
 
-  const taxVariant = cloneState(s);
-  taxVariant.taxTrack += 1;
-  taxVariant.citizensAchievementClaimed = true;
+  const branches: Array<{ state: SolverState; claimedNames: string[]; taxAdd: number; gloryAdd: number }> = [];
+  for (let taxAdd = 0; taxAdd <= claimedNames.length; taxAdd++) {
+    const gloryAdd = claimedNames.length - taxAdd;
+    const variant = cloneState(s);
+    variant.taxTrack += taxAdd;
+    variant.gloryTrack += gloryAdd;
+    branches.push({ state: variant, claimedNames, taxAdd, gloryAdd });
+  }
+  return branches;
+}
 
-  const gloryVariant = cloneState(s);
-  gloryVariant.gloryTrack += 1;
-  gloryVariant.citizensAchievementClaimed = true;
-
-  return [taxVariant, gloryVariant];
+function formatAchievementDelta(names: string[], taxAdd: number, gloryAdd: number): string {
+  const parts: string[] = [];
+  if (taxAdd > 0) parts.push(`+${taxAdd} Tax`);
+  if (gloryAdd > 0) parts.push(`+${gloryAdd} Glory`);
+  return `${names.join(', ')} (${parts.join(', ')})`;
 }
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
@@ -328,7 +351,9 @@ function advanceToNextRound(s: SolverState): SolverState {
   next.slotsConsumedThisRound = 0;
   next.progressAlreadyDone = false;
   next.legislationDoneThisRound = false;
-  // citizensAchievementClaimed stays — it's a once-per-game flag.
+  // Achievements: only the initial round considers claims (per spec — future
+  // rounds assume opponents have grabbed whatever's still on the board), so
+  // there's no per-round flag to reset here.
   return next;
 }
 
@@ -479,6 +504,7 @@ export async function runSolver(
       actionTopK,
       initialRound: initialState.round,
       initialRoundTaxApplied: input.initialRoundTaxApplied,
+      availableAchievementIds: input.availableAchievementIds,
     };
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];

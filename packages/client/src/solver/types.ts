@@ -79,7 +79,6 @@ export interface SolverState {
   slotsConsumedThisRound: number;      // total dice slots used this round (incl. skipped LEGISLATION)
   progressAlreadyDone: boolean;
   legislationDoneThisRound: boolean;   // true iff LEGISLATION resolved this round (free-slot tracking)
-  citizensAchievementClaimed: boolean; // true after claiming the 12-citizens achievement (R1 only)        // progress phase already done this round
 
   // Tracks
   economyTrack: number;
@@ -177,7 +176,14 @@ export interface SolverInput {
   slotsConsumedThisRound: number;        // total resolved dice slots this round
   progressAlreadyDone: boolean;
   legislationDoneThisRound: boolean;     // true iff LEGISLATION was resolved this round
-  citizensAchievementClaimed: boolean;   // true iff 12-citizens achievement already claimed
+  /**
+   * Achievement tokens still available for claiming THIS round (i.e. not yet
+   * claimed by anyone, and the achievement phase has not yet run this round).
+   * Empty for any round in which the achievement phase has already completed.
+   * Only the *initial* simulated round considers these — future rounds in the
+   * search tree assume opponents have grabbed whatever is left, per spec.
+   */
+  availableAchievementIds: string[];
   initialRoundTaxApplied: boolean;       // true iff the TAXATION phase has already run this round (false only during OMEN)
 
   // Frozen opponents (for Power / Public Market)

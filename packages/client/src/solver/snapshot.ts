@@ -11,6 +11,7 @@ import type {
 import type { SolverInput, SolverAction, FrozenOpponent, BoardExplorationToken } from './types';
 import { buildInitialState } from './solver';
 import { applyTaxPhase } from './scoring';
+import { getAchievement } from './achievements';
 
 const ACTION_MAP: Record<ActionType, SolverAction | null> = {
   PHILOSOPHY: 'PHILOSOPHY',
@@ -60,12 +61,19 @@ export function buildSolverInput(
   const progressAlreadyDone =
     publicState.currentPhase === 'GLORY' || publicState.currentPhase === 'ACHIEVEMENT';
 
-  // Citizens-12 achievement already processed? Any past-achievement phase in round 1 or later.
-  // If the snapshot is taken after R1 achievement phase, we conservatively treat the reward as
-  // already granted (since taxTrack/gloryTrack reflect the current state).
-  const citizensAchievementClaimed =
-    publicState.roundNumber > 1 ||
-    (publicState.roundNumber === 1 && publicState.currentPhase === 'ACHIEVEMENT');
+  // Achievements still claimable THIS round. The server keeps unclaimed
+  // achievements in `availableAchievements`; once the achievement phase runs,
+  // anything claimed is removed from that list. So once we've reached the
+  // ACHIEVEMENT phase of a round, this round's claim opportunity is gone —
+  // pass an empty list so the solver doesn't double-count. The solver itself
+  // only ever attempts to claim on the *initial* simulated round (per spec:
+  // future-round achievements are assumed to be taken by opponents).
+  const achievementPhaseDone = publicState.currentPhase === 'ACHIEVEMENT';
+  const availableAchievementIds = achievementPhaseDone
+    ? []
+    : (publicState.availableAchievements ?? [])
+      .map(a => a.id)
+      .filter(id => getAchievement(id) !== null);
 
   const knowledgeTokens: KnowledgeToken[] = privateState.knowledgeTokens;
 
@@ -105,7 +113,7 @@ export function buildSolverInput(
     slotsConsumedThisRound,
     progressAlreadyDone,
     legislationDoneThisRound,
-    citizensAchievementClaimed,
+    availableAchievementIds,
     initialRoundTaxApplied: publicState.currentPhase !== 'OMEN',
     opponents,
     boardTokens,
