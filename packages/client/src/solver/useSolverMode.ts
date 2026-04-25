@@ -441,13 +441,11 @@ function classifyChange(
 }
 
 function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
-  if (prev.currentPhase !== next.currentPhase) return true;
-  if ((prev.diceRoll ?? []).join(',') !== (next.diceRoll ?? []).join(',')) return true;
   if (prev.unresolvedAssignedActions.length !== next.unresolvedAssignedActions.length) return true;
   for (let i = 0; i < prev.unresolvedAssignedActions.length; i++) {
     const a = prev.unresolvedAssignedActions[i];
     const b = next.unresolvedAssignedActions[i];
-    if (a.action !== b.action || a.dieValue !== b.dieValue || a.citizenCost !== b.citizenCost) return true;
+    if (a.action !== b.action) return true;
   }
   return false;
 }
@@ -463,9 +461,10 @@ function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
  *   developmentLevel, played/hand cards: these all evolve as the player
  *   progresses through their own round, and the worker's plan already models
  *   them as part of the same simulated round.
- * - progressAlreadyDone, slotsConsumedThisRound, legislationDoneThisRound,
- *   pendingAchievementChoices, initialRoundTaxApplied: phase markers internal
- *   to the player's turn.
+ * - currentPhase, progressAlreadyDone, slotsConsumedThisRound,
+ *   legislationDoneThisRound, pendingAchievementChoices, initialRoundTaxApplied,
+ *   and diceRoll: already known to the full-state solver or internal to the
+ *   player's turn unless they produce a concrete assigned-action change.
  *
  * What we DO compare:
  * - opponents[] (any field): opponents take turns between ours, and Public
