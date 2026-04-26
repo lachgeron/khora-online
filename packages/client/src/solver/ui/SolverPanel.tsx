@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SolverObjective, SolverResult, RoundPlan, Plan } from '../types';
+import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode } from '../types';
 
 interface SolverPanelProps {
   result: SolverResult | null;
@@ -8,6 +8,10 @@ interface SolverPanelProps {
   onGodModeChange: (enabled: boolean) => void;
   objective: SolverObjective;
   onObjectiveChange: (objective: SolverObjective) => void;
+  displayMode: SolverDisplayMode;
+  onDisplayModeChange: (mode: SolverDisplayMode) => void;
+  status: 'stable' | 'rechecking' | 'new-best';
+  changeNote: string | null;
   onClose: () => void;
 }
 
@@ -19,7 +23,19 @@ interface SolverPanelProps {
  * While stale (after a state change, before a fresh result arrives) the
  * content is greyed out and a spinner is shown.
  */
-export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode, onGodModeChange, objective, onObjectiveChange, onClose }) => {
+export const SolverPanel: React.FC<SolverPanelProps> = ({
+  result,
+  stale,
+  godMode,
+  onGodModeChange,
+  objective,
+  onObjectiveChange,
+  displayMode,
+  onDisplayModeChange,
+  status,
+  changeNote,
+  onClose,
+}) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -33,7 +49,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode
             Live
           </span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-sand-700">
+        <div className="flex items-center gap-1 text-xs text-sand-700" title="Solver objective">
           <button
             onClick={() => onObjectiveChange('MAX_VP')}
             className={`px-2 py-1 rounded border ${objective === 'MAX_VP' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-200'}`}
@@ -45,6 +61,20 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode
             className={`px-2 py-1 rounded border ${objective === 'WIN_MARGIN' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-200'}`}
           >
             Win
+          </button>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-sand-700" title="Conservative keeps the visible current move calmer. Aggressive shows every better line immediately.">
+          <button
+            onClick={() => onDisplayModeChange('CONSERVATIVE')}
+            className={`px-2 py-1 rounded border ${displayMode === 'CONSERVATIVE' ? 'bg-sand-700 text-white border-sand-700' : 'border-sand-300 hover:bg-sand-200'}`}
+          >
+            Calm
+          </button>
+          <button
+            onClick={() => onDisplayModeChange('AGGRESSIVE')}
+            className={`px-2 py-1 rounded border ${displayMode === 'AGGRESSIVE' ? 'bg-sand-700 text-white border-sand-700' : 'border-sand-300 hover:bg-sand-200'}`}
+          >
+            Live
           </button>
         </div>
         <label className="flex items-center gap-2 text-xs text-sand-700">
@@ -71,7 +101,15 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({ result, stale, godMode
         ) : !result.ok ? (
           <UnavailableView message={result.message} stale={stale} />
         ) : (
-          <PlanView plan={result.plan} stale={stale} godMode={godMode} expanded={expanded} onToggleExpanded={() => setExpanded((v) => !v)} />
+          <PlanView
+            plan={result.plan}
+            stale={stale}
+            godMode={godMode}
+            status={status}
+            changeNote={changeNote}
+            expanded={expanded}
+            onToggleExpanded={() => setExpanded((v) => !v)}
+          />
         )}
       </div>
     </div>
@@ -96,10 +134,14 @@ const PlanView: React.FC<{
   plan: Plan;
   stale: boolean;
   godMode: boolean;
+  status: 'stable' | 'rechecking' | 'new-best';
+  changeNote: string | null;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, godMode, expanded, onToggleExpanded }) => {
-  const bestMove = plan.currentRound?.description?.[0] ?? null;
+}> = ({ plan, stale, godMode, status, changeNote, expanded, onToggleExpanded }) => {
+  const nowLines = focusLines(plan);
+  const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
+  const reasons = reasonChips(plan);
 
   return (
     <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
@@ -108,6 +150,9 @@ const PlanView: React.FC<{
         {stale && (
           <div className="absolute top-2 right-2 w-4 h-4 border-2 border-sand-300 border-t-terracotta rounded-full animate-spin" aria-label="Recomputing" />
         )}
+        <div className="absolute top-2 right-8 text-[0.65rem] uppercase tracking-wider text-sand-500">
+          {statusLabel(status, stale)}
+        </div>
         <div className="flex items-baseline gap-3">
           <span className="font-display text-4xl font-bold text-terracotta leading-none">
             {plan.projectedFinalVP}
@@ -132,9 +177,32 @@ const PlanView: React.FC<{
       {bestMove && plan.currentRound && (
         <div className="px-5 py-3 bg-terracotta/5 border-b border-terracotta/20 shrink-0">
           <p className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold mb-1">
-            Best Next Move (Round {plan.currentRound.round})
+            Do This Now (Round {plan.currentRound.round})
           </p>
           <p className="text-sand-800 text-sm font-medium">{bestMove}</p>
+          {nowLines.length > 1 && (
+            <ul className="mt-2 list-disc list-inside space-y-0.5 text-xs text-sand-700">
+              {nowLines.slice(1).map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          )}
+          {reasons.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {reasons.map((reason) => (
+                <span
+                  key={reason.label}
+                  title={reason.title}
+                  className="px-1.5 py-0.5 rounded border border-terracotta/20 bg-white text-[0.65rem] text-sand-700"
+                >
+                  {reason.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {changeNote && (
+            <p className="mt-2 text-[0.65rem] text-sand-500">{changeNote}</p>
+          )}
         </div>
       )}
 
@@ -154,7 +222,7 @@ const PlanView: React.FC<{
               <p className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold mb-1">
                 This Turn (Round {plan.currentRound.round})
               </p>
-              <RoundBody round={plan.currentRound} />
+              <RoundBody round={plan.currentRound} phase={plan.currentPhase} />
             </div>
           )}
 
@@ -191,10 +259,10 @@ const PlanView: React.FC<{
   );
 };
 
-const RoundBody: React.FC<{ round: RoundPlan }> = ({ round }) => (
+const RoundBody: React.FC<{ round: RoundPlan; phase?: Plan['currentPhase'] }> = ({ round, phase }) => (
   <div>
     <ul className="list-disc list-inside space-y-0.5 text-sm text-sand-800">
-      {round.description.map((line, i) => (
+      {(phase ? focusDescription(round.description, phase) : round.description).map((line, i) => (
         <li key={i}>{line}</li>
       ))}
     </ul>
@@ -205,6 +273,51 @@ const RoundBody: React.FC<{ round: RoundPlan }> = ({ round }) => (
     </p>
   </div>
 );
+
+function statusLabel(status: 'stable' | 'rechecking' | 'new-best', stale: boolean): string {
+  if (stale || status === 'rechecking') return 'rechecking';
+  if (status === 'new-best') return 'new best';
+  return 'stable';
+}
+
+function focusLines(plan: Plan): string[] {
+  if (!plan.currentRound) return [];
+  return focusDescription(plan.currentRound.description, plan.currentPhase);
+}
+
+function focusDescription(lines: string[], phase: Plan['currentPhase']): string[] {
+  if (phase === 'DICE') return lines.filter(line => line.startsWith('Dice:') || isActionLine(line));
+  if (phase === 'ACTIONS') return lines.filter(isActionLine);
+  if (phase === 'PROGRESS') return lines.filter(line => line.startsWith('Progress:'));
+  if (phase === 'GLORY') return lines.filter(line => line.startsWith('Event:'));
+  if (phase === 'ACHIEVEMENT') return lines.filter(line => line.startsWith('Achievement:'));
+  return lines;
+}
+
+function isActionLine(line: string): boolean {
+  return ['Philosophy', 'Legislation', 'Culture', 'Trade', 'Military', 'Politics', 'Development']
+    .some(prefix => line.startsWith(prefix));
+}
+
+function reasonChips(plan: Plan): Array<{ label: string; title: string }> {
+  const lines = [
+    ...(plan.currentRound?.description ?? []),
+    ...plan.futureRounds.slice(0, 2).flatMap(r => r.description),
+  ];
+  const chips: Array<{ label: string; title: string }> = [];
+  const add = (label: string, title: string) => {
+    if (!chips.some(c => c.label === label)) chips.push({ label, title });
+  };
+  for (const line of lines) {
+    if (line.includes('Event:')) add('event', 'The line accounts for upcoming event resolution.');
+    if (line.includes('Achievement:')) add('achievement', 'The line claims or preserves an achievement reward.');
+    if (line.includes('Development')) add('dev setup', 'Development value is part of this line.');
+    if (line.includes('Major') || line.includes('Persepolis')) add('major tokens', 'Major tokens increase Glory end-game scoring.');
+    if (line.includes('Politics')) add('card timing', 'Card timing affects immediate and end-game scoring.');
+    if (line.startsWith('Dice:')) add('citizens checked', 'Dice and citizen costs are included in the plan.');
+  }
+  return chips.slice(0, 5);
+}
 
 function formatSigned(n: number): string {
   const rounded = Math.round(n);

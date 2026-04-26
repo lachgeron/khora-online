@@ -34,6 +34,7 @@ export interface SolverDiceAssignment {
 }
 
 export type SolverObjective = 'MAX_VP' | 'WIN_MARGIN';
+export type SolverDisplayMode = 'AGGRESSIVE' | 'CONSERVATIVE';
 
 export const SOLVER_ACTIONS: SolverAction[] = [
   'PHILOSOPHY',
@@ -173,6 +174,7 @@ export interface Plan {
   };
   currentRound: RoundPlan | null;        // what to do right now (null if game over / pre-game)
   futureRounds: RoundPlan[];             // remaining rounds
+  currentPhase: GamePhase;
   partialResult: boolean;
   computeMs: number;
   exploredNodes: number;

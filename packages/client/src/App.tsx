@@ -550,6 +550,10 @@ export const App: React.FC = () => {
             onGodModeChange={solverMode.setGodMode}
             objective={solverMode.objective}
             onObjectiveChange={solverMode.setObjective}
+            displayMode={solverMode.displayMode}
+            onDisplayModeChange={solverMode.setDisplayMode}
+            status={solverMode.status}
+            changeNote={solverMode.changeNote}
             onClose={solverMode.toggle}
           />
       )}

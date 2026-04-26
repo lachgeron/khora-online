@@ -43,7 +43,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
-import type { SolverResult, Plan, SolverAction, SolverInput, RoundPlan, SolverObjective } from './types';
+import type { SolverResult, Plan, SolverAction, SolverInput, RoundPlan, SolverObjective, SolverDisplayMode } from './types';
 import { buildSolverInput, canSolveFromPhase } from './snapshot';
 // eslint-disable-next-line import/no-unresolved
 import SolverWorker from './solver.worker?worker';
@@ -57,8 +57,12 @@ export interface SolverModeState {
   setGodMode: (enabled: boolean) => void;
   objective: SolverObjective;
   setObjective: (objective: SolverObjective) => void;
+  displayMode: SolverDisplayMode;
+  setDisplayMode: (mode: SolverDisplayMode) => void;
   result: SolverResult | null;
   stale: boolean;
+  status: 'stable' | 'rechecking' | 'new-best';
+  changeNote: string | null;
 }
 
 type ChangeClassification =
@@ -76,8 +80,11 @@ export function useSolverMode(
   const [enabled, setEnabled] = useState(false);
   const [godMode, setGodModeState] = useState(false);
   const [objective, setObjectiveState] = useState<SolverObjective>('MAX_VP');
+  const [displayMode, setDisplayModeState] = useState<SolverDisplayMode>('CONSERVATIVE');
   const [result, setResult] = useState<SolverResult | null>(null);
   const [stale, setStale] = useState(false);
+  const [status, setStatus] = useState<'stable' | 'rechecking' | 'new-best'>('stable');
+  const [changeNote, setChangeNote] = useState<string | null>(null);
   // Number of complete rounds the live game has progressed past the snapshot
   // the worker is currently computing for. When > 0, the displayed plan's
   // currentRound is taken from `plan.futureRounds[shiftRounds - 1]` instead
@@ -104,6 +111,8 @@ export function useSolverMode(
   // False after a DIVERGENT_ACTION (player picked something the plan didn't
   // recommend) — in that case the next worker output overwrites unconditionally.
   const planValidRef = useRef(true);
+  const displayModeRef = useRef<SolverDisplayMode>('CONSERVATIVE');
+  useEffect(() => { displayModeRef.current = displayMode; }, [displayMode]);
 
   const setShift = useCallback((n: number) => {
     shiftRoundsRef.current = n;
@@ -120,6 +129,9 @@ export function useSolverMode(
 
   const setObjective = useCallback((next: SolverObjective) => {
     setObjectiveState(next);
+  }, []);
+  const setDisplayMode = useCallback((next: SolverDisplayMode) => {
+    setDisplayModeState(next);
   }, []);
 
   // Spawn / tear down the worker when solver mode toggles.
@@ -140,6 +152,8 @@ export function useSolverMode(
       planValidRef.current = true;
       setResult(null);
       setStale(false);
+      setStatus('stable');
+      setChangeNote(null);
       return;
     }
 
@@ -166,14 +180,19 @@ export function useSolverMode(
           // restarted worker is still warming up.
           if (!planValidRef.current || !prev || !prev.ok) {
             planValidRef.current = true;
+            setStatus('new-best');
+            setChangeNote(planChangeNote(prev?.ok ? prev.plan : null, incoming));
             return { ok: true, plan: incoming };
           }
-          if (incoming.objectiveScore >= prev.plan.objectiveScore) {
+          if (shouldAcceptPlan(prev.plan, incoming, displayModeRef.current)) {
+            setStatus('new-best');
+            setChangeNote(planChangeNote(prev.plan, incoming));
             return { ok: true, plan: incoming };
           }
           return prev;
         });
         setStale(false);
+        setStatus('stable');
       } else if (msg.type === 'unavailable') {
         setResult({
           ok: false,
@@ -181,6 +200,7 @@ export function useSolverMode(
           message: msg.message,
         });
         setStale(false);
+        setStatus('stable');
       }
     };
 
@@ -231,6 +251,8 @@ export function useSolverMode(
         message: phaseCheck.message ?? 'Unavailable',
       });
       setStale(false);
+      setStatus('stable');
+      setChangeNote(null);
       return;
     }
 
@@ -240,7 +262,7 @@ export function useSolverMode(
     // Structural comparison: if every field the solver consumes is identical,
     // the worker's in-flight search is still answering the same question and
     // there's no need to even re-classify — nothing changed.
-    const newKey = JSON.stringify(newInput);
+    const newKey = solverInputKey(newInput);
     if (newKey === lastSentKeyRef.current) {
       setStale(false);
       return;
@@ -262,6 +284,7 @@ export function useSolverMode(
     // the postMessage with the appropriate delay.
     const scheduleRestart = (delay: number) => {
       setStale(true);
+      setStatus('rechecking');
       const capturedInput = newInput;
       const capturedPublicState = gameState;
       const capturedKey = newKey;
@@ -281,6 +304,7 @@ export function useSolverMode(
       // Worker's in-flight search already accounts for this action sequence.
       // Keep it running; no restart, no shift change.
       setStale(false);
+      setStatus('stable');
       return;
     }
     if (classification === 'CONSISTENT_TRANSITION') {
@@ -292,6 +316,7 @@ export function useSolverMode(
       if (currentPlan && nextShift <= planLength) {
         setShift(nextShift);
         setStale(false);
+        setStatus('stable');
         return;
       }
       // Plan exhausted — must restart.
@@ -319,7 +344,7 @@ export function useSolverMode(
     planValidRef.current = false;
     setShift(0);
     scheduleRestart(RESTART_DEBOUNCE_MS);
-  }, [enabled, gameState, privateState, currentPlayerId, godMode, objective, setShift]);
+  }, [enabled, gameState, privateState, currentPlayerId, godMode, objective, displayMode, setShift]);
 
   // Pause/resume on tab visibility change to reclaim CPU when hidden.
   useEffect(() => {
@@ -364,7 +389,7 @@ export function useSolverMode(
     };
   }, [result, shiftRounds]);
 
-  return { enabled, toggle, godMode, setGodMode, objective, setObjective, result: shiftedResult, stale };
+  return { enabled, toggle, godMode, setGodMode, objective, setObjective, displayMode, setDisplayMode, result: shiftedResult, stale, status, changeNote };
 }
 
 /**
@@ -476,8 +501,7 @@ function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
  */
 function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
   if (prev.objective !== next.objective || prev.godMode !== next.godMode) return true;
-  if (JSON.stringify(prev.fullState) !== JSON.stringify(next.fullState)) return true;
-  if (JSON.stringify(prev.predeterminedDice) !== JSON.stringify(next.predeterminedDice)) return true;
+  if (solverExternalKey(prev) !== solverExternalKey(next)) return true;
   if (prev.opponents.length !== next.opponents.length) return true;
   for (let i = 0; i < prev.opponents.length; i++) {
     const a = prev.opponents[i];
@@ -495,4 +519,155 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
     if (prev.availableAchievementIds[i] !== next.availableAchievementIds[i]) return true;
   }
   return false;
+}
+
+function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode): boolean {
+  if (incoming.objectiveScore < current.objectiveScore) return false;
+  if (mode === 'AGGRESSIVE') return true;
+
+  const currentSig = roundSignature(current.currentRound);
+  const incomingSig = roundSignature(incoming.currentRound);
+  if (currentSig === incomingSig) return true;
+
+  const improvement = incoming.objectiveScore - current.objectiveScore;
+  return improvement >= 2;
+}
+
+function roundSignature(round: RoundPlan | null): string {
+  return round ? round.actionTypes.join('>') : '';
+}
+
+function planChangeNote(previous: Plan | null, incoming: Plan): string | null {
+  if (!previous) return null;
+  const previousSig = roundSignature(previous.currentRound);
+  const incomingSig = roundSignature(incoming.currentRound);
+  if (previousSig !== incomingSig) {
+    const gain = Math.round(incoming.objectiveScore - previous.objectiveScore);
+    return gain > 0
+      ? `Changed because the new current line is ${gain} point${gain === 1 ? '' : 's'} better.`
+      : 'Changed because the previous line became stale.';
+  }
+  if (incoming.objectiveScore > previous.objectiveScore) {
+    return 'Future details improved; the immediate move stayed the same.';
+  }
+  return null;
+}
+
+function solverInputKey(input: SolverInput): string {
+  return JSON.stringify({
+    playerId: input.playerId,
+    cityId: input.cityId,
+    developmentLevel: input.developmentLevel,
+    coins: input.coins,
+    philosophyTokens: input.philosophyTokens,
+    knowledgeTokens: knowledgeTokenKey(input.knowledgeTokens),
+    economyTrack: input.economyTrack,
+    cultureTrack: input.cultureTrack,
+    militaryTrack: input.militaryTrack,
+    taxTrack: input.taxTrack,
+    gloryTrack: input.gloryTrack,
+    troopTrack: input.troopTrack,
+    citizenTrack: input.citizenTrack,
+    victoryPoints: input.victoryPoints,
+    handCards: cardKey(input.handCards),
+    playedCards: cardKey(input.playedCards),
+    availableGodModeCards: cardKey(input.availableGodModeCards),
+    godMode: input.godMode,
+    objective: input.objective,
+    currentRound: input.currentRound,
+    currentPhase: input.currentPhase,
+    diceRoll: input.diceRoll,
+    unresolvedAssignedActions: input.unresolvedAssignedActions,
+    actionsAlreadyTaken: input.actionsAlreadyTaken,
+    slotsConsumedThisRound: input.slotsConsumedThisRound,
+    progressAlreadyDone: input.progressAlreadyDone,
+    legislationDoneThisRound: input.legislationDoneThisRound,
+    availableAchievementIds: input.availableAchievementIds,
+    pendingAchievementChoices: input.pendingAchievementChoices,
+    initialRoundTaxApplied: input.initialRoundTaxApplied,
+    opponents: input.opponents.map(opponentKey),
+    boardTokens: boardTokenKey(input.boardTokens),
+    external: solverExternalKey(input),
+  });
+}
+
+function solverExternalKey(input: SolverInput): string {
+  const full = input.fullState;
+  return JSON.stringify({
+    predeterminedDice: input.predeterminedDice,
+    currentEvent: full?.currentEvent?.id ?? null,
+    eventDeck: full?.eventDeck?.map(e => e.id) ?? [],
+    politicsDeck: full?.politicsDeck?.map(c => c.id) ?? [],
+    players: full?.players
+      ?.filter(p => p.isConnected)
+      .map(p => ({
+        playerId: p.playerId,
+        cityId: p.cityId,
+        developmentLevel: p.developmentLevel,
+        coins: p.coins,
+        philosophyTokens: p.philosophyTokens,
+        knowledgeTokens: knowledgeTokenKey(p.knowledgeTokens),
+        economyTrack: p.economyTrack,
+        cultureTrack: p.cultureTrack,
+        militaryTrack: p.militaryTrack,
+        taxTrack: p.taxTrack,
+        gloryTrack: p.gloryTrack,
+        troopTrack: p.troopTrack,
+        citizenTrack: p.citizenTrack,
+        victoryPoints: p.victoryPoints,
+        handCards: cardKey(p.handCards),
+        playedCards: cardKey(p.playedCards),
+        actionSlots: p.actionSlots?.map(slot => slot
+          ? {
+              actionType: slot.actionType,
+              assignedDie: slot.assignedDie,
+              citizenCost: slot.citizenCost,
+              resolved: slot.resolved,
+            }
+          : null),
+      })) ?? [],
+  });
+}
+
+function opponentKey(o: SolverInput['opponents'][number]): unknown {
+  return {
+    playerId: o.playerId,
+    economyTrack: o.economyTrack,
+    cultureTrack: o.cultureTrack,
+    militaryTrack: o.militaryTrack,
+    coins: o.coins,
+    philosophyTokens: o.philosophyTokens,
+    knowledgeTokens: o.knowledgeTokens ? knowledgeTokenKey(o.knowledgeTokens) : [],
+    handCards: o.handCards ? cardKey(o.handCards) : [],
+    playedCards: o.playedCards ? cardKey(o.playedCards) : [],
+    actionSlots: o.actionSlots?.map(slot => slot
+      ? {
+          actionType: slot.actionType,
+          assignedDie: slot.assignedDie,
+          citizenCost: slot.citizenCost,
+          resolved: slot.resolved,
+        }
+      : null),
+  };
+}
+
+function cardKey(cards: Array<{ id: string }>): string[] {
+  return cards.map(c => c.id);
+}
+
+function knowledgeTokenKey(tokens: Array<{ id?: string; color: string; tokenType: string }>): string[] {
+  return tokens.map(t => `${t.id ?? ''}:${t.color}:${t.tokenType}`).sort();
+}
+
+function boardTokenKey(tokens: SolverInput['boardTokens']): string[] {
+  return tokens.map(t => [
+    t.id,
+    t.color,
+    t.tokenType,
+    t.militaryRequirement,
+    t.skullCost,
+    t.bonusCoins,
+    t.bonusVP,
+    t.isPersepolis ? 1 : 0,
+  ].join(':'));
 }
