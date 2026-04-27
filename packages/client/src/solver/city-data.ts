@@ -210,17 +210,21 @@ export function applyDevOngoingOnPlayCard(
   }
 }
 
-/** Thebes dev-2: once per round, lose 1 glory → gain 2 drachma + 4 VP. */
-export function maybeApplyThebesDev2(
+/** Thebes dev-2: lose 1 glory → gain 2 drachma + 4 VP. Activatable any time. */
+export function canActivateThebesDev2(
   s: SolverState,
   cityId: string,
   devLevel: number,
-): void {
-  if (cityId === 'thebes' && devLevel >= 2 && s.gloryTrack >= 1) {
-    s.gloryTrack -= 1;
-    s.coins += 2;
-    s.victoryPoints += 4;
-  }
+): boolean {
+  return cityId === 'thebes' && devLevel >= 2 && s.gloryTrack >= 1;
+}
+
+export function applyThebesDev2Activation(s: SolverState, count: number): void {
+  const uses = Math.max(0, Math.min(count, s.gloryTrack));
+  if (uses <= 0) return;
+  s.gloryTrack -= uses;
+  s.coins += 2 * uses;
+  s.victoryPoints += 4 * uses;
 }
 
 /** Thebes dev-3: explore twice on Military action. */

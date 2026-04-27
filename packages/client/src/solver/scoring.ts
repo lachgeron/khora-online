@@ -5,7 +5,7 @@
 import type { SolverState, FrozenOpponent } from './types';
 import type { PoliticsCard } from '../types';
 import { applyOngoingOnTaxPhase, endGameCardVP, hasMaskBit, majorCount, popcount } from './card-data';
-import { devEndGameVP, maybeApplyThebesDev2 } from './city-data';
+import { devEndGameVP } from './city-data';
 import { capTroops } from './tracks';
 
 /**
@@ -20,8 +20,6 @@ export function applyTaxPhase(
   // Tax drachma: base = taxTrack level
   s.coins += s.taxTrack;
   applyOngoingOnTaxPhase(s, hasCardFn, opponents);
-  // Thebes dev-2: once-per-round glory→drachma+VP trade
-  maybeApplyThebesDev2(s, s.cityId, s.developmentLevel);
   // Troops cap at 15 at end of action phase; apply here safely too.
   capTroops(s);
 }

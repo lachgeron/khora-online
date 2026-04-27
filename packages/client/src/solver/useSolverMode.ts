@@ -45,6 +45,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicGameState, PrivatePlayerState } from '../types';
 import type { SolverResult, Plan, SolverAction, SolverInput, RoundPlan, SolverObjective, SolverDisplayMode } from './types';
 import { buildSolverInput, canSolveFromPhase } from './snapshot';
+import { buildDraftPlan, draftPlanKey } from './draft-solver';
 // eslint-disable-next-line import/no-unresolved
 import SolverWorker from './solver.worker?worker';
 
@@ -178,15 +179,16 @@ export function useSolverMode(
           // only replace when the incoming plan is at least as good — this
           // avoids a visible recommendation regression while a freshly
           // restarted worker is still warming up.
-          if (!planValidRef.current || !prev || !prev.ok) {
+          const previousPlan = planFromResult(prev);
+          if (!planValidRef.current || !previousPlan) {
             planValidRef.current = true;
             setStatus('new-best');
-            setChangeNote(planChangeNote(prev?.ok ? prev.plan : null, incoming));
+            setChangeNote(planChangeNote(previousPlan, incoming));
             return { ok: true, plan: incoming };
           }
-          if (shouldAcceptPlan(prev.plan, incoming, displayModeRef.current)) {
+          if (shouldAcceptPlan(previousPlan, incoming, displayModeRef.current)) {
             setStatus('new-best');
-            setChangeNote(planChangeNote(prev.plan, incoming));
+            setChangeNote(planChangeNote(previousPlan, incoming));
             return { ok: true, plan: incoming };
           }
           return prev;
@@ -230,6 +232,29 @@ export function useSolverMode(
 
     if (!gameState || !privateState || !currentPlayerId) return;
 
+    const draftPlan = buildDraftPlan(gameState, privateState, currentPlayerId);
+    if (draftPlan) {
+      const key = `DRAFT:${draftPlanKey(draftPlan)}`;
+      if (lastSentKeyRef.current === key) {
+        setStale(false);
+        return;
+      }
+      const hadRunningSearch = lastSentKeyRef.current !== null
+        && !lastSentKeyRef.current.startsWith('UNAVAILABLE:')
+        && !lastSentKeyRef.current.startsWith('DRAFT:');
+      lastSentKeyRef.current = key;
+      lastInputRef.current = null;
+      shiftRoundsRef.current = 0;
+      setShiftRoundsState(0);
+      planValidRef.current = true;
+      if (hadRunningSearch) worker.postMessage({ type: 'stop' });
+      setResult({ ok: true, draft: draftPlan });
+      setStale(false);
+      setStatus('stable');
+      setChangeNote(null);
+      return;
+    }
+
     // Handle unavailable phases (pre-game, game over).
     const phaseCheck = canSolveFromPhase(gameState);
     if (!phaseCheck.ok) {
@@ -238,7 +263,8 @@ export function useSolverMode(
       // Stop any in-flight search so the worker stops burning CPU on a
       // position we no longer care about.
       const hadRunningSearch = lastSentKeyRef.current !== null
-        && !lastSentKeyRef.current.startsWith('UNAVAILABLE:');
+        && !lastSentKeyRef.current.startsWith('UNAVAILABLE:')
+        && !lastSentKeyRef.current.startsWith('DRAFT:');
       lastSentKeyRef.current = key;
       lastInputRef.current = null;
       shiftRoundsRef.current = 0;
@@ -271,7 +297,7 @@ export function useSolverMode(
     // Classify the change against the most recent input we observed (which
     // may differ from `lastSentKeyRef` if we've absorbed CONSISTENT_* deltas
     // since the last restart).
-    const currentPlan = resultRef.current?.ok ? resultRef.current.plan : null;
+    const currentPlan = planFromResult(resultRef.current);
     const classification = classifyChange(
       lastInputRef.current,
       newInput,
@@ -369,6 +395,7 @@ export function useSolverMode(
   // pointer, so we can absorb consistent transitions without restarting.
   const shiftedResult = useMemo<SolverResult | null>(() => {
     if (!result || !result.ok) return result;
+    if (!('plan' in result)) return result;
     if (shiftRounds === 0) return result;
     const plan = result.plan;
     if (shiftRounds > plan.futureRounds.length) {
@@ -390,6 +417,10 @@ export function useSolverMode(
   }, [result, shiftRounds]);
 
   return { enabled, toggle, godMode, setGodMode, objective, setObjective, displayMode, setDisplayMode, result: shiftedResult, stale, status, changeNote };
+}
+
+function planFromResult(result: SolverResult | null): Plan | null {
+  return result && result.ok && 'plan' in result ? result.plan : null;
 }
 
 /**

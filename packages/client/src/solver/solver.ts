@@ -29,6 +29,7 @@ import { addMaskBit, cloneState, hasMaskBit, popcount } from './card-data';
 import { canSolveFromPhase, cardsForSolver } from './snapshot';
 import { getAchievement } from './achievements';
 import { capTaxGloryTrack } from './tracks';
+import { applyThebesDev2Activation, canActivateThebesDev2 } from './city-data';
 import type { PublicGameState } from '../types';
 import { applyEventPhase } from './events';
 
@@ -144,20 +145,8 @@ function simulateRoundTopK(
   const vpBefore = s.victoryPoints;
   const coinsBefore = s.coins;
 
-  // 1. Action phase: enumerate action plans for remaining slots.
   const maxSlots = s.cultureTrack >= 4 ? 3 : 2;
   const slotsLeft = Math.max(0, maxSlots - s.slotsConsumedThisRound);
-  const actionOptions = actionEnumerationOptions(s, ctx);
-  const actionPlans = enumerateActionPlans(
-    s,
-    actionOptions.forcedAssignments ? actionOptions.forcedAssignments.length : slotsLeft,
-    ctx.cardIds,
-    ctx.allCards,
-    ctx.opponents,
-    ctx.actionTopK,
-    actionOptions,
-  );
-  ctx.nodesExplored.count += actionPlans.length;
 
   const scored: Array<{ score: number; result: RoundResult }> = [];
 
@@ -171,18 +160,33 @@ function simulateRoundTopK(
   // during OMEN (before TAXATION), tax hasn't been applied and we DO apply it.
   const skipTax = s.round === ctx.initialRound && ctx.initialRoundTaxApplied;
 
-  for (const ap of actionPlans) {
-    if (ctx.shouldAbort()) break;
-    const progressCandidates = enumerateProgressPlans(
-      ap.state,
+  for (const start of thebesDev2Branches(s)) {
+    const actionOptions = actionEnumerationOptions(start.state, ctx);
+    const actionPlans = enumerateActionPlans(
+      start.state,
+      actionOptions.forcedAssignments ? actionOptions.forcedAssignments.length : slotsLeft,
+      ctx.cardIds,
+      ctx.allCards,
       ctx.opponents,
-      (id) => hasCard(ap.state, id, ctx.cardIds),
-      (id) => devUnlocked(ap.state, id),
+      ctx.actionTopK,
+      actionOptions,
     );
-    ctx.nodesExplored.count += progressCandidates.length;
+    ctx.nodesExplored.count += actionPlans.length;
 
-    for (const pState of progressCandidates) {
-      const eventCandidates = applyEventPhase(pState, ctx);
+    for (const ap of actionPlans) {
+      if (ctx.shouldAbort()) break;
+      for (const afterAction of thebesDev2Branches(ap.state)) {
+        const progressCandidates = enumerateProgressPlans(
+          afterAction.state,
+          ctx.opponents,
+          (id) => hasCard(afterAction.state, id, ctx.cardIds),
+          (id) => devUnlocked(afterAction.state, id),
+        );
+        ctx.nodesExplored.count += progressCandidates.length;
+
+        for (const pState of progressCandidates) {
+          for (const beforeEvent of thebesDev2Branches(pState)) {
+            const eventCandidates = applyEventPhase(beforeEvent.state, ctx);
       // Achievement phase. Per spec, only the *initial* simulated round
       // attempts to claim — future rounds assume opponents have grabbed
       // whatever's still available. Two sub-cases on the initial round:
@@ -192,53 +196,60 @@ function simulateRoundTopK(
       //     +1 Tax / +1 Glory pick remains (`pendingAchievementChoices`).
       // Either way, branch over all (i Tax, N-i Glory) splits — the beam
       // picks whichever serves end-game scoring best.
-      const startedWithProgressDone = ap.state.progressAlreadyDone;
+            const startedWithProgressDone = afterAction.state.progressAlreadyDone;
 
-      for (const ev of eventCandidates) {
-        const postAchievementStates = applyAchievementPhase(
-          ev.state,
-          ev.state.availableAchievementIds,
-          ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
-        );
+            for (const ev of eventCandidates) {
+              const postAchievementStates = applyAchievementPhase(
+                ev.state,
+                ev.state.availableAchievementIds,
+                ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
+              );
 
-        for (const ach of postAchievementStates) {
-          const afterTax = cloneState(ach.state);
-          if (!skipTax) {
-            applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
+              for (const ach of postAchievementStates) {
+                for (const afterAchievement of thebesDev2Branches(ach.state)) {
+                  const afterTax = cloneState(afterAchievement.state);
+                  if (!skipTax) {
+                    applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
+                  }
+                  const score = rankState(afterTax, ctx);
+                  const progressTracks = diffProgressTracks(afterAction.state, pState);
+                  const philosophySpent = afterAction.state.philosophyTokens - pState.philosophyTokens;
+                  const totalClaims = ach.claimedNames.length + ach.unnamedClaims;
+                  const achievementDelta = totalClaims > 0
+                    ? formatAchievementDelta(ach.claimedNames, ach.unnamedClaims, ach.taxAdd, ach.gloryAdd)
+                    : null;
+                  const thebesUses = start.uses + afterAction.uses + beforeEvent.uses + afterAchievement.uses;
+                  scored.push({
+                    score,
+                    result: {
+                      stateAfter: afterTax,
+                      chosenActions: ap.choices,
+                      progressTracks,
+                      philosophySpent,
+                      description: describeRound(
+                        ap.choices,
+                        progressTracks,
+                        philosophySpent,
+                        ctx.cardIds,
+                        ctx.allCards,
+                        hasCard(pState, 'old-guard', ctx.cardIds),
+                        ev.description,
+                        ap.diceAssignments,
+                        ap.citizenCost,
+                        achievementDelta,
+                        startedWithProgressDone,
+                        thebesUses,
+                      ),
+                      vpBefore,
+                      vpAfter: afterTax.victoryPoints,
+                      coinsBefore,
+                      coinsAfter: afterTax.coins,
+                    },
+                  });
+                }
+              }
+            }
           }
-          const score = rankState(afterTax, ctx);
-          const progressTracks = diffProgressTracks(ap.state, pState);
-          const philosophySpent = ap.state.philosophyTokens - pState.philosophyTokens;
-          const totalClaims = ach.claimedNames.length + ach.unnamedClaims;
-          const achievementDelta = totalClaims > 0
-            ? formatAchievementDelta(ach.claimedNames, ach.unnamedClaims, ach.taxAdd, ach.gloryAdd)
-            : null;
-          scored.push({
-            score,
-            result: {
-              stateAfter: afterTax,
-              chosenActions: ap.choices,
-              progressTracks,
-              philosophySpent,
-              description: describeRound(
-                ap.choices,
-                progressTracks,
-                philosophySpent,
-                ctx.cardIds,
-                ctx.allCards,
-                hasCard(pState, 'old-guard', ctx.cardIds),
-                ev.description,
-                ap.diceAssignments,
-                ap.citizenCost,
-                achievementDelta,
-                startedWithProgressDone,
-              ),
-              vpBefore,
-              vpAfter: afterTax.victoryPoints,
-              coinsBefore,
-              coinsAfter: afterTax.coins,
-            },
-          });
         }
       }
     }
@@ -246,6 +257,17 @@ function simulateRoundTopK(
 
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, topK).map(x => x.result);
+}
+
+function thebesDev2Branches(s: SolverState): Array<{ state: SolverState; uses: number }> {
+  if (!canActivateThebesDev2(s, s.cityId, s.developmentLevel)) return [{ state: s, uses: 0 }];
+  const out: Array<{ state: SolverState; uses: number }> = [{ state: s, uses: 0 }];
+  for (let uses = 1; uses <= s.gloryTrack; uses++) {
+    const variant = cloneState(s);
+    applyThebesDev2Activation(variant, uses);
+    out.push({ state: variant, uses });
+  }
+  return out;
 }
 
 /**
@@ -354,8 +376,12 @@ function describeRound(
   citizenCost: number,
   achievementDelta: string | null,
   startedWithProgressDone: boolean,
+  thebesDev2Uses: number,
 ): string[] {
   const bullets: string[] = [];
+  if (thebesDev2Uses > 0) {
+    bullets.push(`Thebes dev 2 — spend ${thebesDev2Uses} Glory for ${2 * thebesDev2Uses} coins + ${4 * thebesDev2Uses} VP`);
+  }
   if (diceAssignments.length > 0 && citizenCost > 0) {
     const parts = diceAssignments
       .filter(a => a.citizenCost > 0)

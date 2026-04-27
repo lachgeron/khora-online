@@ -180,6 +180,25 @@ export interface Plan {
   exploredNodes: number;
 }
 
+export interface DraftCardRecommendation {
+  cardId: string;
+  cardName: string;
+  score: number;
+  type: PoliticsCard['type'];
+  cost: number;
+  reasons: string[];
+}
+
+export interface DraftPlan {
+  action: 'PICK' | 'BAN';
+  phaseLabel: string;
+  isMyTurn: boolean;
+  currentChoiceName: string | null;
+  draftedCards: PoliticsCard[];
+  recommendations: DraftCardRecommendation[];
+  computeMs: number;
+}
+
 /** Input to the solver — what the client extracts from game + private state. */
 export interface SolverInput {
   // Direct state fields
@@ -258,4 +277,5 @@ export type SolverUnavailableReason =
 
 export type SolverResult =
   | { ok: true; plan: Plan }
+  | { ok: true; draft: DraftPlan }
   | { ok: false; reason: SolverUnavailableReason; message: string };

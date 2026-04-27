@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode } from '../types';
+import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan } from '../types';
 
 interface SolverPanelProps {
   result: SolverResult | null;
@@ -100,6 +100,8 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
           <InitialView />
         ) : !result.ok ? (
           <UnavailableView message={result.message} stale={stale} />
+        ) : 'draft' in result ? (
+          <DraftView draft={result.draft} stale={stale} />
         ) : (
           <PlanView
             plan={result.plan}
@@ -129,6 +131,100 @@ const UnavailableView: React.FC<{ message: string; stale: boolean }> = ({ messag
     <p className="text-sand-500 text-sm">{message}</p>
   </div>
 );
+
+const DraftView: React.FC<{ draft: DraftPlan; stale: boolean }> = ({ draft, stale }) => {
+  const verb = draft.action === 'BAN' ? 'Ban' : 'Pick';
+  const top = draft.recommendations[0] ?? null;
+
+  return (
+    <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
+      <div className="px-5 py-4 bg-sand-100 border-b border-sand-200 shrink-0 relative">
+        {stale && (
+          <div className="absolute top-2 right-2 w-4 h-4 border-2 border-sand-300 border-t-terracotta rounded-full animate-spin" aria-label="Recomputing" />
+        )}
+        <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold">
+          {draft.phaseLabel}
+        </p>
+        <div className="mt-2 flex items-baseline gap-3">
+          <span className="font-display text-4xl font-bold text-terracotta leading-none">
+            {top ? Math.round(top.score) : '-'}
+          </span>
+          <span className="text-sand-600 text-xs uppercase tracking-wider">draft score</span>
+        </div>
+        <p className="mt-2 text-[0.7rem] text-sand-600">
+          {draft.draftedCards.length} card{draft.draftedCards.length === 1 ? '' : 's'} already drafted
+        </p>
+      </div>
+
+      <div className="px-5 py-3 bg-terracotta/5 border-b border-terracotta/20 shrink-0">
+        <p className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold mb-1">
+          {draft.isMyTurn ? `${verb} This` : `Best ${verb}`}
+        </p>
+        <p className="text-sand-800 text-sm font-medium">
+          {top ? `${verb} ${top.cardName}` : 'No card available'}
+        </p>
+        {!draft.isMyTurn && (
+          <p className="mt-1 text-[0.65rem] text-sand-500">
+            Waiting for your turn; keep this queued as the current best choice.
+          </p>
+        )}
+        {top && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {top.reasons.map((reason) => (
+              <span
+                key={reason}
+                className="px-1.5 py-0.5 rounded border border-terracotta/20 bg-white text-[0.65rem] text-sand-700"
+              >
+                {reason}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-3">
+        <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold mb-2">
+          Ranked Cards
+        </p>
+        {draft.recommendations.length === 0 ? (
+          <p className="text-xs text-sand-500 italic">No cards to rank yet.</p>
+        ) : (
+          <ol className="space-y-2">
+            {draft.recommendations.map((card, index) => (
+              <li key={card.cardId} className="border border-sand-200 bg-sand-50 rounded-lg p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-sand-800">
+                      {index + 1}. {card.cardName}
+                    </p>
+                    <p className="text-[0.65rem] uppercase tracking-wider text-sand-500">
+                      {card.type.replace('_', ' ')}{card.cost > 0 ? ` · ${card.cost} coins` : ' · free'}
+                    </p>
+                  </div>
+                  <span className="font-display text-lg text-terracotta">{card.score}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {card.reasons.map((reason) => (
+                    <span
+                      key={reason}
+                      className="px-1.5 py-0.5 rounded border border-sand-200 bg-white text-[0.65rem] text-sand-600"
+                    >
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <div className="px-5 py-2 border-t border-sand-200 text-[0.65rem] text-sand-500 shrink-0 mt-auto">
+        draft analysis {draft.computeMs}ms
+      </div>
+    </div>
+  );
+};
 
 const PlanView: React.FC<{
   plan: Plan;
@@ -295,7 +391,7 @@ function focusDescription(lines: string[], phase: Plan['currentPhase']): string[
 }
 
 function isActionLine(line: string): boolean {
-  return ['Philosophy', 'Legislation', 'Culture', 'Trade', 'Military', 'Politics', 'Development']
+  return ['Philosophy', 'Legislation', 'Culture', 'Trade', 'Military', 'Politics', 'Development', 'Thebes dev 2']
     .some(prefix => line.startsWith(prefix));
 }
 
