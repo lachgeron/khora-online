@@ -5,6 +5,21 @@ import type { PlayerFinalScore } from '@khora/shared';
 
 describe('ScoringEngine', () => {
   describe('calculateFinalScores', () => {
+    it('scores flagged players as 0 regardless of VP sources', () => {
+      const state = makeTestGameState({
+        players: [
+          makeTestPlayer({ playerId: 'p1', playerName: 'Alice', hasFlagged: true, victoryPoints: 99, coins: 99 }),
+          makeTestPlayer({ playerId: 'p2', playerName: 'Bob', victoryPoints: 10 }),
+        ],
+      });
+
+      const result = calculateFinalScores(state);
+      const flagged = result.rankings.find(s => s.playerId === 'p1');
+
+      expect(flagged?.totalPoints).toBe(0);
+      expect(flagged?.breakdown.scoreTrackPoints).toBe(0);
+    });
+
     it('sums VP + politicsCardPoints + gloryKnowledgePoints', () => {
       const player = makeTestPlayer({
         playerId: 'p1',

@@ -121,6 +121,7 @@ export function parseGameState(text: string): GameState {
       playerName: getPlayerVal('Name: '),
       cityId: getPlayerVal('City: '),
       isConnected: getPlayerVal('Connected: ') === 'true',
+      hasFlagged: false,
       coins: parseInt(getPlayerVal('Coins: '), 10) || 0,
       economyTrack: parseInt(getPlayerVal('EconomyTrack: '), 10) || 0,
       cultureTrack: parseInt(getPlayerVal('CultureTrack: '), 10) || 0,

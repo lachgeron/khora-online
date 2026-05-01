@@ -128,6 +128,7 @@ export interface PublicPlayerState {
   diceRoll: number[] | null;
   actionSlots: { actionType: ActionType; resolved: boolean }[];
   isConnected: boolean;
+  hasFlagged: boolean;
   timeBankMs: number;
 }
 
@@ -188,4 +189,5 @@ export interface SolverFullPlayerState {
   actionSlots: ActionSlotTuple;
   victoryPoints: number;
   isConnected: boolean;
+  hasFlagged: boolean;
 }

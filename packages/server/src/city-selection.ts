@@ -134,6 +134,7 @@ export class CitySelectionManager {
       victoryPoints: 0,
 
       isConnected: true,
+      hasFlagged: false,
       timeBankMs: 120_000,
     };
 

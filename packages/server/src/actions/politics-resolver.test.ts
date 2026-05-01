@@ -94,6 +94,35 @@ describe('PoliticsResolver', () => {
       }
     });
 
+    it('preserves Council deck changes after drawing cards', () => {
+      const council = makeTestPoliticsCard('council', {
+        cost: 0,
+        type: 'IMMEDIATE',
+        effect: { type: 'GAIN_VP', amount: 0 },
+      });
+      const drawn1 = makeTestPoliticsCard('drawn-1');
+      const drawn2 = makeTestPoliticsCard('drawn-2');
+      const remaining = makeTestPoliticsCard('remaining');
+      const player = makeTestPlayer({
+        coins: 5,
+        handCards: [council],
+        playedCards: [],
+      });
+      const state = makeTestGameState({
+        players: [player],
+        politicsDeck: [drawn1, drawn2, remaining],
+      });
+
+      const result = resolver.resolve(state, 'player-1', { targetCardId: 'council' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.players[0].handCards.map(c => c.id)).toEqual(['drawn-1', 'drawn-2']);
+        expect(result.value.players[0].playedCards.map(c => c.id)).toEqual(['council']);
+        expect(result.value.politicsDeck.map(c => c.id)).toEqual(['remaining']);
+      }
+    });
+
     it('does not apply effects for ONGOING cards', () => {
       const card = makeTestPoliticsCard('card-1', {
         cost: 2,

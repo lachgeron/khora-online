@@ -36,7 +36,7 @@ function shuffle<T>(array: T[]): T[] {
 
 export class PickBanDraftPhaseManager implements PhaseManager {
   onEnter(state: GameState): GameState {
-    const playerIds = state.players.map(p => p.playerId);
+    const playerIds = state.players.filter(p => !p.hasFlagged).map(p => p.playerId);
     const turnOrder = shuffle(playerIds);
 
     // Use all politics cards for the pick/ban pool

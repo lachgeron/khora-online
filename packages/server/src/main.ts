@@ -167,14 +167,21 @@ function manageGameTimer(gameId: string, state: GameState): void {
 
       // If time bank expired, zero it out
       if (expired.usingTimeBank) {
-        console.log(`[TIMER] Time bank exhausted for ${expired.playerId} in game ${gameId}`);
+        console.log(`[TIMER] Time bank exhausted for ${expired.playerId} in game ${gameId}; flagging player`);
         timeBankUsage.delete(`${gameId}:${expired.playerId}`);
-        currentState = {
-          ...currentState,
-          players: currentState.players.map(p =>
-            p.playerId === expired.playerId ? { ...p, timeBankMs: 0 } : p
-          ),
-        };
+        currentState = gameEngine.handleFlag(currentState, expired.playerId);
+        resolved = true;
+        continue;
+      }
+
+      if (expired.decisionType !== 'PHASE_DISPLAY') {
+        const player = currentState.players.find(p => p.playerId === expired.playerId);
+        if (player && player.timeBankMs <= 0) {
+          console.log(`[TIMER] No time bank remaining for ${expired.playerId} in game ${gameId}; flagging player`);
+          currentState = gameEngine.handleFlag(currentState, expired.playerId);
+          resolved = true;
+          continue;
+        }
       }
 
       const pid = expired.decisionType === 'PHASE_DISPLAY' ? '__display__' : expired.playerId;
@@ -534,15 +541,29 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
+      const tbKey = `${gameId}:${playerId}`;
+      const tbStart = timeBankUsage.get(tbKey);
+      if (tbStart) {
+        const player = currentState.players.find(p => p.playerId === playerId);
+        const elapsed = Date.now() - tbStart;
+        if (player && elapsed >= player.timeBankMs) {
+          timeBankUsage.delete(tbKey);
+          const flaggedState = gameEngine.handleFlag(currentState, playerId);
+          games.set(gameId, flaggedState);
+          wsGateway.broadcastToGame(gameId, flaggedState);
+          manageGameTimer(gameId, flaggedState);
+          return;
+        }
+      }
+
       const result = gameEngine.handlePlayerDecision(currentState, playerId, message);
       if (result.ok) {
         let updatedState = result.value;
 
         // Deduct time bank if the player was using it
-        const tbKey = `${gameId}:${playerId}`;
-        const tbStart = timeBankUsage.get(tbKey);
-        if (tbStart) {
-          const elapsed = Date.now() - tbStart;
+        const activeTbStart = timeBankUsage.get(tbKey);
+        if (activeTbStart) {
+          const elapsed = Date.now() - activeTbStart;
           timeBankUsage.delete(tbKey);
           updatedState = {
             ...updatedState,

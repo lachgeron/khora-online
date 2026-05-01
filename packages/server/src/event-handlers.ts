@@ -17,14 +17,14 @@ function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) =
 }
 
 export function getHighestTroops(state: GameState): PlayerState[] {
-  const connected = state.players.filter(p => p.isConnected);
+  const connected = state.players.filter(p => p.isConnected && !p.hasFlagged);
   if (connected.length === 0) return [];
   const max = Math.max(...connected.map(p => p.troopTrack));
   return connected.filter(p => p.troopTrack === max);
 }
 
 export function getLowestTroops(state: GameState): PlayerState[] {
-  const connected = state.players.filter(p => p.isConnected);
+  const connected = state.players.filter(p => p.isConnected && !p.hasFlagged);
   if (connected.length === 0) return [];
   const min = Math.min(...connected.map(p => p.troopTrack));
   return connected.filter(p => p.troopTrack === min);

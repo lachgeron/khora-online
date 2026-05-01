@@ -172,11 +172,12 @@ export const PlayerBoard: React.FC<PlayerBoardProps> = ({ publicState: p, privat
             </span>
           )}
           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 border rounded-full text-xs ${
+            p.hasFlagged ? 'bg-red-100 border-red-400 text-red-800' :
             p.timeBankMs <= 0 ? 'bg-red-100 border-red-300 text-red-700' :
             p.timeBankMs <= 30_000 ? 'bg-amber-100 border-amber-300 text-amber-700' :
             'bg-sand-200 border-sand-300'
           }`}>
-            <span className="font-bold text-sm">{Math.ceil(p.timeBankMs / 1000)}s</span> ⏳
+            <span className="font-bold text-sm">{p.hasFlagged ? 'FLAG' : `${Math.ceil(p.timeBankMs / 1000)}s`}</span> ⏳
           </span>
         </div>
       </section>

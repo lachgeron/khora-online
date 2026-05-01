@@ -29,6 +29,23 @@ export function calculateFinalScores(state: GameState): FinalScoreBoard {
   const scores: PlayerFinalScore[] = state.players.map((player) => {
     const detailedSources: { label: string; points: number }[] = [];
 
+    if (player.hasFlagged) {
+      detailedSources.push({ label: 'Flagged on time', points: 0 });
+      return {
+        playerId: player.playerId,
+        playerName: player.playerName,
+        breakdown: {
+          scoreTrackPoints: 0,
+          developmentPoints: 0,
+          politicsCardPoints: 0,
+          gloryKnowledgePoints: 0,
+          detailedSources,
+        },
+        totalPoints: 0,
+        rank: 0,
+      };
+    }
+
     // Score track VP (accumulated during the game)
     detailedSources.push({ label: 'In-game score track', points: player.victoryPoints });
 

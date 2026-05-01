@@ -46,6 +46,7 @@ export function buildPublicPlayerState(player: PlayerState): PublicPlayerState {
       .filter((s): s is NonNullable<typeof s> => s !== null)
       .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
     isConnected: player.isConnected,
+    hasFlagged: player.hasFlagged,
     timeBankMs: player.timeBankMs,
   };
 }
@@ -104,6 +105,7 @@ export function buildSolverFullState(state: GameState): SolverFullState {
       actionSlots: p.actionSlots,
       victoryPoints: p.victoryPoints,
       isConnected: p.isConnected,
+      hasFlagged: p.hasFlagged,
     })),
     pendingDecisions: state.pendingDecisions.map(d => ({
       playerId: d.playerId,
@@ -134,7 +136,13 @@ export function buildPublicGameState(state: GameState): PublicGameState {
     cityCards: Object.fromEntries(getAllCityCards().map(c => [c.id, c])),
     startPlayerId: state.startPlayerId,
     turnOrder: state.turnOrder,
-    players: state.players.map(buildPublicPlayerState),
+    players: state.players.map(player => {
+      const pending = state.pendingDecisions.find(d => d.playerId === player.playerId && d.usingTimeBank);
+      const effectiveTimeBankMs = pending
+        ? Math.min(player.timeBankMs, Math.max(0, pending.timeoutAt - Date.now()))
+        : player.timeBankMs;
+      return buildPublicPlayerState({ ...player, timeBankMs: effectiveTimeBankMs });
+    }),
     gameLog: state.gameLog,
     pendingDecisions: state.pendingDecisions.map((d) => ({
       playerId: d.playerId,

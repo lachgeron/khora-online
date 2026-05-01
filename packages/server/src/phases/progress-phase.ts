@@ -40,7 +40,7 @@ export class ProgressPhaseManager implements PhaseManager {
     const pendingDecisions = state.turnOrder
       .filter(pid => {
         const p = state.players.find(pl => pl.playerId === pid);
-        return p && p.isConnected;
+        return p && p.isConnected && !p.hasFlagged;
       })
       .map(pid => ({
         playerId: pid,

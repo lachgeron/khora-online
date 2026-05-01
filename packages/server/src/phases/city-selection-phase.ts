@@ -46,7 +46,7 @@ function offerCitiesToCurrentPicker(draft: CityDraftState): CityDraftState {
 
 export class CitySelectionPhaseManager implements PhaseManager {
   onEnter(state: GameState): GameState {
-    const playerIds = state.players.map(p => p.playerId);
+    const playerIds = state.players.filter(p => !p.hasFlagged).map(p => p.playerId);
     const pickOrder = shuffle(playerIds);
 
     // All cities are in the pool initially

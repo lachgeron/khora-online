@@ -92,7 +92,7 @@ export class GloryPhaseManager implements PhaseManager {
 
     // Oracle of Delphi: auto-resolve players with exactly 1 token before building decisions
     if (eventCard.id === 'oracle-of-delphi') {
-      for (const p of s.players.filter(pl => pl.isConnected && pl.knowledgeTokens.length === 1)) {
+      for (const p of s.players.filter(pl => pl.isConnected && !pl.hasFlagged && pl.knowledgeTokens.length === 1)) {
         const lostToken = p.knowledgeTokens[0];
         s = { ...s, players: s.players.map(pl => pl.playerId === p.playerId ? { ...pl, knowledgeTokens: [], philosophyTokens: pl.philosophyTokens + 2 } : pl) };
         s = appendLogEntry(s, { roundNumber, phase: 'GLORY', playerId: p.playerId, action: `Oracle of Delphi: lost ${lostToken.color} token, gained 2 scrolls`, details: { lostTokenId: lostToken.id } });
@@ -119,7 +119,7 @@ export class GloryPhaseManager implements PhaseManager {
       case 'oracle-of-delphi': {
         // Auto-resolve players with exactly 1 token in onEnter, return decisions for >1
         // (already handled in onEnter before calling this)
-        const needsChoice = state.players.filter(p => p.isConnected && p.knowledgeTokens.length > 1);
+        const needsChoice = state.players.filter(p => p.isConnected && !p.hasFlagged && p.knowledgeTokens.length > 1);
         return needsChoice.map(p => ({ playerId: p.playerId, decisionType: 'ORACLE_CHOOSE_TOKEN' as const, timeoutAt: now + 30_000, options: null as unknown }));
       }
 
@@ -129,7 +129,7 @@ export class GloryPhaseManager implements PhaseManager {
       }
 
       case 'rise-of-persia': {
-        const eligible = state.players.filter(p => p.isConnected);
+        const eligible = state.players.filter(p => p.isConnected && !p.hasFlagged);
         return eligible.map(p => ({ playerId: p.playerId, decisionType: 'RISE_OF_PERSIA_PROGRESS' as const, timeoutAt: now + 30_000, options: null as unknown }));
       }
 
@@ -141,7 +141,7 @@ export class GloryPhaseManager implements PhaseManager {
       case 'conquest-of-persians': {
         const persepolisExplored = state.centralBoardTokens.some(t => t.isPersepolis && t.explored);
         if (!persepolisExplored) return [];
-        const eligible = state.players.filter(p => p.isConnected);
+        const eligible = state.players.filter(p => p.isConnected && !p.hasFlagged);
         return eligible.map(p => ({ playerId: p.playerId, decisionType: 'CONQUEST_ACTION' as const, timeoutAt: now + 60_000, options: null as unknown }));
       }
 

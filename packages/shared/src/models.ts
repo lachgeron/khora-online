@@ -67,6 +67,9 @@ export interface PlayerState {
   // Connection
   isConnected: boolean;
 
+  // Flagged players have forfeited on time and take no further turns.
+  hasFlagged: boolean;
+
   // Time bank (milliseconds remaining; starts at 120_000)
   timeBankMs: number;
 }

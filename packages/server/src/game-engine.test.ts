@@ -291,6 +291,31 @@ describe('GameEngine', () => {
     });
   });
 
+  describe('handleFlag', () => {
+    it('flags the player, removes their pending decision, and lets others continue', () => {
+      const engine = new GameEngine();
+      const state = makeTestGameState({
+        currentPhase: 'PROGRESS',
+        players: [
+          makeTestPlayer({ playerId: 'p1', playerName: 'Alice', timeBankMs: 1 }),
+          makeTestPlayer({ playerId: 'p2', playerName: 'Bob', timeBankMs: 120_000 }),
+        ],
+        turnOrder: ['p1', 'p2'],
+        pendingDecisions: [
+          { playerId: 'p1', decisionType: 'PROGRESS_TRACK', timeoutAt: Date.now(), options: null },
+          { playerId: 'p2', decisionType: 'PROGRESS_TRACK', timeoutAt: Date.now() + 30_000, options: null },
+        ],
+      });
+
+      const flagged = engine.handleFlag(state, 'p1');
+
+      expect(flagged.players.find(p => p.playerId === 'p1')?.hasFlagged).toBe(true);
+      expect(flagged.players.find(p => p.playerId === 'p1')?.timeBankMs).toBe(0);
+      expect(flagged.pendingDecisions.map(d => d.playerId)).toEqual(['p2']);
+      expect(flagged.currentPhase).toBe('PROGRESS');
+    });
+  });
+
   describe('advancePhase', () => {
     it('recursively advances through auto-completing phases', () => {
       const engine = new GameEngine();

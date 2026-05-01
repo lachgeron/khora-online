@@ -39,6 +39,28 @@ import { useSolverMode } from './solver/useSolverMode';
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
 const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
+const TIME_BANK_DANGER_SECONDS = 10;
+
+interface TimeBankDangerOverlayProps {
+  active: boolean;
+  remainingSeconds: number;
+}
+
+const TimeBankDangerOverlay: React.FC<TimeBankDangerOverlayProps> = ({ active, remainingSeconds }) => {
+  if (!active) return null;
+
+  return (
+    <div className="fixed inset-0 z-[1000] pointer-events-none time-bank-danger-flash" aria-live="assertive">
+      <div className="absolute inset-x-0 top-4 flex justify-center px-4">
+        <div className="rounded-lg border-2 border-red-200 bg-red-700 px-6 py-4 text-center text-white shadow-2xl time-bank-danger-card">
+          <p className="text-xs font-bold uppercase tracking-[0.18em]">Time Bank Critical</p>
+          <p className="font-display text-4xl font-bold leading-none mt-1">{remainingSeconds}s</p>
+          <p className="text-sm font-semibold mt-1">Move now or you will flag.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('NAME');
@@ -170,6 +192,32 @@ export const App: React.FC = () => {
   const handlePickBanCard = (cardId: string, action: 'BAN' | 'PICK') => sendMessage({ type: 'PICK_BAN_CARD', cardId, action });
 
   const currentPlayer = gameState?.players.find(p => p.playerId === currentPlayerId);
+  const myTimeBankDecision = gameState?.pendingDecisions.find(
+    d => d.playerId === currentPlayerId && d.usingTimeBank,
+  );
+  const [timeBankRemainingSeconds, setTimeBankRemainingSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!myTimeBankDecision) {
+      setTimeBankRemainingSeconds(0);
+      return;
+    }
+
+    const updateRemaining = () => {
+      setTimeBankRemainingSeconds(Math.max(0, Math.ceil((myTimeBankDecision.timeoutAt - Date.now()) / 1000)));
+    };
+
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 250);
+    return () => clearInterval(interval);
+  }, [myTimeBankDecision?.timeoutAt]);
+
+  const showTimeBankDanger =
+    screen === 'GAME' &&
+    Boolean(myTimeBankDecision) &&
+    timeBankRemainingSeconds > 0 &&
+    timeBankRemainingSeconds <= TIME_BANK_DANGER_SECONDS &&
+    !currentPlayer?.hasFlagged;
 
   const playerNames: Record<string, string> = {};
   if (gameState) {
@@ -180,6 +228,8 @@ export const App: React.FC = () => {
 
   return (
     <div>
+      <TimeBankDangerOverlay active={showTimeBankDanger} remainingSeconds={timeBankRemainingSeconds} />
+
       {screen === 'NAME' && (
         <div className="flex items-center justify-center min-h-screen">
           <div className="max-w-sm w-full text-center px-6">

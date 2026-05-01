@@ -24,6 +24,7 @@ export function makeTestPlayer(overrides: Partial<PlayerState> = {}): PlayerStat
     playerName: 'Alice',
     cityId: 'athens',
     isConnected: true,
+    hasFlagged: false,
     coins: 4,
     economyTrack: 1,
     cultureTrack: 1,

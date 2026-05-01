@@ -273,6 +273,7 @@ export const arbPlayerState: fc.Arbitrary<PlayerState> = fc.record({
   ) as fc.Arbitrary<ActionSlotTuple>,
   victoryPoints: fc.integer({ min: 0, max: 200 }),
   isConnected: fc.boolean(),
+  hasFlagged: fc.boolean(),
   timeBankMs: fc.integer({ min: 0, max: 120_000 }),
 });
 

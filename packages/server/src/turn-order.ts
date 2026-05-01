@@ -17,7 +17,7 @@ import type { GameState } from '@khora/shared';
  * Ties broken by clockwise proximity to the previous round's start player.
  */
 export function determineTurnOrder(state: GameState): GameState {
-  const connectedPlayers = state.players.filter(p => p.isConnected);
+  const connectedPlayers = state.players.filter(p => p.isConnected && !p.hasFlagged);
 
   const playerTotals = connectedPlayers.map(p => ({
     playerId: p.playerId,

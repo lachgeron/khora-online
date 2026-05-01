@@ -45,7 +45,7 @@ export class DicePhaseManager implements PhaseManager {
     // Create ROLL_DICE pending decisions for all connected players
     const now = Date.now();
     const pendingDecisions = newState.players
-      .filter(p => p.isConnected)
+      .filter(p => p.isConnected && !p.hasFlagged)
       .map(p => ({
         playerId: p.playerId,
         decisionType: 'ROLL_DICE' as const,
@@ -110,7 +110,7 @@ export class DicePhaseManager implements PhaseManager {
 
     // Check if all connected players have rolled
     const allRolled = updatedState.players
-      .filter(p => p.isConnected)
+      .filter(p => p.isConnected && !p.hasFlagged)
       .every(p => p.diceRoll !== null);
 
     if (allRolled) {
@@ -120,7 +120,7 @@ export class DicePhaseManager implements PhaseManager {
       // Growing Populations: players who rolled ≤4 total gain 1 scroll
       if (updatedState.currentEvent?.triggerDuringDice) {
         const updatedPlayers = updatedState.players.map(p => {
-          if (!p.isConnected || !p.diceRoll) return p;
+          if (!p.isConnected || p.hasFlagged || !p.diceRoll) return p;
           const total = p.diceRoll.reduce((a, b) => a + b, 0);
           if (total <= 4) {
             return { ...p, philosophyTokens: p.philosophyTokens + 1 };
@@ -133,7 +133,7 @@ export class DicePhaseManager implements PhaseManager {
       // Create ASSIGN_DICE pending decisions for all connected players (60s timer)
       const assignNow = Date.now();
       updatedDecisions = updatedState.players
-        .filter(p => p.isConnected)
+        .filter(p => p.isConnected && !p.hasFlagged)
         .map(p => ({
           playerId: p.playerId,
           decisionType: 'ASSIGN_DICE' as const,

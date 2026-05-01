@@ -199,7 +199,7 @@ export class ActionPhaseManager implements PhaseManager {
       return false;
     }
     return state.players
-      .filter(p => p.isConnected)
+      .filter(p => p.isConnected && !p.hasFlagged)
       .every(p => !this.hasUnresolvedActions(p.actionSlots));
   }
 
@@ -304,7 +304,7 @@ export class ActionPhaseManager implements PhaseManager {
   private getActivePlayerId(state: GameState): string | null {
     for (const pid of state.turnOrder) {
       const player = state.players.find(p => p.playerId === pid);
-      if (player && player.isConnected && this.hasUnresolvedActions(player.actionSlots)) {
+      if (player && player.isConnected && !player.hasFlagged && this.hasUnresolvedActions(player.actionSlots)) {
         return pid;
       }
     }

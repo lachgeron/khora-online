@@ -90,17 +90,19 @@ export class PoliticsResolver implements ActionResolver {
     }
     player = afterPlay;
 
+    let stateAfterImmediate: GameState = state;
     if (card.type === 'IMMEDIATE') {
       // Apply the card's dedicated handler (handles complex effects)
       let updatedState: GameState = { ...state, players: [...state.players] };
       updatedState.players[playerIndex] = player;
       updatedState = applyImmediateCardEffect(updatedState, playerId, card.id, choices);
       player = updatedState.players[playerIndex];
+      stateAfterImmediate = updatedState;
     }
 
-    const updatedPlayers = [...state.players];
+    const updatedPlayers = [...stateAfterImmediate.players];
     updatedPlayers[playerIndex] = player;
-    let finalState = { ...state, players: updatedPlayers };
+    let finalState = { ...stateAfterImmediate, players: updatedPlayers };
 
     // Trigger ON_PLAY_CARD ongoing effects (e.g., Extraordinary Collection)
     // Exclude the card just played so it doesn't trigger for itself

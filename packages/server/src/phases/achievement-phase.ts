@@ -23,7 +23,7 @@ export class AchievementPhaseManager implements PhaseManager {
 
     for (const achievement of state.availableAchievements) {
       const qualifiers = state.players.filter(p =>
-        p.isConnected && achievement.condition.evaluate(p),
+        p.isConnected && !p.hasFlagged && achievement.condition.evaluate(p),
       );
 
       if (qualifiers.length === 0) {

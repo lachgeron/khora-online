@@ -33,7 +33,7 @@ function shuffle<T>(array: T[]): T[] {
 
 export class DraftPoliticsPhaseManager implements PhaseManager {
   onEnter(state: GameState): GameState {
-    const playerIds = state.players.map(p => p.playerId);
+    const playerIds = state.players.filter(p => !p.hasFlagged).map(p => p.playerId);
     const totalCardsNeeded = playerIds.length * CARDS_PER_PILE;
 
     // Shuffle and deal from the politics deck
