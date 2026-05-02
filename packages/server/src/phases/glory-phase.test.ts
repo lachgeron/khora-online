@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GloryPhaseManager } from './glory-phase';
-import { makeTestPlayer, makeTestGameState, makeTestEventCard } from '../test-helpers';
+import { makeTestPlayer, makeTestGameState, makeTestEventCard, makeTestPoliticsCard } from '../test-helpers';
 
 describe('GloryPhaseManager', () => {
   const manager = new GloryPhaseManager();
@@ -105,6 +105,33 @@ describe('GloryPhaseManager', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('NOT_YOUR_TURN');
+      }
+    });
+
+    it('applies Gradualism discount to Rise of Persia progress', () => {
+      const player = makeTestPlayer({
+        playerId: 'player-1',
+        coins: 2,
+        militaryTrack: 4,
+        playedCards: [makeTestPoliticsCard('gradualism')],
+      });
+      const state = makeTestGameState({
+        currentPhase: 'GLORY',
+        players: [player],
+        pendingDecisions: [{
+          playerId: 'player-1',
+          decisionType: 'RISE_OF_PERSIA_PROGRESS',
+          timeoutAt: Date.now() + 30_000,
+          options: null,
+        }],
+      });
+
+      const result = manager.handleDecision(state, 'player-1', { type: 'EVENT_PROGRESS_TRACK', track: 'MILITARY' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.players[0].coins).toBe(0);
+        expect(result.value.players[0].militaryTrack).toBe(5);
       }
     });
   });

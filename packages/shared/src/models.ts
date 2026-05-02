@@ -59,6 +59,7 @@ export interface PlayerState {
 
   // Round state
   diceRoll: number[] | null;    // 2 dice (3 if culture track >= 4)
+  diceRollHistory: number[];    // Every individual die rolled across the game
   actionSlots: ActionSlotTuple;
 
   // Scoring

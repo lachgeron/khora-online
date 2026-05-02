@@ -266,6 +266,7 @@ export const arbPlayerState: fc.Arbitrary<PlayerState> = fc.record({
     ),
     { nil: null },
   ),
+  diceRollHistory: fc.array(arbDiceValue, { minLength: 0, maxLength: 27 }),
   actionSlots: fc.tuple(
     fc.option(arbActionSlot, { nil: null }),
     fc.option(arbActionSlot, { nil: null }),

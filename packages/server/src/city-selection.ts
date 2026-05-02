@@ -129,6 +129,7 @@ export class CitySelectionManager {
       developmentLevel: 1,
 
       diceRoll: null,
+      diceRollHistory: [],
       actionSlots: [null, null, null],
 
       victoryPoints: 0,

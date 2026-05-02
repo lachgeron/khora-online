@@ -87,6 +87,7 @@ describe('DicePhaseManager', () => {
           expect(die).toBeGreaterThanOrEqual(1);
           expect(die).toBeLessThanOrEqual(6);
         }
+        expect(p1.diceRollHistory).toEqual(p1.diceRoll);
         // p2 still hasn't rolled
         expect(result.value.players[1].diceRoll).toBeNull();
       }

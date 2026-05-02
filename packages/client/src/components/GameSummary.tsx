@@ -25,11 +25,12 @@ const PlayerCard: React.FC<{
   player: PublicPlayerState;
   rank: number;
   totalPoints: number;
+  averageDiceRoll: number | null;
   breakdown: { scoreTrackPoints: number; developmentPoints: number; politicsCardPoints: number; gloryKnowledgePoints: number; detailedSources: { label: string; points: number }[] };
   isWinner: boolean;
   achievements: AchievementToken[];
   cityName: string;
-}> = ({ player: p, rank, totalPoints, breakdown, isWinner, achievements, cityName }) => {
+}> = ({ player: p, rank, totalPoints, averageDiceRoll, breakdown, isWinner, achievements, cityName }) => {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -99,6 +100,7 @@ const PlayerCard: React.FC<{
             <span className="px-2 py-1 bg-sand-200 rounded-full">🃏 {p.playedCardCount} cards played</span>
             <span className="px-2 py-1 bg-sand-200 rounded-full">🎴 {p.handCardCount} in hand</span>
             <span className="px-2 py-1 bg-sand-200 rounded-full">🔮 {p.knowledgeTokenCount} tokens</span>
+            <span className="px-2 py-1 bg-sand-200 rounded-full">🎲 Avg {averageDiceRoll?.toFixed(1) ?? 'n/a'}</span>
           </div>
 
           {/* Played cards */}
@@ -161,6 +163,7 @@ export const GameSummary: React.FC<GameSummaryProps> = ({ finalScores, gameLog, 
                 player={player}
                 rank={score.rank}
                 totalPoints={score.totalPoints}
+                averageDiceRoll={score.averageDiceRoll}
                 breakdown={score.breakdown}
                 isWinner={score.playerId === finalScores.winnerId}
                 achievements={achievements}

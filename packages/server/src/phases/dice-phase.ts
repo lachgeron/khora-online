@@ -101,7 +101,11 @@ export class DicePhaseManager implements PhaseManager {
       : Array.from({ length: diceCount }, () => Math.floor(Math.random() * 6) + 1);
 
     const updatedPlayers = [...state.players];
-    updatedPlayers[playerIndex] = { ...player, diceRoll };
+    updatedPlayers[playerIndex] = {
+      ...player,
+      diceRoll,
+      diceRollHistory: [...(player.diceRollHistory ?? []), ...diceRoll],
+    };
 
     // Remove this player's ROLL_DICE pending decision
     let updatedDecisions = state.pendingDecisions.filter(d => d.playerId !== playerId);

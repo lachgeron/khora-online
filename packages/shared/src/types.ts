@@ -92,6 +92,7 @@ export interface FinalScoreBoard {
 export interface PlayerFinalScore {
   playerId: string;
   playerName: string;
+  averageDiceRoll: number | null;
   breakdown: {
     scoreTrackPoints: number;      // VP accumulated during the game
     developmentPoints: number;

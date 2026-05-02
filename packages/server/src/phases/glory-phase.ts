@@ -19,8 +19,8 @@ import { advanceTrack, subtractCoins } from '../resources';
 import { applyEffectToAllPlayers } from '../effects';
 import { applyEventEffect, getHighestTroops, getLowestTroops } from '../event-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
-import { applyOngoingEffects } from '../card-handlers';
-import { applyOngoingDevEffects } from '../city-dev-handlers';
+import { applyOngoingEffects, hasCardInPlay } from '../card-handlers';
+import { applyOngoingDevEffects, hasDevUnlocked } from '../city-dev-handlers';
 import { PoliticsResolver } from '../actions/politics-resolver';
 import { PhilosophyResolver } from '../actions/philosophy-resolver';
 import { LegislationResolver } from '../actions/legislation-resolver';
@@ -37,6 +37,24 @@ const TRACK_COST_MAP: Record<string, Record<number, number>> = {
   MILITARY: MILITARY_COSTS,
 };
 const MAX_PROGRESS_LEVEL = 7;
+
+function discountedProgressCost(player: GameState['players'][number], track: ProgressTrackType, eventDiscount: number): number {
+  const currentLevel = track === 'ECONOMY' ? player.economyTrack : track === 'CULTURE' ? player.cultureTrack : player.militaryTrack;
+  const trackCosts = TRACK_COST_MAP[track] ?? {};
+  let cost = trackCosts[currentLevel] ?? 99;
+
+  if (track === 'ECONOMY' && hasCardInPlay(player, 'constructing-the-mint')) {
+    cost = 0;
+  }
+  if (cost > 0 && hasCardInPlay(player, 'gradualism')) {
+    cost = Math.max(0, cost - 1);
+  }
+  if (cost > 0 && hasDevUnlocked(player, 'corinth-dev-3')) {
+    cost = Math.max(0, cost - 1);
+  }
+
+  return Math.max(0, cost - eventDiscount);
+}
 
 function makeDisplayDecision(): GameState['pendingDecisions'] {
   return [{
@@ -286,9 +304,7 @@ export class GloryPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'TRACK_MAX_REACHED', message: `${track} track is already at maximum level` } };
     }
 
-    const trackCosts = TRACK_COST_MAP[track] ?? {};
-    const baseCost = trackCosts[currentLevel] ?? 99;
-    const discountedCost = Math.max(0, baseCost - 2);
+    const discountedCost = discountedProgressCost(player, track, 2);
 
     if (discountedCost > 0) {
       const costResult = subtractCoins(player, discountedCost);
@@ -322,8 +338,7 @@ export class GloryPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'TRACK_MAX_REACHED', message: 'MILITARY track is already at maximum level' } };
     }
 
-    const baseCost = (TRACK_COST_MAP['MILITARY'] ?? {})[player.militaryTrack] ?? 99;
-    const discountedCost = Math.max(0, baseCost - 2);
+    const discountedCost = discountedProgressCost(player, 'MILITARY', 2);
 
     if (discountedCost > 0) {
       const costResult = subtractCoins(player, discountedCost);

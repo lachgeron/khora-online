@@ -76,6 +76,17 @@ describe('ScoringEngine', () => {
       expect(result.rankings[0].breakdown.gloryKnowledgePoints).toBe(0);
     });
 
+    it('calculates average dice roll per individual die to one decimal place', () => {
+      const player = makeTestPlayer({
+        diceRollHistory: [1, 2, 3, 4, 5, 6, 4],
+      });
+      const state = makeTestGameState({ players: [player] });
+
+      const result = calculateFinalScores(state);
+
+      expect(result.rankings[0].averageDiceRoll).toBe(3.6);
+    });
+
     it('ranks players by total VP descending', () => {
       const p1 = makeTestPlayer({ playerId: 'p1', playerName: 'Alice', victoryPoints: 10 });
       const p2 = makeTestPlayer({ playerId: 'p2', playerName: 'Bob', victoryPoints: 20 });
@@ -157,8 +168,8 @@ describe('ScoringEngine', () => {
   describe('applyTiebreakers', () => {
     it('sorts by total VP descending', () => {
       const scores: PlayerFinalScore[] = [
-        { playerId: 'p1', playerName: 'A', breakdown: { scoreTrackPoints: 10, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 10, rank: 0 },
-        { playerId: 'p2', playerName: 'B', breakdown: { scoreTrackPoints: 20, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 20, rank: 0 },
+        { playerId: 'p1', playerName: 'A', averageDiceRoll: null, breakdown: { scoreTrackPoints: 10, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 10, rank: 0 },
+        { playerId: 'p2', playerName: 'B', averageDiceRoll: null, breakdown: { scoreTrackPoints: 20, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 20, rank: 0 },
       ];
 
       const result = applyTiebreakers(scores);
@@ -169,8 +180,8 @@ describe('ScoringEngine', () => {
 
     it('breaks ties by most drachmas when players provided', () => {
       const scores: PlayerFinalScore[] = [
-        { playerId: 'p1', playerName: 'A', breakdown: { scoreTrackPoints: 15, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 15, rank: 0 },
-        { playerId: 'p2', playerName: 'B', breakdown: { scoreTrackPoints: 15, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 15, rank: 0 },
+        { playerId: 'p1', playerName: 'A', averageDiceRoll: null, breakdown: { scoreTrackPoints: 15, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 15, rank: 0 },
+        { playerId: 'p2', playerName: 'B', averageDiceRoll: null, breakdown: { scoreTrackPoints: 15, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 15, rank: 0 },
       ];
       const players = [
         makeTestPlayer({ playerId: 'p1', coins: 3 }),
@@ -185,7 +196,7 @@ describe('ScoringEngine', () => {
 
     it('assigns 1-based ranks', () => {
       const scores: PlayerFinalScore[] = [
-        { playerId: 'p1', playerName: 'A', breakdown: { scoreTrackPoints: 5, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 5, rank: 0 },
+        { playerId: 'p1', playerName: 'A', averageDiceRoll: null, breakdown: { scoreTrackPoints: 5, developmentPoints: 0, politicsCardPoints: 0, gloryKnowledgePoints: 0, detailedSources: [] }, totalPoints: 5, rank: 0 },
       ];
 
       const result = applyTiebreakers(scores);
