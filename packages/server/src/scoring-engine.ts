@@ -28,7 +28,7 @@ import { calculateDevEndGameScore } from './city-dev-handlers';
 export function calculateFinalScores(state: GameState): FinalScoreBoard {
   const scores: PlayerFinalScore[] = state.players.map((player) => {
     const detailedSources: { label: string; points: number }[] = [];
-    const averageDiceRoll = calculateAverageDiceRoll(player);
+    const averageDiceRoll = calculateAverageDiceRoll(player, state);
 
     if (player.hasFlagged) {
       detailedSources.push({ label: 'Flagged on time', points: 0 });
@@ -108,8 +108,13 @@ export function calculateFinalScores(state: GameState): FinalScoreBoard {
   };
 }
 
-function calculateAverageDiceRoll(player: PlayerState): number | null {
-  const rolls = player.diceRollHistory ?? [];
+function calculateAverageDiceRoll(player: PlayerState, state: GameState): number | null {
+  const rolls = player.diceRollHistory?.length
+    ? player.diceRollHistory
+    : Object.entries(state.predeterminedDice)
+        .filter(([round]) => Number(round) <= state.roundNumber)
+        .flatMap(([, roundDice]) => (roundDice[player.playerId] ?? []).slice(0, 2));
+
   if (rolls.length === 0) return null;
   const total = rolls.reduce((sum, die) => sum + die, 0);
   return Math.round((total / rolls.length) * 10) / 10;

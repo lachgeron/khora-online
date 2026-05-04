@@ -87,6 +87,23 @@ describe('ScoringEngine', () => {
       expect(result.rankings[0].averageDiceRoll).toBe(3.6);
     });
 
+    it('falls back to the dice schedule when no roll history was recorded', () => {
+      const player = makeTestPlayer({ playerId: 'p1', diceRollHistory: [] });
+      const state = makeTestGameState({
+        roundNumber: 2,
+        players: [player],
+        predeterminedDice: {
+          1: { p1: [1, 2, 6] },
+          2: { p1: [3, 6, 6] },
+          3: { p1: [6, 6, 6] },
+        },
+      });
+
+      const result = calculateFinalScores(state);
+
+      expect(result.rankings[0].averageDiceRoll).toBe(3);
+    });
+
     it('ranks players by total VP descending', () => {
       const p1 = makeTestPlayer({ playerId: 'p1', playerName: 'Alice', victoryPoints: 10 });
       const p2 = makeTestPlayer({ playerId: 'p2', playerName: 'Bob', victoryPoints: 20 });
