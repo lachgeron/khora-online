@@ -40,12 +40,6 @@ export interface GameListingItem {
   roundNumber?: number;
 }
 
-/** Response from taking an open seat in an in-progress game. */
-export interface TakeSeatResponse {
-  gameId: string;
-  playerId: string;
-}
-
 /** Error shape returned by REST handlers. */
 export interface RestApiError {
   code: string;
@@ -166,7 +160,8 @@ export class RestApiHandler {
    * Build the game browser listing.
    * GET /api/games
    *
-   * Returns open lobbies + in-progress games with disconnected seats.
+   * Returns open lobbies. In-progress disconnects are not open seats;
+   * the original player may reconnect until their clock flags them.
    */
   listGames(activeGames: Map<string, GameState>, lobbyGameIds: Map<string, string>): GameListingItem[] {
     const listings: GameListingItem[] = [];
@@ -183,29 +178,8 @@ export class RestApiHandler {
       });
     }
 
-    // In-progress games with disconnected players (open seats)
-    for (const [gameId, state] of activeGames) {
-      if (state.currentPhase === 'GAME_OVER' || state.currentPhase === 'FINAL_SCORING') continue;
-
-      const disconnectedIds = new Set(state.disconnectedPlayers.keys());
-      const openSeats = state.players.filter(p => !p.isConnected || disconnectedIds.has(p.playerId)).length;
-
-      if (openSeats > 0) {
-        listings.push({
-          id: gameId,
-          type: 'game',
-          hostName: state.players[0]?.playerName ?? 'Unknown',
-          players: state.players.map(p => ({
-            name: p.playerName,
-            connected: p.isConnected && !disconnectedIds.has(p.playerId),
-          })),
-          maxPlayers: state.players.length,
-          openSeats,
-          currentPhase: state.currentPhase,
-          roundNumber: state.roundNumber,
-        });
-      }
-    }
+    void activeGames;
+    void lobbyGameIds;
 
     return listings;
   }

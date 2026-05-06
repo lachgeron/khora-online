@@ -14,7 +14,7 @@
  * - Opponents are frozen at calculation time.
  */
 
-import type { ActionSlotTuple, GamePhase, KnowledgeColor, PoliticsCard, KnowledgeToken, PredeterminedDiceSchedule, ProgressTrackType, SolverFullState } from '@khora/shared';
+import type { ActionChoices, ActionSlotTuple, GamePhase, KnowledgeColor, PoliticsCard, KnowledgeToken, PredeterminedDiceSchedule, ProgressTrackType, SolverFullState } from '@khora/shared';
 // KnowledgeToken kept for historical snapshot shape; not used in ActionChoice.
 
 /** Actions the solver considers. */
@@ -149,10 +149,17 @@ export interface MacroAction {
 }
 
 /** A description of what happens in one round, for display. */
+export type RecommendedMove =
+  | { kind: 'ASSIGN_DICE'; assignments: SolverDiceAssignment[]; philosophyTokensToSpend?: number }
+  | { kind: 'RESOLVE_ACTION'; actionType: SolverAction; choice: ActionChoice; choices: ActionChoices }
+  | { kind: 'PROGRESS_TRACK'; tracks: ProgressTrackType[]; philosophySpent: number }
+  | { kind: 'ACHIEVEMENT_TRACK_CHOICE'; choices: Array<'TAX' | 'GLORY'> };
+
 export interface RoundPlan {
   round: number;
   description: string[];                 // human-readable bullets
   actionTypes: SolverAction[];           // action types the solver wants this round, in order
+  recommendedMoves: RecommendedMove[];   // structured payloads for assist/cheat automation
   vpBefore: number;
   vpAfter: number;
   coinsBefore: number;

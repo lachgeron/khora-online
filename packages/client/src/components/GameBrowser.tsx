@@ -16,12 +16,11 @@ export interface GameBrowserProps {
   playerName: string;
   onCreateGame: () => void;
   onJoinLobby: (lobbyId: string) => void;
-  onTakeSeat: (gameId: string) => void;
   error: string | null;
 }
 
 export const GameBrowser: React.FC<GameBrowserProps> = ({
-  playerName, onCreateGame, onJoinLobby, onTakeSeat, error,
+  playerName, onCreateGame, onJoinLobby, error,
 }) => {
   const [listings, setListings] = useState<GameListingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +42,6 @@ export const GameBrowser: React.FC<GameBrowserProps> = ({
   }, []);
 
   const lobbies = listings.filter(g => g.type === 'lobby');
-  const inProgress = listings.filter(g => g.type === 'game');
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -93,36 +90,6 @@ export const GameBrowser: React.FC<GameBrowserProps> = ({
         </div>
       )}
 
-      {inProgress.length > 0 && (
-        <div>
-          <p className="font-display text-xs uppercase tracking-[0.12em] text-sand-500 mb-2">Games in Progress — Open Seats</p>
-          <div className="space-y-2">
-            {inProgress.map(g => (
-              <div key={g.id} className="flex items-center justify-between px-4 py-3 bg-sand-100 border border-sand-300 rounded-lg">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-sand-800 truncate">{g.hostName}'s game</p>
-                    <span className="text-[0.6rem] uppercase tracking-wide text-olive font-bold">Round {g.roundNumber}</span>
-                  </div>
-                  <div className="flex gap-1.5 mt-1">
-                    {g.players.map((p, i) => (
-                      <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${p.connected ? 'bg-sand-200 text-sand-600' : 'bg-crimson/10 text-crimson font-semibold'}`}>
-                        {p.connected ? p.name : `${p.name} (open)`}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  onClick={() => onTakeSeat(g.id)}
-                  className="ml-3 px-4 py-1.5 bg-olive/80 text-sand-50 rounded-lg font-semibold text-xs hover:bg-olive transition-colors"
-                >
-                  Take Seat
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

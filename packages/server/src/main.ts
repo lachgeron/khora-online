@@ -15,7 +15,7 @@ import { LobbyManager, generatePlayerId } from './lobby';
 import { RestApiHandler } from './api/rest-api';
 import { WebSocketGateway } from './api/websocket-gateway';
 import { GameEngine } from './game-engine';
-import { handleDisconnect, handleReconnect, removePlayer } from './disconnection';
+import { handleDisconnect, handleReconnect } from './disconnection';
 import { loadStats, recordGame } from './stats';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -33,8 +33,6 @@ const engines = new Map<string, GameEngine>();
 const lobbyGameIds = new Map<string, string>();
 // Track active decision timers per game
 const gameTimers = new Map<string, ReturnType<typeof setTimeout>>();
-// Track per-player abandonment timers: key = `${gameId}:${playerId}`
-const abandonTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // Track per-player time bank usage start times: key = `${gameId}:${playerId}`
 const timeBankUsage = new Map<string, number>();
 // Track which games have already had stats recorded (prevent double-recording)
@@ -57,45 +55,6 @@ function recordGameStats(gameId: string, state: GameState): void {
     cityMap[p.playerId] = cityById.get(p.cityId) ?? p.cityId ?? 'Unknown';
   }
   recordGame(state.finalScores, state.players.length, cityMap);
-}
-
-/**
- * Schedule a player for removal after their 2-minute disconnect window expires.
- * If they reconnect before then, cancel with clearAbandonTimer.
- */
-function scheduleAbandonTimer(gameId: string, playerId: string, delayMs: number): void {
-  const key = `${gameId}:${playerId}`;
-  // Clear any existing timer for this player
-  const existing = abandonTimers.get(key);
-  if (existing) clearTimeout(existing);
-
-  const timerId = setTimeout(() => {
-    abandonTimers.delete(key);
-    const state = games.get(gameId);
-    const gameEngine = engines.get(gameId);
-    if (!state || !gameEngine) return;
-    if (state.currentPhase === 'GAME_OVER') return;
-
-    // Only remove if the player is still disconnected
-    if (!state.disconnectedPlayers.has(playerId)) return;
-
-    console.log(`[ABANDON] Removing player ${playerId} from game ${gameId} after 2-minute disconnect window`);
-    const updatedState = removePlayer(state, playerId);
-    games.set(gameId, updatedState);
-    wsGateway.broadcastToGame(gameId, updatedState);
-    manageGameTimer(gameId, updatedState);
-  }, delayMs);
-
-  abandonTimers.set(key, timerId);
-}
-
-function clearAbandonTimer(gameId: string, playerId: string): void {
-  const key = `${gameId}:${playerId}`;
-  const existing = abandonTimers.get(key);
-  if (existing) {
-    clearTimeout(existing);
-    abandonTimers.delete(key);
-  }
 }
 
 /**
@@ -290,47 +249,6 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
   res.json({ gameId: state.gameId, players });
 });
 
-// POST /api/games/:gameId/take-seat — take a disconnected player's seat
-app.post('/api/games/:gameId/take-seat', (req, res) => {
-  const { gameId } = req.params;
-  const { playerName } = req.body;
-
-  if (!playerName || playerName.trim().length === 0) {
-    return res.status(400).json({ code: 'INVALID_REQUEST', message: 'playerName is required.' });
-  }
-
-  const state = games.get(gameId);
-  if (!state) {
-    return res.status(404).json({ code: 'GAME_NOT_FOUND', message: 'Game not found.' });
-  }
-
-  // Find a disconnected player whose seat can be taken
-  const disconnectedIds = new Set(state.disconnectedPlayers.keys());
-  const openPlayer = state.players.find(p => disconnectedIds.has(p.playerId) && !p.isConnected);
-
-  if (!openPlayer) {
-    return res.status(400).json({ code: 'NO_OPEN_SEATS', message: 'No open seats available in this game.' });
-  }
-
-  // Cancel abandonment timer and reconnect the player with the new name
-  clearAbandonTimer(gameId, openPlayer.playerId);
-  let updatedState = handleReconnect(state, openPlayer.playerId);
-  updatedState = {
-    ...updatedState,
-    players: updatedState.players.map(p =>
-      p.playerId === openPlayer.playerId ? { ...p, playerName: playerName.trim() } : p,
-    ),
-  };
-  games.set(gameId, updatedState);
-
-  console.log(`[SEAT] Player "${playerName}" took seat of "${openPlayer.playerName}" (${openPlayer.playerId}) in game ${gameId}`);
-
-  // Broadcast updated state to existing players
-  wsGateway.broadcastToGame(gameId, updatedState);
-
-  res.json({ gameId, playerId: openPlayer.playerId });
-});
-
 // GET /api/lobbies/:lobbyId — get lobby info
 app.get('/api/lobbies/:lobbyId', (req, res) => {
   const lobby = lobbyManager.getLobby(req.params.lobbyId);
@@ -384,7 +302,6 @@ wss.on('connection', (ws, req) => {
   // Handle reconnection: if this player was disconnected, mark them reconnected
   let state = games.get(gameId)!;
   if (state.disconnectedPlayers.has(playerId)) {
-    clearAbandonTimer(gameId, playerId);
     state = handleReconnect(state, playerId);
     games.set(gameId, state);
     console.log(`[WS] Player ${playerId} reconnected to game ${gameId}`);
@@ -610,13 +527,6 @@ wss.on('connection', (ws, req) => {
       const updatedState = handleDisconnect(currentState, playerId);
       games.set(gameId, updatedState);
       wsGateway.broadcastToGame(gameId, updatedState);
-
-      // Schedule removal after the 2-minute window
-      const info = updatedState.disconnectedPlayers.get(playerId);
-      if (info) {
-        const delay = Math.max(1000, info.expiresAt - Date.now());
-        scheduleAbandonTimer(gameId, playerId, delay);
-      }
     }
   });
 });
@@ -629,12 +539,6 @@ wsGateway.onDisconnect((gameId, playerId) => {
     const updatedState = handleDisconnect(currentState, playerId);
     games.set(gameId, updatedState);
     wsGateway.broadcastToGame(gameId, updatedState);
-
-    const info = updatedState.disconnectedPlayers.get(playerId);
-    if (info) {
-      const delay = Math.max(1000, info.expiresAt - Date.now());
-      scheduleAbandonTimer(gameId, playerId, delay);
-    }
   }
   // Also close the raw WS connection if it still exists
   for (const [ws, meta] of wsClients) {

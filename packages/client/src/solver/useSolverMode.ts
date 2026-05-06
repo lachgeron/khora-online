@@ -328,7 +328,10 @@ export function useSolverMode(
 
     if (classification === 'CONSISTENT_PROGRESS') {
       // Worker's in-flight search already accounts for this action sequence.
-      // Keep it running; no restart, no shift change.
+      // Keep it running, but trim already-resolved actions from the visible
+      // current-round recommendation so "Do This Now" stays pointed at the
+      // next unresolved click.
+      setResult(prev => trimCurrentRoundResult(prev, newInput.actionsAlreadyTaken));
       setStale(false);
       setStatus('stable');
       return;
@@ -421,6 +424,68 @@ export function useSolverMode(
 
 function planFromResult(result: SolverResult | null): Plan | null {
   return result && result.ok && 'plan' in result ? result.plan : null;
+}
+
+function trimCurrentRoundResult(result: SolverResult | null, completedActions: SolverAction[]): SolverResult | null {
+  if (!result || !result.ok || !('plan' in result) || !result.plan.currentRound) return result;
+  const currentRound = trimRoundPlan(result.plan.currentRound, completedActions);
+  return { ok: true, plan: { ...result.plan, currentRound } };
+}
+
+function trimRoundPlan(round: RoundPlan, completedActions: SolverAction[]): RoundPlan {
+  if (completedActions.length === 0) return round;
+  const remainingCounts = new Map<SolverAction, number>();
+  for (const action of completedActions) {
+    remainingCounts.set(action, (remainingCounts.get(action) ?? 0) + 1);
+  }
+
+  const actionTypes: SolverAction[] = [];
+  for (const action of round.actionTypes) {
+    const count = remainingCounts.get(action) ?? 0;
+    if (count > 0) {
+      remainingCounts.set(action, count - 1);
+      continue;
+    }
+    actionTypes.push(action);
+  }
+
+  const moveCounts = new Map<SolverAction, number>();
+  for (const action of completedActions) {
+    moveCounts.set(action, (moveCounts.get(action) ?? 0) + 1);
+  }
+  const recommendedMoves = round.recommendedMoves.filter(move => {
+    if (move.kind !== 'RESOLVE_ACTION') return true;
+    const count = moveCounts.get(move.actionType) ?? 0;
+    if (count <= 0) return true;
+    moveCounts.set(move.actionType, count - 1);
+    return false;
+  });
+
+  const lineCounts = new Map<SolverAction, number>();
+  for (const action of completedActions) {
+    lineCounts.set(action, (lineCounts.get(action) ?? 0) + 1);
+  }
+  const description = round.description.filter(line => {
+    const action = actionForLine(line);
+    if (!action) return true;
+    const count = lineCounts.get(action) ?? 0;
+    if (count <= 0) return true;
+    lineCounts.set(action, count - 1);
+    return false;
+  });
+
+  return { ...round, actionTypes, recommendedMoves, description };
+}
+
+function actionForLine(line: string): SolverAction | null {
+  if (line.startsWith('Philosophy')) return 'PHILOSOPHY';
+  if (line.startsWith('Legislation')) return 'LEGISLATION';
+  if (line.startsWith('Culture')) return 'CULTURE';
+  if (line.startsWith('Trade')) return 'TRADE';
+  if (line.startsWith('Military')) return 'MILITARY';
+  if (line.startsWith('Politics')) return 'POLITICS';
+  if (line.startsWith('Development')) return 'DEVELOPMENT';
+  return null;
 }
 
 /**

@@ -59,10 +59,9 @@ export interface PendingDecision {
   usingTimeBank?: boolean;     // True when normal timer expired and time bank is being consumed
 }
 
-/** Info about a disconnected player's reconnection window. */
+/** Info about a disconnected player. */
 export interface DisconnectionInfo {
   disconnectedAt: number;
-  expiresAt: number;           // disconnectedAt + 120_000ms (2 minutes)
 }
 
 /** A single entry in the game log. */

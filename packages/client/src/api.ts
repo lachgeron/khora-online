@@ -4,7 +4,7 @@
 
 const BASE_URL = '/api';
 
-/** Fetch all available games (open lobbies + in-progress with open seats). */
+/** Fetch all available games (open lobbies). */
 export async function listGames() {
   const res = await fetch(`${BASE_URL}/games`);
   return res.json();
@@ -36,16 +36,6 @@ export async function startGame(lobbyId: string, requestingPlayerId: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ requestingPlayerId }),
-  });
-  return res.json();
-}
-
-/** Take a disconnected player's seat in an in-progress game. */
-export async function takeSeat(gameId: string, playerName: string) {
-  const res = await fetch(`${BASE_URL}/games/${gameId}/take-seat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerName }),
   });
   return res.json();
 }

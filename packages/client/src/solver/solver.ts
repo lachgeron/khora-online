@@ -19,6 +19,7 @@ import type {
   BoardExplorationToken,
   SolverDiceAssignment,
   SolverObjective,
+  RecommendedMove,
 } from './types';
 import type { GamePhase, KnowledgeToken, PredeterminedDiceSchedule, SolverFullPlayerState, SolverFullState } from '@khora/shared';
 import type { PoliticsCard, ProgressTrackType } from '../types';
@@ -59,6 +60,7 @@ interface SolverContext {
   predeterminedDice: PredeterminedDiceSchedule | null;
   diceRoll: number[] | null;
   unresolvedAssignedActions: SolverDiceAssignment[];
+  opponentSearchCache: Map<string, number>;
 }
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -124,11 +126,13 @@ interface RoundResult {
   chosenActions: ActionChoice[];
   progressTracks: ProgressTrackType[];
   philosophySpent: number;
+  diceAssignments: SolverDiceAssignment[];
   description: string[];
   vpBefore: number;
   vpAfter: number;
   coinsBefore: number;
   coinsAfter: number;
+  achievementChoices: Array<'TAX' | 'GLORY'>;
 }
 
 /**
@@ -226,6 +230,7 @@ function simulateRoundTopK(
                       chosenActions: ap.choices,
                       progressTracks,
                       philosophySpent,
+                      diceAssignments: ap.diceAssignments,
                       description: describeRound(
                         ap.choices,
                         progressTracks,
@@ -244,6 +249,10 @@ function simulateRoundTopK(
                       vpAfter: afterTax.victoryPoints,
                       coinsBefore,
                       coinsAfter: afterTax.coins,
+                      achievementChoices: [
+                        ...Array.from({ length: ach.taxAdd }, () => 'TAX' as const),
+                        ...Array.from({ length: ach.gloryAdd }, () => 'GLORY' as const),
+                      ],
                     },
                   });
                 }
@@ -330,13 +339,13 @@ function formatAchievementDelta(
   gloryAdd: number,
 ): string {
   const parts: string[] = [];
-  if (taxAdd > 0) parts.push(`+${taxAdd} Tax`);
-  if (gloryAdd > 0) parts.push(`+${gloryAdd} Glory`);
+  if (taxAdd > 0) parts.push(`${taxAdd} Tax reward${taxAdd === 1 ? '' : 's'}`);
+  if (gloryAdd > 0) parts.push(`${gloryAdd} Glory reward${gloryAdd === 1 ? '' : 's'}`);
   const labels: string[] = [];
   if (names.length > 0) labels.push(names.join(', '));
   if (unnamedCount > 0) labels.push(`${unnamedCount} pending pick${unnamedCount === 1 ? '' : 's'}`);
   const labelText = labels.join(' + ') || 'claim';
-  return parts.length > 0 ? `${labelText} (${parts.join(', ')})` : labelText;
+  return parts.length > 0 ? `${labelText}: take ${parts.join(' and ')}` : labelText;
 }
 
 function hasCard(s: SolverState, id: string, cardIds: string[]): boolean {
@@ -400,10 +409,10 @@ function describeRound(
       const counts = { ECONOMY: 0, CULTURE: 0, MILITARY: 0 };
       for (const t of progressTracks) counts[t]++;
       const parts: string[] = [];
-      if (counts.ECONOMY) parts.push(`+${counts.ECONOMY} Economy`);
-      if (counts.CULTURE) parts.push(`+${counts.CULTURE} Culture`);
-      if (counts.MILITARY) parts.push(`+${counts.MILITARY} Military`);
-      let msg = `Progress: ${parts.join(', ')}`;
+      if (counts.ECONOMY) parts.push(formatProgressCount(counts.ECONOMY, 'Economy'));
+      if (counts.CULTURE) parts.push(formatProgressCount(counts.CULTURE, 'Culture'));
+      if (counts.MILITARY) parts.push(formatProgressCount(counts.MILITARY, 'Military'));
+      let msg = `Progress: move up ${parts.join(', ')}`;
       if (philosophySpent > 0) msg += ` (spent ${philosophySpent} scrolls)`;
       bullets.push(msg);
     } else {
@@ -421,6 +430,77 @@ function describeRound(
 
 function formatActionName(action: SolverDiceAssignment['action']): string {
   return action.charAt(0) + action.slice(1).toLowerCase();
+}
+
+function buildRecommendedMoves(
+  r: RoundResult,
+  cardIds: string[],
+  allCards: PoliticsCard[],
+): RecommendedMove[] {
+  const moves: RecommendedMove[] = [];
+  if (r.diceAssignments.length > 0) {
+    moves.push({ kind: 'ASSIGN_DICE', assignments: r.diceAssignments });
+  }
+  for (const choice of r.chosenActions) {
+    moves.push({
+      kind: 'RESOLVE_ACTION',
+      actionType: choice.type,
+      choice,
+      choices: toActionChoices(choice, cardIds, allCards),
+    });
+  }
+  if (r.progressTracks.length > 0 || r.philosophySpent > 0) {
+    moves.push({ kind: 'PROGRESS_TRACK', tracks: r.progressTracks, philosophySpent: r.philosophySpent });
+  }
+  if (r.achievementChoices.length > 0) {
+    moves.push({ kind: 'ACHIEVEMENT_TRACK_CHOICE', choices: r.achievementChoices });
+  }
+  return moves;
+}
+
+function toActionChoices(
+  choice: ActionChoice,
+  cardIds: string[],
+  allCards: PoliticsCard[],
+): import('@khora/shared').ActionChoices {
+  switch (choice.type) {
+    case 'TRADE':
+      return choice.buyMinor
+        ? { buyMinorKnowledge: true, minorKnowledgeColor: choice.buyMinor }
+        : {};
+    case 'MILITARY':
+      return {
+        explorationTokenId: choice.explore[0]?.id,
+        secondExplorationTokenId: choice.explore[1]?.id,
+      };
+    case 'POLITICS': {
+      const card = allCards[choice.cardIndex];
+      return {
+        targetCardId: card?.id ?? cardIds[choice.cardIndex],
+        philosophyPairsToUse: choice.philosophyPairs || undefined,
+        scholarlyWelcomeColor: choice.scholarlyWelcomeColor,
+      };
+    }
+    case 'DEVELOPMENT':
+      return {
+        philosophyPairsToUse: choice.philosophyPairs || undefined,
+        devTrackChoices: choice.miletusDev2Tracks ? [...choice.miletusDev2Tracks] : undefined,
+        argosDevReward: choice.argosDev2Reward ? argosRewardToServer(choice.argosDev2Reward) : undefined,
+      };
+    default:
+      return {};
+  }
+}
+
+function argosRewardToServer(
+  reward: NonNullable<Extract<ActionChoice, { type: 'DEVELOPMENT' }>['argosDev2Reward']>,
+): 'troops' | 'coins' | 'vp' | 'citizens' {
+  switch (reward) {
+    case 'TROOPS': return 'troops';
+    case 'COINS': return 'coins';
+    case 'CITIZENS': return 'citizens';
+    case 'VP': return 'vp';
+  }
 }
 
 function actionEnumerationOptions(
@@ -474,8 +554,42 @@ function describeChoice(
       const name = card?.name ?? cardIds[c.cardIndex] ?? '?';
       return `Politics — play "${name}"${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
     }
-    case 'DEVELOPMENT': return `Development — unlock next level${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}`;
+    case 'DEVELOPMENT': {
+      const choices: string[] = [];
+      if (c.miletusDev2Tracks) {
+        choices.push(`level up ${formatTrackName(c.miletusDev2Tracks[0])} and ${formatTrackName(c.miletusDev2Tracks[1])}`);
+      }
+      if (c.spartaDev3Colors) {
+        choices.push(`take ${formatColor(c.spartaDev3Colors[0])} and ${formatColor(c.spartaDev3Colors[1])} minor tokens`);
+      }
+      if (c.argosDev2Reward) {
+        choices.push(`take ${formatArgosReward(c.argosDev2Reward)}`);
+      }
+      const choiceText = choices.length > 0 ? ` (${choices.join('; ')})` : '';
+      return `Development — unlock next level${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}${choiceText}`;
+    }
     case 'LEGISLATION': return 'Legislation — +3 citizens';
+  }
+}
+
+function formatTrackName(track: ProgressTrackType): string {
+  return track.charAt(0) + track.slice(1).toLowerCase();
+}
+
+function formatProgressCount(count: number, track: string): string {
+  return count === 1 ? track : `${count} ${track}`;
+}
+
+function formatColor(color: string): string {
+  return color.charAt(0) + color.slice(1).toLowerCase();
+}
+
+function formatArgosReward(reward: NonNullable<Extract<ActionChoice, { type: 'DEVELOPMENT' }>['argosDev2Reward']>): string {
+  switch (reward) {
+    case 'TROOPS': return '+2 troops';
+    case 'COINS': return '+3 coins';
+    case 'CITIZENS': return '+5 citizens';
+    case 'VP': return '+4 VP';
   }
 }
 
@@ -586,9 +700,140 @@ function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext): number
   let strongest = 0;
   for (const p of ctx.fullState.players) {
     if (p.playerId === ctx.playerId || !p.isConnected) continue;
-    strongest = Math.max(strongest, estimateOpponentVP(p, s.boardTokens, ctx.fullState.roundNumber));
+    strongest = Math.max(strongest, estimateOpponentBestReachableVP(p, s, ctx));
   }
   return strongest;
+}
+
+function estimateOpponentBestReachableVP(
+  p: SolverFullPlayerState,
+  ourLineState: SolverState,
+  ctx: SolverContext,
+): number {
+  const tokenKey = ourLineState.boardTokens.map(t => t.id).join(',');
+  const achievementKey = ourLineState.availableAchievementIds.join(',');
+  const cacheKey = `${p.playerId}|${ctx.initialRound}|${tokenKey}|${achievementKey}`;
+  const cached = ctx.opponentSearchCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const searched = runOpponentBeamSearch(p, ourLineState, ctx);
+  const fallback = estimateOpponentVP(p, ourLineState.boardTokens, ctx.fullState?.roundNumber ?? ourLineState.round);
+  const best = Math.max(searched ?? -Infinity, fallback);
+  ctx.opponentSearchCache.set(cacheKey, best);
+  return best;
+}
+
+function runOpponentBeamSearch(
+  p: SolverFullPlayerState,
+  ourLineState: SolverState,
+  parentCtx: SolverContext,
+): number | null {
+  if (!parentCtx.fullState || parentCtx.shouldAbort()) return null;
+  const allCards = uniqueCards([...p.handCards, ...p.playedCards]);
+  const cardIds = allCards.map(c => c.id);
+  const state = opponentInitialState(p, ourLineState, parentCtx.initialRound, cardIds);
+  const opponentCtx: SolverContext = {
+    ...parentCtx,
+    cardIds,
+    allCards,
+    opponents: parentCtx.fullState.players
+      .filter(o => o.playerId !== p.playerId && o.isConnected)
+      .map(o => ({
+        playerId: o.playerId,
+        economyTrack: o.economyTrack,
+        cultureTrack: o.cultureTrack,
+        militaryTrack: o.militaryTrack,
+        coins: o.coins,
+        philosophyTokens: o.philosophyTokens,
+        knowledgeTokens: o.knowledgeTokens,
+        handCards: o.handCards,
+        playedCards: o.playedCards,
+        actionSlots: o.actionSlots,
+      })),
+    objective: 'MAX_VP',
+    playerId: p.playerId,
+    initialRound: ourLineState.round,
+    currentPhase: 'OMEN',
+    pendingAchievementChoices: 0,
+    diceRoll: null,
+    unresolvedAssignedActions: [],
+    opponentSearchCache: parentCtx.opponentSearchCache,
+  };
+
+  let beam: Array<{ state: SolverState }> = [{ state }];
+  const beamWidth = 120;
+  for (let round = state.round; round <= 9; round++) {
+    if (parentCtx.shouldAbort()) return null;
+    const next: Array<{ state: SolverState }> = [];
+    for (const entry of beam) {
+      const results = simulateRoundTopK({ ...entry.state, round }, opponentCtx, beamWidth);
+      for (const r of results) next.push({ state: advanceToNextRound(r.stateAfter) });
+    }
+    if (next.length === 0) break;
+    next.sort((a, b) => heuristicScore(b.state, cardIds) - heuristicScore(a.state, cardIds));
+    beam = diversifyBeam(next, beamWidth);
+  }
+
+  let best = -Infinity;
+  for (const entry of beam) {
+    best = Math.max(best, finalizeScore(entry.state, cardIds, allCards).total);
+  }
+  return Number.isFinite(best) ? best : null;
+}
+
+function uniqueCards(cards: PoliticsCard[]): PoliticsCard[] {
+  const seen = new Set<string>();
+  const out: PoliticsCard[] = [];
+  for (const card of cards) {
+    if (seen.has(card.id)) continue;
+    seen.add(card.id);
+    out.push(card);
+  }
+  return out;
+}
+
+function opponentInitialState(
+  p: SolverFullPlayerState,
+  ourLineState: SolverState,
+  startRound: number,
+  cardIds: string[],
+): SolverState {
+  let handMask = 0;
+  let playedMask = 0;
+  for (const c of p.handCards) {
+    const idx = cardIds.indexOf(c.id);
+    if (idx >= 0) handMask = addMaskBit(handMask, idx);
+  }
+  for (const c of p.playedCards) {
+    const idx = cardIds.indexOf(c.id);
+    if (idx >= 0) playedMask = addMaskBit(playedMask, idx);
+  }
+  return {
+    round: startRound,
+    actionsAlreadyTaken: [],
+    slotsConsumedThisRound: 0,
+    progressAlreadyDone: false,
+    legislationDoneThisRound: false,
+    economyTrack: p.economyTrack,
+    cultureTrack: p.cultureTrack,
+    militaryTrack: p.militaryTrack,
+    taxTrack: p.taxTrack,
+    gloryTrack: p.gloryTrack,
+    troopTrack: p.troopTrack,
+    citizenTrack: p.citizenTrack,
+    coins: p.coins,
+    philosophyTokens: p.philosophyTokens,
+    knowledge: knowledgeFromTokens(p.knowledgeTokens),
+    cityId: p.cityId,
+    developmentLevel: p.developmentLevel,
+    handMask,
+    playedMask,
+    handSlots: p.handCards.length,
+    godMode: false,
+    boardTokens: ourLineState.boardTokens,
+    availableAchievementIds: ourLineState.availableAchievementIds,
+    victoryPoints: p.victoryPoints,
+  };
 }
 
 function estimateOpponentVP(
@@ -738,6 +983,7 @@ export async function runSolver(
     predeterminedDice: input.predeterminedDice,
     diceRoll: input.diceRoll,
     unresolvedAssignedActions: input.unresolvedAssignedActions,
+    opponentSearchCache: new Map(),
   });
 
   /**
@@ -782,6 +1028,7 @@ export async function runSolver(
                 round,
                 description: r.description,
                 actionTypes: r.chosenActions.map(c => c.type),
+                recommendedMoves: buildRecommendedMoves(r, ctx.cardIds, ctx.allCards),
                 vpBefore: r.vpBefore,
                 vpAfter: r.vpAfter,
                 coinsBefore: r.coinsBefore,

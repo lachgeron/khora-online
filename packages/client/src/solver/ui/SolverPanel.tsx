@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan } from '../types';
+import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan, RecommendedMove } from '../types';
 
 interface SolverPanelProps {
   result: SolverResult | null;
@@ -12,6 +12,7 @@ interface SolverPanelProps {
   onDisplayModeChange: (mode: SolverDisplayMode) => void;
   status: 'stable' | 'rechecking' | 'new-best';
   changeNote: string | null;
+  onApplyMove?: (move: RecommendedMove) => void;
   onClose: () => void;
 }
 
@@ -34,6 +35,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
   onDisplayModeChange,
   status,
   changeNote,
+  onApplyMove,
   onClose,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -109,6 +111,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
             godMode={godMode}
             status={status}
             changeNote={changeNote}
+            onApplyMove={onApplyMove}
             expanded={expanded}
             onToggleExpanded={() => setExpanded((v) => !v)}
           />
@@ -232,12 +235,14 @@ const PlanView: React.FC<{
   godMode: boolean;
   status: 'stable' | 'rechecking' | 'new-best';
   changeNote: string | null;
+  onApplyMove?: (move: RecommendedMove) => void;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, godMode, status, changeNote, expanded, onToggleExpanded }) => {
+}> = ({ plan, stale, godMode, status, changeNote, onApplyMove, expanded, onToggleExpanded }) => {
   const nowLines = focusLines(plan);
   const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
   const reasons = reasonChips(plan);
+  const actionableMove = firstActionableMove(plan);
 
   return (
     <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
@@ -276,6 +281,14 @@ const PlanView: React.FC<{
             Do This Now (Round {plan.currentRound.round})
           </p>
           <p className="text-sand-800 text-sm font-medium">{bestMove}</p>
+          {actionableMove && onApplyMove && (
+            <button
+              onClick={() => onApplyMove(actionableMove)}
+              className="mt-2 px-3 py-1.5 rounded border border-terracotta bg-terracotta text-white text-xs font-semibold hover:bg-terracotta/90 transition-colors"
+            >
+              Apply
+            </button>
+          )}
           {nowLines.length > 1 && (
             <ul className="mt-2 list-disc list-inside space-y-0.5 text-xs text-sand-700">
               {nowLines.slice(1).map((line, i) => (
@@ -381,18 +394,48 @@ function focusLines(plan: Plan): string[] {
   return focusDescription(plan.currentRound.description, plan.currentPhase);
 }
 
+function firstActionableMove(plan: Plan): RecommendedMove | null {
+  const phase = plan.currentPhase;
+  const moves = plan.currentRound?.recommendedMoves ?? [];
+  if (phase === 'DICE') return moves.find(m => m.kind === 'ASSIGN_DICE') ?? null;
+  if (phase === 'ACTIONS') return moves.find(m => m.kind === 'RESOLVE_ACTION') ?? null;
+  if (phase === 'PROGRESS') return moves.find(m => m.kind === 'PROGRESS_TRACK') ?? null;
+  return null;
+}
+
 function focusDescription(lines: string[], phase: Plan['currentPhase']): string[] {
-  if (phase === 'DICE') return lines.filter(line => line.startsWith('Dice:') || isActionLine(line));
-  if (phase === 'ACTIONS') return lines.filter(isActionLine);
-  if (phase === 'PROGRESS') return lines.filter(line => line.startsWith('Progress:'));
-  if (phase === 'GLORY') return lines.filter(line => line.startsWith('Event:'));
-  if (phase === 'ACHIEVEMENT') return lines.filter(line => line.startsWith('Achievement:'));
-  return lines;
+  const primary =
+    phase === 'DICE' ? lines.filter(line => line.startsWith('Dice:') || isActionLine(line)) :
+    phase === 'ACTIONS' ? lines.filter(isActionLine) :
+    phase === 'PROGRESS' ? lines.filter(line => line.startsWith('Progress:')) :
+    phase === 'GLORY' ? lines.filter(line => line.startsWith('Event:')) :
+    phase === 'ACHIEVEMENT' ? lines.filter(line => line.startsWith('Achievement:')) :
+    lines;
+
+  const mustShow = lines.filter(isAlwaysVisibleDecisionLine);
+  return uniqueLines([...primary, ...mustShow]);
 }
 
 function isActionLine(line: string): boolean {
   return ['Philosophy', 'Legislation', 'Culture', 'Trade', 'Military', 'Politics', 'Development', 'Thebes dev 2']
     .some(prefix => line.startsWith(prefix));
+}
+
+function isAlwaysVisibleDecisionLine(line: string): boolean {
+  return line.startsWith('Progress:')
+    || line.startsWith('Achievement:')
+    || line.includes('Oracle of Delphi:');
+}
+
+function uniqueLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of lines) {
+    if (seen.has(line)) continue;
+    seen.add(line);
+    out.push(line);
+  }
+  return out;
 }
 
 function reasonChips(plan: Plan): Array<{ label: string; title: string }> {

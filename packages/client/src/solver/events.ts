@@ -271,7 +271,7 @@ function applyOracle(s: SolverState, descriptionParts: string[]): { state: Solve
   const removed = removeLeastUsefulKnowledge(state);
   if (removed) {
     state.philosophyTokens += 2;
-    return { state, descriptionParts: [...descriptionParts, 'Oracle of Delphi: lose 1 token, gain 2 scrolls'] };
+    return { state, descriptionParts: [...descriptionParts, `Oracle of Delphi: lose ${removed}, gain 2 scrolls`] };
   }
   return { state, descriptionParts: [...descriptionParts, 'Oracle of Delphi: no token to lose'] };
 }
@@ -502,16 +502,20 @@ function discardHandSlots(s: SolverState, allCards: PoliticsCard[], count: numbe
   }
 }
 
-function removeLeastUsefulKnowledge(s: SolverState): boolean {
-  const order: Array<keyof SolverState['knowledge']> = [
-    'greenMinor', 'blueMinor', 'redMinor',
-    'greenMajor', 'blueMajor', 'redMajor',
+function removeLeastUsefulKnowledge(s: SolverState): string | null {
+  const order: Array<{ key: keyof SolverState['knowledge']; label: string }> = [
+    { key: 'greenMinor', label: 'Green Minor token' },
+    { key: 'blueMinor', label: 'Blue Minor token' },
+    { key: 'redMinor', label: 'Red Minor token' },
+    { key: 'greenMajor', label: 'Green Major token' },
+    { key: 'blueMajor', label: 'Blue Major token' },
+    { key: 'redMajor', label: 'Red Major token' },
   ];
-  for (const key of order) {
+  for (const { key, label } of order) {
     if (s.knowledge[key] > 0) {
       s.knowledge[key] -= 1;
-      return true;
+      return label;
     }
   }
-  return false;
+  return null;
 }

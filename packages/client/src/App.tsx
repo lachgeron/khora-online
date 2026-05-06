@@ -9,7 +9,7 @@ import type {
   ActionChoices,
   DraftMode,
 } from './types';
-import { createLobby, joinLobby, startGame, takeSeat, updateLobbySettings } from './api';
+import { createLobby, joinLobby, startGame, updateLobbySettings } from './api';
 import { useGameSocket } from './useGameSocket';
 import { useLobbyPolling } from './useLobbyPolling';
 import { GameBrowser } from './components/GameBrowser';
@@ -35,6 +35,7 @@ import { StatsPage } from './components/StatsPage';
 import { SolverPanel } from './solver/ui/SolverPanel';
 import { useSolverKeybind } from './solver/ui/useSolverKeybind';
 import { useSolverMode } from './solver/useSolverMode';
+import type { RecommendedMove } from './solver/types';
 
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
@@ -134,17 +135,6 @@ export const App: React.FC = () => {
     } catch { setLobbyError('Failed to join lobby'); }
   };
 
-  const handleTakeSeat = async (targetGameId: string) => {
-    try {
-      const data = await takeSeat(targetGameId, playerName);
-      if (data.code) { setLobbyError(data.message); return; }
-      setGameId(data.gameId);
-      setCurrentPlayerId(data.playerId);
-      setLobbyError(null);
-      setScreen('GAME');
-    } catch { setLobbyError('Failed to take seat'); }
-  };
-
   const handleStartGame = async () => {
     try {
       const data = await startGame(lobbyId, currentPlayerId);
@@ -190,6 +180,32 @@ export const App: React.FC = () => {
   const handleSelectCity = (cityId: string) => sendMessage({ type: 'SELECT_CITY', cityId });
   const handleDraftCard = (cardId: string) => sendMessage({ type: 'DRAFT_CARD', cardId });
   const handlePickBanCard = (cardId: string, action: 'BAN' | 'PICK') => sendMessage({ type: 'PICK_BAN_CARD', cardId, action });
+  const handleApplySolverMove = (move: RecommendedMove) => {
+    if (move.kind === 'ASSIGN_DICE') {
+      sendMessage({
+        type: 'ASSIGN_DICE',
+        assignments: move.assignments.map((assignment, index) => ({
+          slotIndex: index as 0 | 1 | 2,
+          actionType: assignment.action as ActionType,
+          dieValue: assignment.dieValue,
+        })),
+        philosophyTokensToSpend: move.philosophyTokensToSpend,
+      });
+    } else if (move.kind === 'RESOLVE_ACTION') {
+      sendMessage({ type: 'RESOLVE_ACTION', actionType: move.actionType as ActionType, choices: move.choices });
+    } else if (move.kind === 'PROGRESS_TRACK') {
+      const [first, ...rest] = move.tracks;
+      if (!first) {
+        sendMessage({ type: 'SKIP_PHASE' });
+        return;
+      }
+      sendMessage({
+        type: 'PROGRESS_TRACK',
+        advancement: { track: first },
+        extraTracks: rest.map(track => ({ track })),
+      });
+    }
+  };
 
   const currentPlayer = gameState?.players.find(p => p.playerId === currentPlayerId);
   const myTimeBankDecision = gameState?.pendingDecisions.find(
@@ -266,7 +282,6 @@ export const App: React.FC = () => {
               playerName={playerName}
               onCreateGame={handleCreateGame}
               onJoinLobby={handleJoinLobby}
-              onTakeSeat={handleTakeSeat}
               error={lobbyError}
             />
           </div>
@@ -604,6 +619,7 @@ export const App: React.FC = () => {
             onDisplayModeChange={solverMode.setDisplayMode}
             status={solverMode.status}
             changeNote={solverMode.changeNote}
+            onApplyMove={handleApplySolverMove}
             onClose={solverMode.toggle}
           />
       )}
