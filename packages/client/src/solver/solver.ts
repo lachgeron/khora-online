@@ -62,6 +62,7 @@ interface SolverContext {
   unresolvedAssignedActions: SolverDiceAssignment[];
   opponentSearchCache: Map<string, number>;
   currentRoundActionTopK: number;
+  opponentSearchEnabled: boolean;
 }
 
 const CURRENT_ROUND_ACTION_TOP_K = 999;
@@ -693,7 +694,7 @@ function diversifyBeam<T extends { state: SolverState }>(
 function rankState(s: SolverState, ctx: SolverContext): number {
   const ownScore = heuristicScore(s, ctx.cardIds);
   if (ctx.objective !== 'WIN_MARGIN') return ownScore;
-  return ownScore - estimateStrongestOpponentVP(s, ctx);
+  return ownScore - estimateStrongestOpponentVP(s, ctx, false);
 }
 
 function finalObjectiveScore(
@@ -704,15 +705,17 @@ function finalObjectiveScore(
 ): number {
   const ownVP = finalizeScore(s, cardIds, allCards).total;
   if (ctx.objective !== 'WIN_MARGIN') return ownVP;
-  return ownVP - estimateStrongestOpponentVP(s, ctx);
+  return ownVP - estimateStrongestOpponentVP(s, ctx, ctx.opponentSearchEnabled);
 }
 
-function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext): number {
+function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext, allowSearch: boolean): number {
   if (!ctx.fullState) return 0;
   let strongest = 0;
   for (const p of ctx.fullState.players) {
     if (p.playerId === ctx.playerId || !p.isConnected) continue;
-    strongest = Math.max(strongest, estimateOpponentBestReachableVP(p, s, ctx));
+    strongest = Math.max(strongest, allowSearch
+      ? estimateOpponentBestReachableVP(p, s, ctx)
+      : estimateOpponentVP(p, s.boardTokens, ctx.fullState.roundNumber));
   }
   return strongest;
 }
@@ -764,13 +767,14 @@ function runOpponentBeamSearch(
       })),
     objective: 'MAX_VP',
     playerId: p.playerId,
-    initialRound: ourLineState.round,
+    initialRound: parentCtx.initialRound,
     currentPhase: 'OMEN',
     pendingAchievementChoices: 0,
     diceRoll: null,
     unresolvedAssignedActions: [],
     opponentSearchCache: parentCtx.opponentSearchCache,
     currentRoundActionTopK: parentCtx.currentRoundActionTopK,
+    opponentSearchEnabled: false,
   };
 
   let beam: Array<{ state: SolverState }> = [{ state }];
@@ -982,6 +986,7 @@ export async function runSolver(
     beamWidth: number,
     actionTopK: number,
     currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
+    opponentSearchEnabled = false,
   ): SolverContext => ({
     cardIds,
     allCards: allCardObjs,
@@ -1003,6 +1008,7 @@ export async function runSolver(
     unresolvedAssignedActions: input.unresolvedAssignedActions,
     opponentSearchCache: opponentSearchCacheShared,
     currentRoundActionTopK,
+    opponentSearchEnabled,
   });
 
   /**
@@ -1031,8 +1037,9 @@ export async function runSolver(
     actionTopK: number,
     seed: number = 0,
     currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
+    opponentSearchEnabled = false,
   ): Promise<BeamEntry | null> => {
-    const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK);
+    const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK, opponentSearchEnabled);
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
@@ -1085,12 +1092,13 @@ export async function runSolver(
   let overallBest: BeamEntry | null = null;
   let overallBestVP = -Infinity;
 
-  const reportIfBetter = (result: BeamEntry): void => {
-    const objectiveScore = finalObjectiveScore(result.state, makeContext(0, 0), cardIds, allCardObjs);
+  const reportIfBetter = (result: BeamEntry, opponentSearchEnabled: boolean): void => {
+    const ctx = makeContext(0, 0, CURRENT_ROUND_ACTION_TOP_K, opponentSearchEnabled);
+    const objectiveScore = finalObjectiveScore(result.state, ctx, cardIds, allCardObjs);
     if (objectiveScore <= overallBestVP) return;
     overallBestVP = objectiveScore;
     overallBest = result;
-    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start, makeContext(0, 0)));
+    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start, ctx));
   };
 
   // Phase 1: iterative deepening — start narrow (fast first result) and widen
@@ -1111,9 +1119,9 @@ export async function runSolver(
   ];
   for (const [beamWidth, actionTopK, currentRoundActionTopK] of baseWidths) {
     if (shouldAbort()) break;
-    const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK);
+    const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, false);
     if (!result) break;
-    reportIfBetter(result);
+    reportIfBetter(result, false);
   }
 
   // Phase 2: continuous randomized restarts with progressively widening profiles.
@@ -1140,10 +1148,10 @@ export async function runSolver(
     const [baseW, baseK] = restartProfiles[(restartSeed - 1) % CYCLE_LEN];
     const w = Math.min(WIDTH_CAP, Math.round(baseW * widenMultiplier));
     const k = Math.min(K_CAP, Math.round(baseK * (1 + 0.15 * cycle)));
-    const result = await runBeam(w, k, restartSeed);
+    const result = await runBeam(w, k, restartSeed, CURRENT_ROUND_ACTION_TOP_K, input.objective === 'WIN_MARGIN');
     restartSeed++;
     if (!result) break;
-    reportIfBetter(result);
+    reportIfBetter(result, input.objective === 'WIN_MARGIN');
   }
 
   if (!overallBest) {
@@ -1181,7 +1189,7 @@ function buildPlan(
   ctx: SolverContext,
 ): Plan {
   const finalized = finalizeScore(best.state, cardIds, allCardObjs);
-  const strongestOpponentVP = ctx.fullState ? estimateStrongestOpponentVP(best.state, ctx) : null;
+  const strongestOpponentVP = ctx.fullState ? estimateStrongestOpponentVP(best.state, ctx, ctx.opponentSearchEnabled) : null;
   const projectedWinMargin = strongestOpponentVP === null ? null : finalized.total - strongestOpponentVP;
   const objectiveScore = ctx.objective === 'WIN_MARGIN' && projectedWinMargin !== null
     ? projectedWinMargin
