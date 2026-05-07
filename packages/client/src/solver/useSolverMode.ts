@@ -169,6 +169,7 @@ export function useSolverMode(
       const msg = e.data as
         | { type: 'progress'; plan: Plan }
         | { type: 'unavailable'; reason: string; message: string }
+        | { type: 'error'; message: string }
         | { type: 'idle' };
       // Ignore messages queued from a prior computation that no longer
       // reflects the current input (e.g. we've since transitioned to an
@@ -207,11 +208,26 @@ export function useSolverMode(
         });
         setStale(false);
         setStatus('stable');
+      } else if (msg.type === 'error') {
+        setResult({
+          ok: false,
+          reason: 'UNKNOWN',
+          message: `Solver error: ${msg.message}`,
+        });
+        setStale(false);
+        setStatus('stable');
       }
     };
 
     worker.onerror = (err) => {
       console.error('Solver worker error:', err);
+      setResult({
+        ok: false,
+        reason: 'UNKNOWN',
+        message: 'Solver worker crashed. Toggle the oracle off and on to restart it.',
+      });
+      setStale(false);
+      setStatus('stable');
     };
 
     return () => {

@@ -21,6 +21,7 @@ type InboundMessage =
 type OutboundMessage =
   | { type: 'progress'; plan: Plan; generation: number }
   | { type: 'unavailable'; reason: string; message: string; generation: number }
+  | { type: 'error'; message: string; generation: number }
   | { type: 'idle'; generation: number };
 
 let generation = 0;
@@ -65,14 +66,23 @@ async function drive(): Promise<void> {
       const inputAtStart = currentInput;
       const publicStateAtStart = currentPublicState;
 
-      const result: SolverResult = await runSolver(inputAtStart, publicStateAtStart, {
-        shouldAbort: () => myGen !== generation || paused,
-        onProgress: (plan) => {
-          if (myGen !== generation) return;
-          post({ type: 'progress', plan, generation: myGen });
-        },
-        yieldToHost,
-      });
+      let result: SolverResult;
+      try {
+        result = await runSolver(inputAtStart, publicStateAtStart, {
+          shouldAbort: () => myGen !== generation || paused,
+          onProgress: (plan) => {
+            if (myGen !== generation) return;
+            post({ type: 'progress', plan, generation: myGen });
+          },
+          yieldToHost,
+        });
+      } catch (err) {
+        if (myGen === generation) {
+          post({ type: 'error', message: err instanceof Error ? err.message : 'Solver crashed', generation: myGen });
+          await waitForNewGeneration(myGen);
+        }
+        continue;
+      }
 
       // If the search aborted because of a new generation, loop and run again.
       if (myGen !== generation) continue;

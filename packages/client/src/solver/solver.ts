@@ -61,9 +61,11 @@ interface SolverContext {
   diceRoll: number[] | null;
   unresolvedAssignedActions: SolverDiceAssignment[];
   opponentSearchCache: Map<string, number>;
+  currentRoundActionTopK: number;
 }
 
 const CURRENT_ROUND_ACTION_TOP_K = 999;
+const FAST_CURRENT_ROUND_ACTION_TOP_K = 48;
 const OPPONENT_BEAM_WIDTH = 240;
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
@@ -170,7 +172,7 @@ function simulateRoundTopK(
   for (const start of thebesDev2Branches(s)) {
     const actionOptions = actionEnumerationOptions(start.state, ctx);
     const effectiveActionTopK = start.state.round === ctx.initialRound
-      ? Math.max(ctx.actionTopK, CURRENT_ROUND_ACTION_TOP_K)
+      ? Math.max(ctx.actionTopK, ctx.currentRoundActionTopK)
       : ctx.actionTopK;
     const actionPlans = enumerateActionPlans(
       start.state,
@@ -768,6 +770,7 @@ function runOpponentBeamSearch(
     diceRoll: null,
     unresolvedAssignedActions: [],
     opponentSearchCache: parentCtx.opponentSearchCache,
+    currentRoundActionTopK: parentCtx.currentRoundActionTopK,
   };
 
   let beam: Array<{ state: SolverState }> = [{ state }];
@@ -973,8 +976,13 @@ export async function runSolver(
   }
 
   const nodesExploredShared = { count: 0 };
+  const opponentSearchCacheShared = new Map<string, number>();
 
-  const makeContext = (beamWidth: number, actionTopK: number): SolverContext => ({
+  const makeContext = (
+    beamWidth: number,
+    actionTopK: number,
+    currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
+  ): SolverContext => ({
     cardIds,
     allCards: allCardObjs,
     opponents: input.opponents,
@@ -993,7 +1001,8 @@ export async function runSolver(
     predeterminedDice: input.predeterminedDice,
     diceRoll: input.diceRoll,
     unresolvedAssignedActions: input.unresolvedAssignedActions,
-    opponentSearchCache: new Map(),
+    opponentSearchCache: opponentSearchCacheShared,
+    currentRoundActionTopK,
   });
 
   /**
@@ -1017,8 +1026,13 @@ export async function runSolver(
   };
 
   /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if aborted. */
-  const runBeam = async (beamWidth: number, actionTopK: number, seed: number = 0): Promise<BeamEntry | null> => {
-    const ctx = makeContext(beamWidth, actionTopK);
+  const runBeam = async (
+    beamWidth: number,
+    actionTopK: number,
+    seed: number = 0,
+    currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
+  ): Promise<BeamEntry | null> => {
+    const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK);
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
 
@@ -1081,22 +1095,23 @@ export async function runSolver(
 
   // Phase 1: iterative deepening — start narrow (fast first result) and widen
   // progressively until the profile saturates or we're aborted.
-  const baseWidths: Array<[number, number]> = [
-    [12, 12],
-    [24, 16],
-    [48, 20],
-    [96, 32],
-    [160, 48],
-    [280, 64],
-    [480, 80],
-    [800, 96],
-    [1400, 120],
-    [2400, 144],
-    [4000, 168],
+  const baseWidths: Array<[number, number, number]> = [
+    [8, 8, 8],
+    [12, 12, 16],
+    [24, 16, 24],
+    [48, 20, FAST_CURRENT_ROUND_ACTION_TOP_K],
+    [96, 32, 96],
+    [160, 48, 160],
+    [280, 64, 280],
+    [480, 80, 480],
+    [800, 96, CURRENT_ROUND_ACTION_TOP_K],
+    [1400, 120, CURRENT_ROUND_ACTION_TOP_K],
+    [2400, 144, CURRENT_ROUND_ACTION_TOP_K],
+    [4000, 168, CURRENT_ROUND_ACTION_TOP_K],
   ];
-  for (const [beamWidth, actionTopK] of baseWidths) {
+  for (const [beamWidth, actionTopK, currentRoundActionTopK] of baseWidths) {
     if (shouldAbort()) break;
-    const result = await runBeam(beamWidth, actionTopK);
+    const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK);
     if (!result) break;
     reportIfBetter(result);
   }
