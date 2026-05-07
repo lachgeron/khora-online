@@ -50,6 +50,10 @@ import { buildDraftPlan, draftPlanKey } from './draft-solver';
 import SolverWorker from './solver.worker?worker';
 
 const RESTART_DEBOUNCE_MS = 150;
+const CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD = 1;
+const CONSERVATIVE_REORDER_THRESHOLD = 3;
+const CONSERVATIVE_SWITCH_THRESHOLD = 7;
+const NODE_REFRESH_THRESHOLD = 100_000;
 
 export interface SolverModeState {
   enabled: boolean;
@@ -623,14 +627,41 @@ function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode
 
   const currentSig = roundSignature(current.currentRound);
   const incomingSig = roundSignature(incoming.currentRound);
-  if (currentSig === incomingSig) return true;
-
   const improvement = incoming.objectiveScore - current.objectiveScore;
-  return improvement >= 2;
+  const currentMove = immediateMoveSignature(current.currentRound);
+  const incomingMove = immediateMoveSignature(incoming.currentRound);
+
+  if (currentMove === incomingMove) {
+    return improvement >= CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD
+      || incoming.exploredNodes >= current.exploredNodes + NODE_REFRESH_THRESHOLD;
+  }
+  if (currentSig === incomingSig) {
+    return improvement >= CONSERVATIVE_REORDER_THRESHOLD;
+  }
+  return improvement >= CONSERVATIVE_SWITCH_THRESHOLD;
 }
 
 function roundSignature(round: RoundPlan | null): string {
   return round ? round.actionTypes.join('>') : '';
+}
+
+function immediateMoveSignature(round: RoundPlan | null): string {
+  if (!round) return '';
+  const move = round.recommendedMoves.find(m => m.kind === 'RESOLVE_ACTION')
+    ?? round.recommendedMoves.find(m => m.kind === 'ASSIGN_DICE')
+    ?? round.recommendedMoves.find(m => m.kind === 'PROGRESS_TRACK')
+    ?? round.recommendedMoves[0];
+  if (!move) return roundSignature(round);
+  if (move.kind === 'RESOLVE_ACTION') {
+    return `${move.kind}:${move.actionType}:${JSON.stringify(move.choices)}`;
+  }
+  if (move.kind === 'ASSIGN_DICE') {
+    return `${move.kind}:${move.assignments.map(a => `${a.action}:${a.dieValue}`).join('|')}`;
+  }
+  if (move.kind === 'PROGRESS_TRACK') {
+    return `${move.kind}:${move.tracks.join('|')}`;
+  }
+  return `${move.kind}:${move.choices.join('|')}`;
 }
 
 function planChangeNote(previous: Plan | null, incoming: Plan): string | null {
@@ -640,7 +671,7 @@ function planChangeNote(previous: Plan | null, incoming: Plan): string | null {
   if (previousSig !== incomingSig) {
     const gain = Math.round(incoming.objectiveScore - previous.objectiveScore);
     return gain > 0
-      ? `Changed because the new current line is ${gain} point${gain === 1 ? '' : 's'} better.`
+      ? `Changed because the new current line cleared the sticky threshold by ${gain} point${gain === 1 ? '' : 's'}.`
       : 'Changed because the previous line became stale.';
   }
   if (incoming.objectiveScore > previous.objectiveScore) {

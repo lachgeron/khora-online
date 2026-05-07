@@ -63,6 +63,9 @@ interface SolverContext {
   opponentSearchCache: Map<string, number>;
 }
 
+const CURRENT_ROUND_ACTION_TOP_K = 999;
+const OPPONENT_BEAM_WIDTH = 240;
+
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
   const knowledge = {
     greenMinor: 0, blueMinor: 0, redMinor: 0,
@@ -166,18 +169,22 @@ function simulateRoundTopK(
 
   for (const start of thebesDev2Branches(s)) {
     const actionOptions = actionEnumerationOptions(start.state, ctx);
+    const effectiveActionTopK = start.state.round === ctx.initialRound
+      ? Math.max(ctx.actionTopK, CURRENT_ROUND_ACTION_TOP_K)
+      : ctx.actionTopK;
     const actionPlans = enumerateActionPlans(
       start.state,
       actionOptions.forcedAssignments ? actionOptions.forcedAssignments.length : slotsLeft,
       ctx.cardIds,
       ctx.allCards,
       ctx.opponents,
-      ctx.actionTopK,
+      effectiveActionTopK,
       actionOptions,
     );
     ctx.nodesExplored.count += actionPlans.length;
 
     for (const ap of actionPlans) {
+      ctx.nodesExplored.count += 1;
       if (ctx.shouldAbort()) break;
       for (const afterAction of thebesDev2Branches(ap.state)) {
         const progressCandidates = enumerateProgressPlans(
@@ -191,6 +198,7 @@ function simulateRoundTopK(
         for (const pState of progressCandidates) {
           for (const beforeEvent of thebesDev2Branches(pState)) {
             const eventCandidates = applyEventPhase(beforeEvent.state, ctx);
+            ctx.nodesExplored.count += eventCandidates.length;
       // Achievement phase. Per spec, only the *initial* simulated round
       // attempts to claim — future rounds assume opponents have grabbed
       // whatever's still available. Two sub-cases on the initial round:
@@ -208,9 +216,11 @@ function simulateRoundTopK(
                 ev.state.availableAchievementIds,
                 ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
               );
+              ctx.nodesExplored.count += postAchievementStates.length;
 
               for (const ach of postAchievementStates) {
                 for (const afterAchievement of thebesDev2Branches(ach.state)) {
+                  ctx.nodesExplored.count += 1;
                   const afterTax = cloneState(afterAchievement.state);
                   if (!skipTax) {
                     applyTaxPhase(afterTax, ctx.opponents, (id) => hasCard(afterTax, id, ctx.cardIds));
@@ -761,7 +771,7 @@ function runOpponentBeamSearch(
   };
 
   let beam: Array<{ state: SolverState }> = [{ state }];
-  const beamWidth = 120;
+  const beamWidth = OPPONENT_BEAM_WIDTH;
   for (let round = state.round; round <= 9; round++) {
     if (parentCtx.shouldAbort()) return null;
     const next: Array<{ state: SolverState }> = [];
@@ -1075,14 +1085,14 @@ export async function runSolver(
     [12, 12],
     [24, 16],
     [48, 20],
-    [80, 24],
-    [120, 28],
-    [200, 32],
-    [320, 36],
-    [500, 40],
-    [800, 44],
-    [1200, 48],
-    [2000, 52],
+    [96, 32],
+    [160, 48],
+    [280, 64],
+    [480, 80],
+    [800, 96],
+    [1400, 120],
+    [2400, 144],
+    [4000, 168],
   ];
   for (const [beamWidth, actionTopK] of baseWidths) {
     if (shouldAbort()) break;
@@ -1096,17 +1106,17 @@ export async function runSolver(
   // later cycles explore deeper rather than just re-rolling the same geometry.
   // Runs until aborted — there is no convergence shortcut.
   const restartProfiles: Array<[number, number]> = [
-    [120, 24],
-    [200, 32],
-    [160, 28],
-    [300, 36],
-    [200, 40],
-    [400, 32],
-    [250, 44],
+    [500, 96],
+    [900, 128],
+    [700, 112],
+    [1400, 144],
+    [1000, 160],
+    [2000, 128],
+    [1600, 176],
   ];
   const CYCLE_LEN = restartProfiles.length;
   const WIDTH_CAP = 50000;
-  const K_CAP = 200;
+  const K_CAP = 400;
   let restartSeed = 1;
   while (!shouldAbort()) {
     const cycle = Math.floor((restartSeed - 1) / CYCLE_LEN);

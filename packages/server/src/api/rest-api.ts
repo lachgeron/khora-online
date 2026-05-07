@@ -160,8 +160,8 @@ export class RestApiHandler {
    * Build the game browser listing.
    * GET /api/games
    *
-   * Returns open lobbies. In-progress disconnects are not open seats;
-   * the original player may reconnect until their clock flags them.
+   * Returns open lobbies plus in-progress games with disconnected players.
+   * Disconnected players are reconnectable, not open seats for takeover.
    */
   listGames(activeGames: Map<string, GameState>, lobbyGameIds: Map<string, string>): GameListingItem[] {
     const listings: GameListingItem[] = [];
@@ -178,7 +178,31 @@ export class RestApiHandler {
       });
     }
 
-    void activeGames;
+    for (const [gameId, state] of activeGames) {
+      if (state.currentPhase === 'GAME_OVER' || state.currentPhase === 'FINAL_SCORING') continue;
+
+      const disconnectedIds = new Set(state.disconnectedPlayers.keys());
+      const reconnectablePlayers = state.players.filter(
+        p => !p.hasFlagged && (!p.isConnected || disconnectedIds.has(p.playerId)),
+      );
+
+      if (reconnectablePlayers.length > 0) {
+        listings.push({
+          id: gameId,
+          type: 'game',
+          hostName: state.players[0]?.playerName ?? 'Unknown',
+          players: state.players.map(p => ({
+            name: p.playerName,
+            connected: p.isConnected && !disconnectedIds.has(p.playerId),
+          })),
+          maxPlayers: state.players.length,
+          openSeats: 0,
+          currentPhase: state.currentPhase,
+          roundNumber: state.roundNumber,
+        });
+      }
+    }
+
     void lobbyGameIds;
 
     return listings;

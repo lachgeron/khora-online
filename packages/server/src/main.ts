@@ -249,6 +249,36 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
   res.json({ gameId: state.gameId, players });
 });
 
+// POST /api/games/:gameId/reconnect — reconnect to your own disconnected seat
+app.post('/api/games/:gameId/reconnect', (req, res) => {
+  const { gameId } = req.params;
+  const { playerName } = req.body;
+
+  if (!playerName || playerName.trim().length === 0) {
+    return res.status(400).json({ code: 'INVALID_REQUEST', message: 'playerName is required.' });
+  }
+
+  const state = games.get(gameId);
+  if (!state) {
+    return res.status(404).json({ code: 'GAME_NOT_FOUND', message: 'Game not found.' });
+  }
+
+  const requestedName = playerName.trim();
+  const disconnectedIds = new Set(state.disconnectedPlayers.keys());
+  const reconnectPlayer = state.players.find(
+    p => p.playerName === requestedName && !p.hasFlagged && (!p.isConnected || disconnectedIds.has(p.playerId)),
+  );
+
+  if (!reconnectPlayer) {
+    return res.status(400).json({
+      code: 'NO_RECONNECTABLE_SEAT',
+      message: 'No disconnected seat is available for that player in this game.',
+    });
+  }
+
+  res.json({ gameId, playerId: reconnectPlayer.playerId });
+});
+
 // GET /api/lobbies/:lobbyId — get lobby info
 app.get('/api/lobbies/:lobbyId', (req, res) => {
   const lobby = lobbyManager.getLobby(req.params.lobbyId);

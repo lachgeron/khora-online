@@ -9,7 +9,7 @@ import type {
   ActionChoices,
   DraftMode,
 } from './types';
-import { createLobby, joinLobby, startGame, updateLobbySettings } from './api';
+import { createLobby, joinLobby, reconnectGame, startGame, updateLobbySettings } from './api';
 import { useGameSocket } from './useGameSocket';
 import { useLobbyPolling } from './useLobbyPolling';
 import { GameBrowser } from './components/GameBrowser';
@@ -142,6 +142,17 @@ export const App: React.FC = () => {
       setGameId(data.gameId);
       setScreen('GAME');
     } catch { setLobbyError('Failed to start game'); }
+  };
+
+  const handleReconnectGame = async (targetGameId: string) => {
+    try {
+      const data = await reconnectGame(targetGameId, playerName);
+      if (data.code) { setLobbyError(data.message); return; }
+      setGameId(data.gameId);
+      setCurrentPlayerId(data.playerId);
+      setLobbyError(null);
+      setScreen('GAME');
+    } catch { setLobbyError('Failed to reconnect'); }
   };
 
   const handleToggleRecordStats = async (value: boolean) => {
@@ -282,6 +293,7 @@ export const App: React.FC = () => {
               playerName={playerName}
               onCreateGame={handleCreateGame}
               onJoinLobby={handleJoinLobby}
+              onReconnectGame={handleReconnectGame}
               error={lobbyError}
             />
           </div>
