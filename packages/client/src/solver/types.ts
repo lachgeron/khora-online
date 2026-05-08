@@ -36,6 +36,7 @@ export interface SolverDiceAssignment {
 export type SolverObjective = 'MAX_VP' | 'WIN_MARGIN';
 export type SolverDisplayMode = 'AGGRESSIVE' | 'CONSERVATIVE';
 export type SolverAnalysisMode = 'FAST' | 'DEEP' | 'ADVERSARIAL';
+export type CheatControlMode = 'COACH' | 'AUTO_DECISION' | 'AUTO_ROUND';
 
 export const SOLVER_ACTIONS: SolverAction[] = [
   'PHILOSOPHY',

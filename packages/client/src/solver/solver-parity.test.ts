@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { GameState, KnowledgeColor, PlayerState } from '@khora/shared';
 import { applyImmediateCardEffect as applyServerImmediateCardEffect } from '../../../server/src/card-handlers';
+import { ALL_POLITICS_CARDS } from '../../../server/src/game-data';
+import { TaxationPhaseManager } from '../../../server/src/phases/taxation-phase';
+import { applyTaxPhase } from './scoring';
 import { applyImmediateCardEffect as applySolverImmediateCardEffect } from './card-data';
 import type { SolverState } from './types';
 
@@ -15,6 +18,7 @@ describe('solver card-effect parity', () => {
     ['quarry', undefined],
     ['silver-mining', undefined],
     ['greek-fire', undefined],
+    ['peripteros', undefined],
     ['contribution', undefined],
     ['mercenary-recruitment', undefined],
     ['scholarly-welcome', 'BLUE' as KnowledgeColor],
@@ -35,6 +39,54 @@ describe('solver card-effect parity', () => {
 
     const serverPlayer = serverState.players[0];
     expect(projectSolverState(solverState)).toEqual(projectPlayerState(serverPlayer));
+  });
+
+  it('mirrors server tax phase income and ongoing card effects', () => {
+    const cardIds = ['stadion', 'power', 'public-market'];
+    const playedCards = cardIds.map(cardById);
+    const serverState = {
+      ...baseGameState(),
+      players: [
+        {
+          ...basePlayer(),
+          playedCards,
+          coins: 4,
+          economyTrack: 4,
+          cultureTrack: 2,
+          taxTrack: 3,
+          troopTrack: 10,
+          victoryPoints: 8,
+        },
+        {
+          ...basePlayer(),
+          playerId: 'p2',
+          playerName: 'Opponent',
+          economyTrack: 3,
+          cultureTrack: 3,
+          playedCards: [],
+        },
+      ],
+      turnOrder: [PLAYER_ID, 'p2'],
+    };
+
+    const serverAfter = new TaxationPhaseManager().onEnter(serverState).players[0];
+    const solverState = {
+      ...baseSolverState(),
+      coins: 4,
+      economyTrack: 4,
+      cultureTrack: 2,
+      taxTrack: 3,
+      troopTrack: 10,
+      victoryPoints: 8,
+      playedMask: cardIds.reduce((mask, _id, index) => mask | (1 << index), 0),
+    };
+    applyTaxPhase(
+      solverState,
+      [{ economyTrack: 3, cultureTrack: 3, militaryTrack: 4 }],
+      (id) => cardIds.includes(id),
+    );
+
+    expect(projectSolverState(solverState)).toEqual(projectPlayerState(serverAfter));
   });
 });
 
@@ -141,8 +193,13 @@ function projectPlayerState(player: PlayerState) {
     coins: player.coins,
     philosophyTokens: player.philosophyTokens,
     victoryPoints: player.victoryPoints,
+    economyTrack: player.economyTrack,
+    cultureTrack: player.cultureTrack,
+    militaryTrack: player.militaryTrack,
     taxTrack: player.taxTrack,
+    gloryTrack: player.gloryTrack,
     troopTrack: player.troopTrack,
+    citizenTrack: player.citizenTrack,
     knowledge: counts,
   };
 }
@@ -152,8 +209,19 @@ function projectSolverState(state: SolverState) {
     coins: state.coins,
     philosophyTokens: state.philosophyTokens,
     victoryPoints: state.victoryPoints,
+    economyTrack: state.economyTrack,
+    cultureTrack: state.cultureTrack,
+    militaryTrack: state.militaryTrack,
     taxTrack: state.taxTrack,
+    gloryTrack: state.gloryTrack,
     troopTrack: state.troopTrack,
+    citizenTrack: state.citizenTrack,
     knowledge: state.knowledge,
   };
+}
+
+function cardById(id: string) {
+  const card = ALL_POLITICS_CARDS.find(c => c.id === id);
+  if (!card) throw new Error(`Missing card fixture: ${id}`);
+  return card;
 }

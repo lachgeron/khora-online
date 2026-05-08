@@ -1152,9 +1152,10 @@ export async function runSolver(
   ];
   for (const [beamWidth, actionTopK, currentRoundActionTopK] of baseWidths) {
     if (shouldAbort()) break;
-    const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, false);
+    const useOpponentSearch = input.objective === 'WIN_MARGIN' && beamWidth >= 48;
+    const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, useOpponentSearch);
     if (!result) break;
-    reportIfBetter(result, false, beamWidth, actionTopK, currentRoundActionTopK);
+    reportIfBetter(result, useOpponentSearch, beamWidth, actionTopK, currentRoundActionTopK);
   }
 
   // Phase 2: continuous randomized restarts with progressively widening profiles.

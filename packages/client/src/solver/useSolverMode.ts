@@ -84,7 +84,7 @@ export function useSolverMode(
 ): SolverModeState {
   const [enabled, setEnabled] = useState(false);
   const [godMode, setGodModeState] = useState(false);
-  const [objective, setObjectiveState] = useState<SolverObjective>('MAX_VP');
+  const [objective, setObjectiveState] = useState<SolverObjective>('WIN_MARGIN');
   const [displayMode, setDisplayModeState] = useState<SolverDisplayMode>('CONSERVATIVE');
   const [result, setResult] = useState<SolverResult | null>(null);
   const [stale, setStale] = useState(false);

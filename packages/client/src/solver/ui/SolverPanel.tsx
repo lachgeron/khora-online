@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan, RecommendedMove } from '../types';
+import type { CheatControlMode, SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan, RecommendedMove } from '../types';
 
 interface SolverPanelProps {
   result: SolverResult | null;
@@ -12,6 +12,10 @@ interface SolverPanelProps {
   onDisplayModeChange: (mode: SolverDisplayMode) => void;
   status: 'stable' | 'rechecking' | 'new-best';
   changeNote: string | null;
+  controlMode: CheatControlMode;
+  onControlModeChange: (mode: CheatControlMode) => void;
+  autopilotLog: string[];
+  autopilotPauseReason: string | null;
   onApplyMove?: (move: RecommendedMove) => void;
   onClose: () => void;
 }
@@ -35,6 +39,10 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
   onDisplayModeChange,
   status,
   changeNote,
+  controlMode,
+  onControlModeChange,
+  autopilotLog,
+  autopilotPauseReason,
   onApplyMove,
   onClose,
 }) => {
@@ -45,7 +53,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
       <div className="flex items-center justify-between px-5 py-3 border-b border-sand-200 shrink-0 bg-sand-100">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold text-sand-900">
-            Oracle's Vision
+            Cheat Engine
           </h2>
           <span className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold px-1.5 py-0.5 bg-terracotta/10 rounded">
             Live
@@ -97,6 +105,35 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
         </button>
       </div>
 
+      <div className="px-5 py-2 border-b border-sand-200 bg-sand-50 shrink-0">
+        <div className="flex items-center gap-1 text-xs text-sand-700" title="Coach shows the recommendation. Auto decision plays one valid pending decision. Auto round keeps playing your valid decisions until the round advances.">
+          <span className="mr-1 text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold">Control</span>
+          <button
+            onClick={() => onControlModeChange('COACH')}
+            className={`px-2 py-1 rounded border ${controlMode === 'COACH' ? 'bg-sand-800 text-white border-sand-800' : 'border-sand-300 hover:bg-sand-100'}`}
+          >
+            Coach
+          </button>
+          <button
+            onClick={() => onControlModeChange('AUTO_DECISION')}
+            className={`px-2 py-1 rounded border ${controlMode === 'AUTO_DECISION' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-100'}`}
+          >
+            Auto decision
+          </button>
+          <button
+            onClick={() => onControlModeChange('AUTO_ROUND')}
+            className={`px-2 py-1 rounded border ${controlMode === 'AUTO_ROUND' ? 'bg-terracotta text-white border-terracotta' : 'border-sand-300 hover:bg-sand-100'}`}
+          >
+            Auto round
+          </button>
+        </div>
+        {autopilotPauseReason && controlMode !== 'COACH' && (
+          <p className="mt-1 text-[0.65rem] text-amber-700">
+            Paused: {autopilotPauseReason}
+          </p>
+        )}
+      </div>
+
       <div className="flex-1 overflow-hidden flex flex-col">
         {result === null ? (
           <InitialView />
@@ -111,6 +148,8 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
             godMode={godMode}
             status={status}
             changeNote={changeNote}
+            controlMode={controlMode}
+            autopilotLog={autopilotLog}
             onApplyMove={onApplyMove}
             expanded={expanded}
             onToggleExpanded={() => setExpanded((v) => !v)}
@@ -235,10 +274,12 @@ const PlanView: React.FC<{
   godMode: boolean;
   status: 'stable' | 'rechecking' | 'new-best';
   changeNote: string | null;
+  controlMode: CheatControlMode;
+  autopilotLog: string[];
   onApplyMove?: (move: RecommendedMove) => void;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, godMode, status, changeNote, onApplyMove, expanded, onToggleExpanded }) => {
+}> = ({ plan, stale, godMode, status, changeNote, controlMode, autopilotLog, onApplyMove, expanded, onToggleExpanded }) => {
   const nowLines = focusLines(plan);
   const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
   const reasons = reasonChips(plan);
@@ -288,7 +329,7 @@ const PlanView: React.FC<{
               onClick={() => onApplyMove(actionableMove)}
               className="mt-2 px-3 py-1.5 rounded border border-terracotta bg-terracotta text-white text-xs font-semibold hover:bg-terracotta/90 transition-colors"
             >
-              Apply
+              Apply next
             </button>
           )}
           {nowLines.length > 1 && (
@@ -330,6 +371,18 @@ const PlanView: React.FC<{
           )}
           {changeNote && (
             <p className="mt-2 text-[0.65rem] text-sand-500">{changeNote}</p>
+          )}
+          {autopilotLog.length > 0 && (
+            <div className="mt-3 border-t border-terracotta/15 pt-2">
+              <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold mb-1">
+                Autopilot
+              </p>
+              <ul className="space-y-0.5">
+                {autopilotLog.slice(0, 3).map((line) => (
+                  <li key={line} className="text-[0.65rem] text-sand-600 truncate" title={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
@@ -375,6 +428,7 @@ const PlanView: React.FC<{
       {/* Footer */}
       <div className="px-5 py-2 border-t border-sand-200 text-[0.65rem] text-sand-500 shrink-0 mt-auto">
         <div className="flex gap-3">
+          <span>{controlModeLabel(controlMode)}</span>
           <span>last update {plan.computeMs}ms</span>
           <span>nodes: {plan.exploredNodes.toLocaleString()}</span>
         </div>
@@ -420,6 +474,12 @@ function winModeCopy(mode: Plan['analysisMode']): string {
   return 'Win mode is showing a fast line while deeper checks run. ';
 }
 
+function controlModeLabel(mode: CheatControlMode): string {
+  if (mode === 'AUTO_DECISION') return 'auto decision armed';
+  if (mode === 'AUTO_ROUND') return 'auto round armed';
+  return 'coach';
+}
+
 function formatAlternativeDelta(delta: number): string {
   const rounded = Math.round(delta);
   if (rounded === 0) return 'even';
@@ -437,6 +497,7 @@ function firstActionableMove(plan: Plan): RecommendedMove | null {
   if (phase === 'DICE') return moves.find(m => m.kind === 'ASSIGN_DICE') ?? null;
   if (phase === 'ACTIONS') return moves.find(m => m.kind === 'RESOLVE_ACTION') ?? null;
   if (phase === 'PROGRESS') return moves.find(m => m.kind === 'PROGRESS_TRACK') ?? null;
+  if (phase === 'ACHIEVEMENT') return moves.find(m => m.kind === 'ACHIEVEMENT_TRACK_CHOICE') ?? null;
   return null;
 }
 
