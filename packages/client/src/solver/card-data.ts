@@ -70,6 +70,9 @@ export function applyOngoingOnAction(
   if (action === 'PHILOSOPHY') {
     if (hasCard('founding-the-lyceum')) s.philosophyTokens += 1;
   }
+  if (action === 'LEGISLATION') {
+    if (hasCard('amnesty-for-socrates')) s.philosophyTokens += 1;
+  }
   if (action === 'DEVELOPMENT') {
     if (hasCard('oracle')) s.victoryPoints += 4;
   }

@@ -79,6 +79,12 @@ interface CheatCommand {
   signature: string;
 }
 
+interface DirectActionCommand {
+  message: ClientMessage;
+  label: string;
+  score: number;
+}
+
 const PROGRESS_COSTS: Record<ProgressTrackType, Record<number, number>> = {
   ECONOMY: { 1: 2, 2: 2, 3: 3, 4: 3, 5: 4, 6: 4 },
   CULTURE: { 1: 1, 2: 4, 3: 6, 4: 6, 5: 7, 6: 7 },
@@ -135,6 +141,12 @@ function makeCheatCommand(
   };
 }
 
+function nextResolvableAction(slots: PrivatePlayerState['actionSlots']): ActionType | null {
+  return slots
+    .filter((slot): slot is NonNullable<typeof slot> => slot !== null && !slot.resolved)
+    .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType])[0]?.actionType ?? null;
+}
+
 function buildCheatCommand(
   move: RecommendedMove,
   gameState: PublicGameState,
@@ -149,6 +161,9 @@ function buildCheatCommand(
 
   if (move.kind === 'ASSIGN_DICE') {
     if (pending.decisionType !== 'ASSIGN_DICE') return null;
+    const assignedDice = move.assignments.map(assignment => assignment.dieValue).sort((a, b) => a - b);
+    const liveDice = [...(privateState.diceRoll ?? [])].sort((a, b) => a - b);
+    if (assignedDice.length !== liveDice.length || assignedDice.some((die, index) => die !== liveDice[index])) return null;
     message = {
       type: 'ASSIGN_DICE',
       assignments: move.assignments.map((assignment, index) => ({
@@ -161,10 +176,7 @@ function buildCheatCommand(
     label = `assigned dice ${move.assignments.map(a => `${formatCheatAction(a.action)} ${a.dieValue}`).join(', ')}`;
   } else if (move.kind === 'RESOLVE_ACTION') {
     if (pending.decisionType !== 'RESOLVE_ACTION') return null;
-    const hasLiveSlot = privateState.actionSlots.some(slot =>
-      slot !== null && !slot.resolved && slot.actionType === move.actionType,
-    );
-    if (!hasLiveSlot) return null;
+    if (nextResolvableAction(privateState.actionSlots) !== move.actionType) return null;
     message = { type: 'RESOLVE_ACTION', actionType: move.actionType as ActionType, choices: move.choices };
     label = `resolved ${formatCheatAction(move.actionType)}`;
   } else if (move.kind === 'PROGRESS_TRACK') {
@@ -227,6 +239,23 @@ function buildDirectCheatCommand(
     }
     case 'ROLL_DICE':
       return makeCheatCommand(pending, { type: 'ROLL_DICE' }, 'rolled dice');
+    case 'ASSIGN_DICE': {
+      if (!me) return null;
+      const command = buildDirectDiceAssignmentMessage(gameState, privateState, me);
+      return command
+        ? makeCheatCommand(pending, command.message, command.label)
+        : null;
+    }
+    case 'RESOLVE_ACTION': {
+      if (!me) return null;
+      const action = nextResolvableAction(privateState.actionSlots);
+      const command = action
+        ? buildDirectActionMessage(action, gameState, privateState, me)
+        : null;
+      return command
+        ? makeCheatCommand(pending, command.message, command.label)
+        : null;
+    }
     case 'PROGRESS_TRACK': {
       if (!me) return null;
       const track = bestProgressTrack(me, privateState, ['ECONOMY', 'CULTURE', 'MILITARY'], 0);
@@ -329,7 +358,7 @@ function chooseCardsToDiscard(cards: PoliticsCard[], privateState: PrivatePlayer
     .slice(0, Math.min(2, cards.length));
 }
 
-function chooseBestPlayablePoliticsCard(privateState: PrivatePlayerState): { card: PoliticsCard; choices: ActionChoices } | null {
+function chooseBestPlayablePoliticsCard(privateState: PrivatePlayerState): { card: PoliticsCard; choices: ActionChoices; score: number } | null {
   const candidates = privateState.handCards
     .map(card => {
       const choices = politicsChoicesForCard(card, privateState);
@@ -348,10 +377,18 @@ function politicsChoicesForCard(card: PoliticsCard, privateState: PrivatePlayerS
   const choices: ActionChoices = { targetCardId: card.id };
   if (philosophyPairsToUse) choices.philosophyPairsToUse = philosophyPairsToUse;
   if (card.id === 'scholarly-welcome') choices.scholarlyWelcomeColor = bestMinorColor(privateState.knowledgeTokens);
-  if (card.id === 'ostracism' && privateState.playedCards.length > 0) {
-    choices.ostracismReturnCardId = chooseCardsToDiscard(privateState.playedCards, privateState)[0]?.id;
+  if (card.id === 'ostracism') {
+    const returnCard = chooseBestOstracismReturnCard(privateState);
+    if (!returnCard) return null;
+    choices.ostracismReturnCardId = returnCard.id;
   }
   return choices;
+}
+
+function chooseBestOstracismReturnCard(privateState: PrivatePlayerState): PoliticsCard | null {
+  return privateState.playedCards
+    .filter(card => card.id !== 'ostracism')
+    .sort((a, b) => autopilotCardScore(b, privateState) - autopilotCardScore(a, privateState) || a.name.localeCompare(b.name))[0] ?? null;
 }
 
 function knowledgeShortfall(card: PoliticsCard, tokens: KnowledgeToken[]): number {
@@ -386,26 +423,387 @@ function buildConquestActionMessage(
   gameState: PublicGameState,
   privateState: PrivatePlayerState,
   currentPlayerId: string,
-): { message: ClientMessage; label: string } | null {
-  const politics = chooseBestPlayablePoliticsCard(privateState);
-  if (politics) {
-    return {
-      message: { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices: politics.choices },
-      label: `played ${politics.card.name} from Conquest`,
-    };
-  }
+): DirectActionCommand | null {
   const me = gameState.players.find(p => p.playerId === currentPlayerId);
-  const buyMinorKnowledge = privateState.coins + ((me?.economyTrack ?? 1) + 1) >= 5;
+  if (!me) return null;
+  const actions: ActionType[] = ['POLITICS', 'DEVELOPMENT', 'LEGISLATION', 'TRADE', 'CULTURE', 'PHILOSOPHY'];
+  return actions
+    .map(action => buildDirectActionMessage(action, gameState, privateState, me, 'Conquest'))
+    .filter((command): command is DirectActionCommand => command !== null)
+    .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))[0] ?? null;
+}
+
+function buildDirectDiceAssignmentMessage(
+  gameState: PublicGameState,
+  privateState: PrivatePlayerState,
+  player: PublicPlayerState,
+): DirectActionCommand | null {
+  const dice = privateState.diceRoll;
+  if (!dice || dice.length === 0) return null;
+  const actionCandidates = (Object.keys(ACTION_NUMBERS) as ActionType[])
+    .map(action => {
+      const command = buildDirectActionMessage(action, gameState, privateState, player);
+      return command
+        ? { action, score: command.score + diceAssignmentBias(action, player, privateState) }
+        : null;
+    })
+    .filter((candidate): candidate is { action: ActionType; score: number } => candidate !== null);
+  if (actionCandidates.length < dice.length) return null;
+
+  let best: { assignments: DiceAssignment[]; philosophyTokensToSpend: number; score: number } | null = null;
+  for (const combo of combinations(actionCandidates, dice.length)) {
+    const mapped = bestDiceMapping(combo.map(candidate => candidate.action), dice);
+    if (!mapped) continue;
+    const deficit = Math.max(0, mapped.citizenCost - player.citizenTrack);
+    const philosophyTokensToSpend = Math.ceil(deficit / 3);
+    if (philosophyTokensToSpend > privateState.philosophyTokens) continue;
+    const score = combo.reduce((sum, candidate) => sum + candidate.score, 0)
+      - mapped.citizenCost * 2.6
+      - philosophyTokensToSpend * 1.4;
+    if (!best || score > best.score) {
+      best = { assignments: mapped.assignments, philosophyTokensToSpend, score };
+    }
+  }
+  if (!best) return null;
   return {
     message: {
-      type: 'RESOLVE_ACTION',
-      actionType: 'TRADE',
-      choices: buyMinorKnowledge
-        ? { buyMinorKnowledge: true, minorKnowledgeColor: bestMinorColor(privateState.knowledgeTokens) }
-        : {},
+      type: 'ASSIGN_DICE',
+      assignments: best.assignments,
+      philosophyTokensToSpend: best.philosophyTokensToSpend > 0 ? best.philosophyTokensToSpend : undefined,
     },
-    label: buyMinorKnowledge ? 'traded and bought a minor token from Conquest' : 'traded from Conquest',
+    label: `assigned dice to ${best.assignments.map(assignment => formatCheatAction(assignment.actionType)).join(', ')}`,
+    score: best.score,
   };
+}
+
+function bestDiceMapping(actions: ActionType[], dice: number[]): { assignments: DiceAssignment[]; citizenCost: number } | null {
+  let best: { assignments: DiceAssignment[]; citizenCost: number } | null = null;
+  for (const permutation of permutations(dice)) {
+    const assignments = actions.map((action, index) => ({
+      slotIndex: index as 0 | 1 | 2,
+      actionType: action,
+      dieValue: permutation[index],
+    }));
+    const citizenCost = assignments.reduce(
+      (sum, assignment) => sum + Math.max(0, ACTION_NUMBERS[assignment.actionType] - assignment.dieValue),
+      0,
+    );
+    if (!best || citizenCost < best.citizenCost) {
+      best = { assignments, citizenCost };
+    }
+  }
+  return best;
+}
+
+function diceAssignmentBias(action: ActionType, player: PublicPlayerState, privateState: PrivatePlayerState): number {
+  if (action === 'LEGISLATION') return privateState.handCards.length <= 1 ? 6 : 2;
+  if (action === 'POLITICS') return privateState.handCards.length * 0.8;
+  if (action === 'DEVELOPMENT') return Math.max(0, 4 - player.developmentLevel) * 2;
+  if (action === 'TRADE') return privateState.coins <= 3 ? 4 : 1;
+  if (action === 'MILITARY') return player.militaryTrack * 0.5;
+  if (action === 'CULTURE') return player.cultureTrack >= 4 ? 1 : 4;
+  return 1;
+}
+
+function combinations<T>(items: T[], count: number): T[][] {
+  if (count === 0) return [[]];
+  if (items.length < count) return [];
+  const [first, ...rest] = items;
+  return [
+    ...combinations(rest, count - 1).map(combo => [first, ...combo]),
+    ...combinations(rest, count),
+  ];
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, index) => {
+    const rest = [...items.slice(0, index), ...items.slice(index + 1)];
+    return permutations(rest).map(permutation => [item, ...permutation]);
+  });
+}
+
+function buildDirectActionMessage(
+  actionType: ActionType,
+  gameState: PublicGameState,
+  privateState: PrivatePlayerState,
+  player: PublicPlayerState,
+  source?: string,
+): DirectActionCommand | null {
+  const suffix = source ? ` from ${source}` : '';
+  switch (actionType) {
+    case 'PHILOSOPHY':
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'PHILOSOPHY', choices: {} },
+        label: `resolved Philosophy${suffix}`,
+        score: 7 + privateState.philosophyTokens * 0.2 + (hasPlayedCard(privateState, 'founding-the-lyceum') ? 3 : 0),
+      };
+    case 'LEGISLATION': {
+      const plan = legislationActionPlan(privateState);
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'LEGISLATION', choices: plan.choices },
+        label: plan.card ? `kept ${plan.card.name}${suffix}` : `resolved Legislation${suffix}`,
+        score: plan.score,
+      };
+    }
+    case 'CULTURE':
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'CULTURE', choices: {} },
+        label: `resolved Culture${suffix}`,
+        score: cultureActionScore(player, privateState),
+      };
+    case 'TRADE': {
+      const plan = tradeActionPlan(player, privateState);
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'TRADE', choices: plan.choices },
+        label: plan.choices.buyMinorKnowledge
+          ? `traded and bought a ${plan.choices.minorKnowledgeColor?.toLowerCase()} token${suffix}`
+          : `resolved Trade${suffix}`,
+        score: plan.score,
+      };
+    }
+    case 'MILITARY': {
+      const plan = militaryActionPlan(gameState, player, privateState);
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'MILITARY', choices: plan.choices },
+        label: plan.tokenNames.length > 0
+          ? `explored ${plan.tokenNames.join(', ')}${suffix}`
+          : `resolved Military${suffix}`,
+        score: plan.score,
+      };
+    }
+    case 'POLITICS': {
+      const politics = chooseBestPlayablePoliticsCard(privateState);
+      return politics
+        ? {
+            message: { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices: politics.choices },
+            label: `played ${politics.card.name}${suffix}`,
+            score: 34 + politics.score + politicsActionBonus(player, privateState),
+          }
+        : null;
+    }
+    case 'DEVELOPMENT': {
+      const plan = developmentActionPlan(gameState, player, privateState);
+      return plan
+        ? {
+            message: { type: 'RESOLVE_ACTION', actionType: 'DEVELOPMENT', choices: plan.choices },
+            label: `developed ${plan.development.name}${suffix}`,
+            score: plan.score,
+          }
+        : null;
+    }
+    default:
+      return null;
+  }
+}
+
+function legislationActionPlan(privateState: PrivatePlayerState): { choices: ActionChoices; card: PoliticsCard | null; score: number } {
+  const draw = privateState.legislationDraw?.length
+    ? privateState.legislationDraw
+    : (privateState.solverFullState?.politicsDeck.slice(0, 2) ?? []);
+  const keep = [...draw]
+    .sort((a, b) => autopilotCardScore(b, privateState) - autopilotCardScore(a, privateState) || a.name.localeCompare(b.name))[0] ?? null;
+  const discard = keep ? draw.find(card => card.id !== keep.id) ?? null : null;
+  return {
+    choices: keep ? { targetCardId: keep.id, discardCardId: discard?.id } : {},
+    card: keep,
+    score: keep ? 12 + autopilotCardScore(keep, privateState) * 0.2 : 5,
+  };
+}
+
+function tradeActionPlan(player: PublicPlayerState, privateState: PrivatePlayerState): { choices: ActionChoices; score: number } {
+  const income = player.economyTrack + 1;
+  const tokenCost = minorKnowledgeCost(privateState);
+  const canBuyMinor = privateState.coins + income >= tokenCost;
+  return {
+    choices: canBuyMinor
+      ? { buyMinorKnowledge: true, minorKnowledgeColor: bestMinorColor(privateState.knowledgeTokens) }
+      : {},
+    score: 9 + income * 1.2 + (canBuyMinor ? 13 : 0)
+      + (hasPlayedCard(privateState, 'diolkos') ? 4 : 0)
+      + (hasPlayedCard(privateState, 'lighthouse') ? 5 : 0)
+      + (hasCityDevelopment(player, 'miletus', 3) ? 4 : 0),
+  };
+}
+
+function minorKnowledgeCost(privateState: PrivatePlayerState): number {
+  return hasPlayedCard(privateState, 'corinthian-columns') ? 3 : 5;
+}
+
+function militaryActionPlan(
+  gameState: PublicGameState,
+  player: PublicPlayerState,
+  privateState: PrivatePlayerState,
+): { choices: ActionChoices; tokenNames: string[]; score: number } {
+  const maxExplores = hasCityDevelopment(player, 'thebes', 3) ? 2 : 1;
+  const tokenIds = chooseExploreTokenIds(
+    gameState,
+    privateState,
+    player,
+    maxExplores,
+    player.troopTrack + player.militaryTrack,
+  );
+  const choices: ActionChoices = {};
+  if (tokenIds[0]) choices.explorationTokenId = tokenIds[0];
+  if (tokenIds[1]) choices.secondExplorationTokenId = tokenIds[1];
+  return {
+    choices,
+    tokenNames: tokenIds.map(id => tokenLabel(gameState.centralBoardTokens.find(token => token.id === id))).filter(Boolean),
+    score: 10 + player.militaryTrack * 1.5
+      + tokenIds.reduce((sum, id) => sum + tokenScoreById(gameState, id, privateState, player), 0)
+      + (hasCityDevelopment(player, 'sparta', 2) ? 3 : 0),
+  };
+}
+
+function developmentActionPlan(
+  gameState: PublicGameState,
+  player: PublicPlayerState,
+  privateState: PrivatePlayerState,
+): { choices: ActionChoices; development: NonNullable<ReturnType<typeof nextDevelopmentForPlayer>>; score: number } | null {
+  const development = nextDevelopmentForPlayer(gameState, player);
+  if (!development) return null;
+  const shortfall = requirementShortfall(development.knowledgeRequirement, privateState.knowledgeTokens);
+  if (privateState.coins < development.drachmaCost || shortfall * 2 > privateState.philosophyTokens) return null;
+
+  const choices: ActionChoices = {};
+  if (shortfall > 0) choices.philosophyPairsToUse = shortfall;
+
+  let specialScore = 0;
+  if (development.id === 'miletus-dev-2') {
+    choices.devTrackChoices = bestFreeProgressTracks(player, 2);
+    specialScore += choices.devTrackChoices.reduce((sum, track) => sum + progressAdvanceValue(player, track), 0);
+  }
+  if (development.id === 'argos-dev-2') {
+    choices.argosDevReward = bestArgosReward(player, privateState);
+    specialScore += choices.argosDevReward === 'vp' ? 8 : choices.argosDevReward === 'citizens' ? 6 : 5;
+  }
+  if (development.id === 'sparta-dev-3') {
+    const tokenIds = chooseExploreTokenIds(
+      gameState,
+      privateState,
+      player,
+      2,
+      player.troopTrack + player.militaryTrack,
+      player.militaryTrack,
+    );
+    if (tokenIds.length > 0) choices.spartaMilitaryTokenIds = tokenIds;
+    specialScore += tokenIds.reduce((sum, id) => sum + tokenScoreById(gameState, id, privateState, player), 0);
+  }
+
+  return {
+    choices,
+    development,
+    score: 22 + development.level * 4 + developmentEffectValue(development) + specialScore
+      - development.drachmaCost * 0.9 - shortfall * 2,
+  };
+}
+
+function nextDevelopmentForPlayer(gameState: PublicGameState, player: PublicPlayerState) {
+  return gameState.cityCards[player.cityId]?.developments[player.developmentLevel] ?? null;
+}
+
+function requirementShortfall(
+  requirement: { green: number; blue: number; red: number },
+  tokens: KnowledgeToken[],
+): number {
+  const counts = countTokenColors(tokens);
+  return Math.max(0, requirement.green - counts.GREEN)
+    + Math.max(0, requirement.blue - counts.BLUE)
+    + Math.max(0, requirement.red - counts.RED);
+}
+
+function bestFreeProgressTracks(player: PublicPlayerState, count: number): ProgressTrackType[] {
+  return (['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[])
+    .filter(track => progressLevel(player, track) < 7)
+    .sort((a, b) => progressAdvanceValue(player, b) - progressAdvanceValue(player, a))
+    .slice(0, count);
+}
+
+function bestArgosReward(player: PublicPlayerState, privateState: PrivatePlayerState): NonNullable<ActionChoices['argosDevReward']> {
+  if (player.citizenTrack <= 3) return 'citizens';
+  if (privateState.coins <= 2) return 'coins';
+  if (player.militaryTrack >= 5 && player.troopTrack < 6) return 'troops';
+  return 'vp';
+}
+
+function developmentEffectValue(development: NonNullable<ReturnType<typeof nextDevelopmentForPlayer>>): number {
+  if (development.effectType === 'END_GAME') return 16;
+  if (development.effectType === 'ONGOING') return 12;
+  return 9;
+}
+
+function chooseExploreTokenIds(
+  gameState: PublicGameState,
+  privateState: PrivatePlayerState,
+  player: PublicPlayerState,
+  maxCount: number,
+  startingTroops: number,
+  gainBetweenExplores = 0,
+): string[] {
+  let troops = startingTroops;
+  const chosen: string[] = [];
+  for (let i = 0; i < maxCount; i += 1) {
+    const token = gameState.centralBoardTokens
+      .filter(candidate =>
+        !candidate.explored
+        && !chosen.includes(candidate.id)
+        && candidate.militaryRequirement !== undefined
+        && candidate.militaryRequirement <= troops,
+      )
+      .sort((a, b) => exploreTokenScore(b, privateState, player) - exploreTokenScore(a, privateState, player)
+        || (a.skullValue ?? 0) - (b.skullValue ?? 0))[0] ?? null;
+    if (!token) break;
+    chosen.push(token.id);
+    troops = Math.max(0, troops - exploreTroopLoss(token, privateState, player));
+    if (i < maxCount - 1) troops += gainBetweenExplores;
+  }
+  return chosen;
+}
+
+function tokenScoreById(
+  gameState: PublicGameState,
+  tokenId: string,
+  privateState: PrivatePlayerState,
+  player: PublicPlayerState,
+): number {
+  const token = gameState.centralBoardTokens.find(candidate => candidate.id === tokenId);
+  return token ? exploreTokenScore(token, privateState, player) : 0;
+}
+
+function exploreTokenScore(token: KnowledgeToken, privateState: PrivatePlayerState, player: PublicPlayerState): number {
+  const counts = countTokenColors(privateState.knowledgeTokens);
+  const colorNeed = counts[token.color] === 0 ? 6 : token.tokenType === 'MAJOR' ? 3 : 0;
+  const typeValue = token.isPersepolis ? 42 : token.tokenType === 'MAJOR' ? 18 : 8;
+  const skullPenalty = exploreTroopLoss(token, privateState, player) * 0.7;
+  return typeValue + colorNeed + (token.bonusVP ?? 0) * 1.4 + (token.bonusCoins ?? 0) * 0.9 - skullPenalty;
+}
+
+function exploreTroopLoss(token: KnowledgeToken, privateState: PrivatePlayerState, player: PublicPlayerState): number {
+  const discount = (hasPlayedCard(privateState, 'helepole') ? 1 : 0) + (hasCityDevelopment(player, 'sparta', 1) ? 1 : 0);
+  return Math.max(0, (token.skullValue ?? 0) - discount);
+}
+
+function tokenLabel(token: KnowledgeToken | undefined): string {
+  if (!token) return '';
+  if (token.isPersepolis) return 'Persepolis';
+  return `${token.color.toLowerCase()} ${token.tokenType.toLowerCase()}`;
+}
+
+function cultureActionScore(player: PublicPlayerState, privateState: PrivatePlayerState): number {
+  return 8 + player.cultureTrack * 2
+    + (hasPlayedCard(privateState, 'stoa-poikile') ? 3 : 0)
+    + (hasPlayedCard(privateState, 'persians') ? 3 : 0)
+    + (hasCityDevelopment(player, 'olympia', 2) ? 3 : 0);
+}
+
+function politicsActionBonus(player: PublicPlayerState, privateState: PrivatePlayerState): number {
+  return (hasPlayedCard(privateState, 'extraordinary-collection') ? 4 : 0)
+    + (hasCityDevelopment(player, 'athens', 2) ? 5 : 0)
+    + (hasCityDevelopment(player, 'athens', 3) ? 2 : 0);
+}
+
+function hasCityDevelopment(player: PublicPlayerState, cityId: string, level: number): boolean {
+  return player.cityId === cityId && player.developmentLevel >= level;
 }
 
 function bestProgressTrack(

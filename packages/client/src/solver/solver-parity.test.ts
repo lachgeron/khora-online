@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { GameState, KnowledgeColor, PlayerState } from '@khora/shared';
-import { applyImmediateCardEffect as applyServerImmediateCardEffect } from '../../../server/src/card-handlers';
+import {
+  applyImmediateCardEffect as applyServerImmediateCardEffect,
+  applyOngoingEffects as applyServerOngoingEffects,
+} from '../../../server/src/card-handlers';
 import { ALL_POLITICS_CARDS } from '../../../server/src/game-data';
+import { LegislationResolver } from '../../../server/src/actions/legislation-resolver';
 import { TaxationPhaseManager } from '../../../server/src/phases/taxation-phase';
 import { applyTaxPhase } from './scoring';
-import { applyImmediateCardEffect as applySolverImmediateCardEffect } from './card-data';
+import {
+  applyImmediateCardEffect as applySolverImmediateCardEffect,
+  applyOngoingOnAction as applySolverOngoingOnAction,
+} from './card-data';
 import type { SolverState } from './types';
 
 const PLAYER_ID = 'p1';
@@ -85,6 +92,44 @@ describe('solver card-effect parity', () => {
       [{ economyTrack: 3, cultureTrack: 3, militaryTrack: 4 }],
       (id) => cardIds.includes(id),
     );
+
+    expect(projectSolverState(solverState)).toEqual(projectPlayerState(serverAfter));
+  });
+
+  it('mirrors Amnesty for Socrates on legislation action', () => {
+    const amnesty = cardById('amnesty-for-socrates');
+    const serverStart = {
+      ...baseGameState(),
+      politicsDeck: [cardById('gifts-from-the-west'), cardById('archives')],
+      players: [{
+        ...basePlayer(),
+        playedCards: [amnesty],
+        citizenTrack: 4,
+        philosophyTokens: 2,
+      }],
+    };
+    const legislationResult = new LegislationResolver().resolve(
+      serverStart,
+      PLAYER_ID,
+      { targetCardId: 'gifts-from-the-west' },
+    );
+    expect(legislationResult.ok).toBe(true);
+    if (!legislationResult.ok) return;
+    const serverAfter = applyServerOngoingEffects(
+      legislationResult.value,
+      PLAYER_ID,
+      { type: 'ON_ACTION', actionType: 'LEGISLATION' },
+    ).players[0];
+
+    const solverState = {
+      ...baseSolverState(),
+      citizenTrack: 4,
+      philosophyTokens: 2,
+      handSlots: 0,
+    };
+    solverState.citizenTrack = Math.min(15, solverState.citizenTrack + 3);
+    solverState.handSlots += 1;
+    applySolverOngoingOnAction(solverState, 'LEGISLATION', id => id === 'amnesty-for-socrates');
 
     expect(projectSolverState(solverState)).toEqual(projectPlayerState(serverAfter));
   });
