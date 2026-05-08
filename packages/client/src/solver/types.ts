@@ -35,6 +35,7 @@ export interface SolverDiceAssignment {
 
 export type SolverObjective = 'MAX_VP' | 'WIN_MARGIN';
 export type SolverDisplayMode = 'AGGRESSIVE' | 'CONSERVATIVE';
+export type SolverAnalysisMode = 'FAST' | 'DEEP' | 'ADVERSARIAL';
 
 export const SOLVER_ACTIONS: SolverAction[] = [
   'PHILOSOPHY',
@@ -166,10 +167,20 @@ export interface RoundPlan {
   coinsAfter: number;
 }
 
+export interface MoveAlternative {
+  label: string;
+  objectiveScore: number;
+  projectedFinalVP: number;
+  projectedWinMargin: number | null;
+  deltaFromBest: number;
+  samples: number;
+}
+
 /** Final plan returned to the UI. */
 export interface Plan {
   projectedFinalVP: number;
   objective: SolverObjective;
+  analysisMode: SolverAnalysisMode;
   objectiveScore: number;
   projectedWinMargin: number | null;
   strongestOpponentVP: number | null;
@@ -181,6 +192,7 @@ export interface Plan {
   };
   currentRound: RoundPlan | null;        // what to do right now (null if game over / pre-game)
   futureRounds: RoundPlan[];             // remaining rounds
+  moveAlternatives: MoveAlternative[];   // first-decision buckets from the current search pass
   currentPhase: GamePhase;
   partialResult: boolean;
   computeMs: number;

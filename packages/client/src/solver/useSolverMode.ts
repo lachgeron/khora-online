@@ -638,14 +638,23 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
 }
 
 function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode): boolean {
-  if (incoming.objectiveScore < current.objectiveScore) return false;
-  if (mode === 'AGGRESSIVE') return true;
+  const incomingRank = analysisModeRank(incoming.analysisMode);
+  const currentRank = analysisModeRank(current.analysisMode);
+  if (incoming.objective === 'WIN_MARGIN' && incoming.analysisMode === 'ADVERSARIAL' && incomingRank > currentRank) {
+    return true;
+  }
 
   const currentSig = roundSignature(current.currentRound);
   const incomingSig = roundSignature(incoming.currentRound);
   const improvement = incoming.objectiveScore - current.objectiveScore;
   const currentMove = immediateMoveSignature(current.currentRound);
   const incomingMove = immediateMoveSignature(incoming.currentRound);
+
+  if (incoming.objectiveScore < current.objectiveScore) return false;
+  if (incomingRank > currentRank && (mode === 'AGGRESSIVE' || currentMove === incomingMove || currentSig === incomingSig)) {
+    return true;
+  }
+  if (mode === 'AGGRESSIVE') return true;
 
   if (currentMove === incomingMove) {
     return improvement >= CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD
@@ -655,6 +664,12 @@ function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode
     return improvement >= CONSERVATIVE_REORDER_THRESHOLD;
   }
   return improvement >= CONSERVATIVE_SWITCH_THRESHOLD;
+}
+
+function analysisModeRank(mode: Plan['analysisMode']): number {
+  if (mode === 'ADVERSARIAL') return 2;
+  if (mode === 'DEEP') return 1;
+  return 0;
 }
 
 function roundSignature(round: RoundPlan | null): string {

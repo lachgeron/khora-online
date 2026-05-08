@@ -20,6 +20,8 @@ import type {
   SolverDiceAssignment,
   SolverObjective,
   RecommendedMove,
+  SolverAnalysisMode,
+  MoveAlternative,
 } from './types';
 import type { GamePhase, KnowledgeToken, PredeterminedDiceSchedule, SolverFullPlayerState, SolverFullState } from '@khora/shared';
 import type { PoliticsCard, ProgressTrackType } from '../types';
@@ -979,6 +981,10 @@ export async function runSolver(
     roundPlans: RoundPlan[];
   }
 
+  interface ScoredBeamEntry extends BeamEntry {
+    objectiveScore: number;
+  }
+
   const nodesExploredShared = { count: 0 };
   const opponentSearchCacheShared = new Map<string, number>();
 
@@ -1038,7 +1044,7 @@ export async function runSolver(
     seed: number = 0,
     currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
     opponentSearchEnabled = false,
-  ): Promise<BeamEntry | null> => {
+  ): Promise<{ best: BeamEntry; alternatives: MoveAlternative[] } | null> => {
     const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK, opponentSearchEnabled);
 
     let beam: BeamEntry[] = [{ state: initialState, roundPlans: [] }];
@@ -1082,23 +1088,50 @@ export async function runSolver(
 
     let best: BeamEntry | null = null;
     let bestScore = -Infinity;
+    const scoredEntries: ScoredBeamEntry[] = [];
     for (const entry of beam) {
       const sc = finalObjectiveScore(entry.state, ctx, cardIds, allCardObjs);
+      scoredEntries.push({ ...entry, objectiveScore: sc });
       if (sc > bestScore) { bestScore = sc; best = entry; }
     }
-    return best;
+    if (!best) return null;
+    return { best, alternatives: buildMoveAlternatives(scoredEntries, ctx, cardIds, allCardObjs) };
   };
 
   let overallBest: BeamEntry | null = null;
-  let overallBestVP = -Infinity;
+  let overallBestCtx: SolverContext | null = null;
+  let overallBestAlternatives: MoveAlternative[] = [];
+  let bestHeuristicScore = -Infinity;
+  let bestHeuristicModeRank = -1;
+  let bestAdversarialScore = -Infinity;
+  let hasAdversarialResult = false;
 
-  const reportIfBetter = (result: BeamEntry, opponentSearchEnabled: boolean): void => {
-    const ctx = makeContext(0, 0, CURRENT_ROUND_ACTION_TOP_K, opponentSearchEnabled);
-    const objectiveScore = finalObjectiveScore(result.state, ctx, cardIds, allCardObjs);
-    if (objectiveScore <= overallBestVP) return;
-    overallBestVP = objectiveScore;
-    overallBest = result;
-    if (onProgress) onProgress(buildPlan(result, cardIds, allCardObjs, nodesExploredShared, start, ctx));
+  const reportIfBetter = (
+    result: { best: BeamEntry; alternatives: MoveAlternative[] },
+    opponentSearchEnabled: boolean,
+    beamWidth: number,
+    actionTopK: number,
+    currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
+  ): void => {
+    const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK, opponentSearchEnabled);
+    const objectiveScore = finalObjectiveScore(result.best.state, ctx, cardIds, allCardObjs);
+    const isAdversarial = input.objective === 'WIN_MARGIN' && opponentSearchEnabled;
+    if (isAdversarial) {
+      if (hasAdversarialResult && objectiveScore <= bestAdversarialScore) return;
+      hasAdversarialResult = true;
+      bestAdversarialScore = objectiveScore;
+    } else {
+      const modeRank = analysisModeRank(ctx);
+      if (objectiveScore < bestHeuristicScore) return;
+      if (objectiveScore === bestHeuristicScore && modeRank <= bestHeuristicModeRank) return;
+      bestHeuristicScore = objectiveScore;
+      bestHeuristicModeRank = modeRank;
+      if (hasAdversarialResult) return;
+    }
+    overallBest = result.best;
+    overallBestCtx = ctx;
+    overallBestAlternatives = result.alternatives;
+    if (onProgress) onProgress(buildPlan(result.best, cardIds, allCardObjs, nodesExploredShared, start, ctx, result.alternatives));
   };
 
   // Phase 1: iterative deepening — start narrow (fast first result) and widen
@@ -1121,7 +1154,7 @@ export async function runSolver(
     if (shouldAbort()) break;
     const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, false);
     if (!result) break;
-    reportIfBetter(result, false);
+    reportIfBetter(result, false, beamWidth, actionTopK, currentRoundActionTopK);
   }
 
   // Phase 2: continuous randomized restarts with progressively widening profiles.
@@ -1151,7 +1184,7 @@ export async function runSolver(
     const result = await runBeam(w, k, restartSeed, CURRENT_ROUND_ACTION_TOP_K, input.objective === 'WIN_MARGIN');
     restartSeed++;
     if (!result) break;
-    reportIfBetter(result, input.objective === 'WIN_MARGIN');
+    reportIfBetter(result, input.objective === 'WIN_MARGIN', w, k);
   }
 
   if (!overallBest) {
@@ -1160,12 +1193,14 @@ export async function runSolver(
       plan: {
         projectedFinalVP: 0,
         objective: input.objective,
+        analysisMode: 'FAST',
         objectiveScore: 0,
         projectedWinMargin: null,
         strongestOpponentVP: null,
         vpBreakdown: { scoreTrack: 0, politicsCards: 0, developments: 0, gloryTimesMajors: 0 },
         currentRound: null,
         futureRounds: [],
+        moveAlternatives: [],
         currentPhase: input.currentPhase,
         partialResult: true,
         computeMs: Date.now() - start,
@@ -1176,8 +1211,113 @@ export async function runSolver(
 
   return {
     ok: true,
-    plan: buildPlan(overallBest, cardIds, allCardObjs, nodesExploredShared, start, makeContext(0, 0)),
+    plan: buildPlan(overallBest, cardIds, allCardObjs, nodesExploredShared, start, overallBestCtx ?? makeContext(0, 0), overallBestAlternatives),
   };
+}
+
+function analysisModeRank(ctx: SolverContext): number {
+  if (ctx.opponentSearchEnabled) return 2;
+  if (ctx.beamWidth >= 800) return 1;
+  return 0;
+}
+
+function buildMoveAlternatives(
+  entries: Array<{ state: SolverState; roundPlans: RoundPlan[]; objectiveScore: number }>,
+  ctx: SolverContext,
+  cardIds: string[],
+  allCardObjs: PoliticsCard[],
+): MoveAlternative[] {
+  const buckets = new Map<string, {
+    label: string;
+    bestScore: number;
+    bestFinalVP: number;
+    bestMargin: number | null;
+    samples: number;
+  }>();
+
+  for (const entry of entries) {
+    const move = firstActionableMove(entry.roundPlans[0], ctx.currentPhase);
+    const signature = move ? recommendedMoveSignature(move) : roundSignature(entry.roundPlans[0]);
+    const finalized = finalizeScore(entry.state, cardIds, allCardObjs);
+    const margin = ctx.objective === 'WIN_MARGIN'
+      ? finalized.total - estimateStrongestOpponentVP(entry.state, ctx, ctx.opponentSearchEnabled)
+      : null;
+    const existing = buckets.get(signature);
+    if (!existing) {
+      buckets.set(signature, {
+        label: move ? recommendedMoveLabel(move, cardIds, allCardObjs) : (entry.roundPlans[0]?.description[0] ?? 'No move'),
+        bestScore: entry.objectiveScore,
+        bestFinalVP: finalized.total,
+        bestMargin: margin,
+        samples: 1,
+      });
+      continue;
+    }
+    existing.samples += 1;
+    if (entry.objectiveScore > existing.bestScore) {
+      existing.bestScore = entry.objectiveScore;
+      existing.bestFinalVP = finalized.total;
+      existing.bestMargin = margin;
+    }
+  }
+
+  const ranked = Array.from(buckets.values()).sort((a, b) => b.bestScore - a.bestScore);
+  const best = ranked[0]?.bestScore ?? 0;
+  return ranked.slice(0, 4).map((bucket) => ({
+    label: bucket.label,
+    objectiveScore: bucket.bestScore,
+    projectedFinalVP: bucket.bestFinalVP,
+    projectedWinMargin: bucket.bestMargin,
+    deltaFromBest: bucket.bestScore - best,
+    samples: bucket.samples,
+  }));
+}
+
+function firstActionableMove(round: RoundPlan | null | undefined, phase: GamePhase): RecommendedMove | null {
+  const moves = round?.recommendedMoves ?? [];
+  if (phase === 'DICE') return moves.find(m => m.kind === 'ASSIGN_DICE') ?? null;
+  if (phase === 'ACTIONS') return moves.find(m => m.kind === 'RESOLVE_ACTION') ?? null;
+  if (phase === 'PROGRESS') return moves.find(m => m.kind === 'PROGRESS_TRACK') ?? null;
+  if (phase === 'ACHIEVEMENT') return moves.find(m => m.kind === 'ACHIEVEMENT_TRACK_CHOICE') ?? null;
+  return moves.find(m => m.kind === 'RESOLVE_ACTION')
+    ?? moves.find(m => m.kind === 'ASSIGN_DICE')
+    ?? moves.find(m => m.kind === 'PROGRESS_TRACK')
+    ?? moves[0]
+    ?? null;
+}
+
+function recommendedMoveSignature(move: RecommendedMove): string {
+  if (move.kind === 'RESOLVE_ACTION') {
+    return `${move.kind}:${move.actionType}:${JSON.stringify(move.choices)}`;
+  }
+  if (move.kind === 'ASSIGN_DICE') {
+    return `${move.kind}:${move.assignments.map(a => `${a.action}:${a.dieValue}`).join('|')}`;
+  }
+  if (move.kind === 'PROGRESS_TRACK') {
+    return `${move.kind}:${move.tracks.join('|')}:${move.philosophySpent}`;
+  }
+  return `${move.kind}:${move.choices.join('|')}`;
+}
+
+function roundSignature(round: RoundPlan | null | undefined): string {
+  return round ? round.actionTypes.join('>') : '';
+}
+
+function recommendedMoveLabel(move: RecommendedMove, cardIds: string[], allCardObjs: PoliticsCard[]): string {
+  if (move.kind === 'ASSIGN_DICE') {
+    return `Dice: ${move.assignments.map(a => `${formatActionName(a.action)} ${a.dieValue}`).join(', ')}`;
+  }
+  if (move.kind === 'PROGRESS_TRACK') {
+    return `Progress: ${move.tracks.join(', ')}`;
+  }
+  if (move.kind === 'ACHIEVEMENT_TRACK_CHOICE') {
+    return `Achievement: ${move.choices.join(', ')}`;
+  }
+  if (move.choice.type === 'POLITICS') {
+    const card = allCardObjs[move.choice.cardIndex];
+    return `Politics: play ${card?.name ?? cardIds[move.choice.cardIndex] ?? 'card'}`;
+  }
+  return `${formatActionName(move.actionType)} action`;
 }
 
 function buildPlan(
@@ -1187,6 +1327,7 @@ function buildPlan(
   nodesExploredShared: { count: number },
   start: number,
   ctx: SolverContext,
+  moveAlternatives: MoveAlternative[] = [],
 ): Plan {
   const finalized = finalizeScore(best.state, cardIds, allCardObjs);
   const strongestOpponentVP = ctx.fullState ? estimateStrongestOpponentVP(best.state, ctx, ctx.opponentSearchEnabled) : null;
@@ -1194,17 +1335,24 @@ function buildPlan(
   const objectiveScore = ctx.objective === 'WIN_MARGIN' && projectedWinMargin !== null
     ? projectedWinMargin
     : finalized.total;
+  const analysisMode: SolverAnalysisMode = ctx.opponentSearchEnabled
+    ? 'ADVERSARIAL'
+    : ctx.beamWidth >= 800
+      ? 'DEEP'
+      : 'FAST';
   const currentRound = best.roundPlans.length > 0 ? best.roundPlans[0] : null;
   const futureRounds = best.roundPlans.slice(1);
   return {
     projectedFinalVP: finalized.total,
     objective: ctx.objective,
+    analysisMode,
     objectiveScore,
     projectedWinMargin,
     strongestOpponentVP,
     vpBreakdown: finalized.breakdown,
     currentRound,
     futureRounds,
+    moveAlternatives,
     currentPhase: ctx.currentPhase,
     partialResult: false,
     computeMs: Date.now() - start,

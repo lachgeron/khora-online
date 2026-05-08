@@ -243,6 +243,7 @@ const PlanView: React.FC<{
   const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
   const reasons = reasonChips(plan);
   const actionableMove = firstActionableMove(plan);
+  const analysisLabel = analysisModeLabel(plan.analysisMode);
 
   return (
     <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
@@ -261,6 +262,7 @@ const PlanView: React.FC<{
           <span className="text-sand-600 text-xs uppercase tracking-wider">projected final VP</span>
         </div>
         <div className="mt-2 text-[0.7rem] text-sand-600 flex flex-wrap gap-x-3">
+          <span>Mode: <b>{analysisLabel}</b></span>
           <span>Track: <b>{plan.vpBreakdown.scoreTrack}</b></span>
           <span>Cards: <b>{plan.vpBreakdown.politicsCards}</b></span>
           <span>Devs: <b>{plan.vpBreakdown.developments}</b></span>
@@ -307,6 +309,23 @@ const PlanView: React.FC<{
                   {reason.label}
                 </span>
               ))}
+            </div>
+          )}
+          {plan.moveAlternatives.length > 1 && (
+            <div className="mt-3 border-t border-terracotta/15 pt-2">
+              <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold mb-1">
+                Alternatives
+              </p>
+              <ul className="space-y-1">
+                {plan.moveAlternatives.slice(1, 4).map((alt) => (
+                  <li key={alt.label} className="flex items-center justify-between gap-2 text-[0.7rem] text-sand-700">
+                    <span className="truncate" title={alt.label}>{alt.label}</span>
+                    <span className="shrink-0 text-sand-500">
+                      {formatAlternativeDelta(alt.deltaFromBest)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {changeNote && (
@@ -360,7 +379,7 @@ const PlanView: React.FC<{
           <span>nodes: {plan.exploredNodes.toLocaleString()}</span>
         </div>
         <p className="mt-1">
-          {plan.objective === 'WIN_MARGIN' ? 'Win mode ranks by estimated margin over the strongest opponent. ' : ''}
+          {plan.objective === 'WIN_MARGIN' ? winModeCopy(plan.analysisMode) : ''}
           Assumes {godMode ? 'deck cards are swappable.' : 'only known hand cards are playable.'}
         </p>
       </div>
@@ -387,6 +406,24 @@ function statusLabel(status: 'stable' | 'rechecking' | 'new-best', stale: boolea
   if (stale || status === 'rechecking') return 'rechecking';
   if (status === 'new-best') return 'new best';
   return 'stable';
+}
+
+function analysisModeLabel(mode: Plan['analysisMode']): string {
+  if (mode === 'ADVERSARIAL') return 'opponent search';
+  if (mode === 'DEEP') return 'deep';
+  return 'fast';
+}
+
+function winModeCopy(mode: Plan['analysisMode']): string {
+  if (mode === 'ADVERSARIAL') return 'Win mode is ranking against searched opponent lines. ';
+  if (mode === 'DEEP') return 'Win mode is deepening our line while opponent search warms up. ';
+  return 'Win mode is showing a fast line while deeper checks run. ';
+}
+
+function formatAlternativeDelta(delta: number): string {
+  const rounded = Math.round(delta);
+  if (rounded === 0) return 'even';
+  return `${rounded}`;
 }
 
 function focusLines(plan: Plan): string[] {
