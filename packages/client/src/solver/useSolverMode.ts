@@ -95,6 +95,7 @@ export function useSolverMode(
 
   const workerRef = useRef<Worker | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRestartRef = useRef<{ input: SolverInput; publicState: PublicGameState; key: string } | null>(null);
   // The key of the input currently being computed by the worker (or the
   // unavailable-state sentinel if solver can't run). `null` = nothing sent yet.
   const lastSentKeyRef = useRef<string | null>(null);
@@ -143,6 +144,7 @@ export function useSolverMode(
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      pendingRestartRef.current = null;
       lastSentKeyRef.current = null;
       lastInputRef.current = null;
       shiftRoundsRef.current = 0;
@@ -171,6 +173,15 @@ export function useSolverMode(
       if (currentKey === null || currentKey.startsWith('UNAVAILABLE:')) return;
       if (msg.type === 'progress') {
         const incoming = msg.plan;
+        const liveInput = lastInputRef.current;
+        if (
+          liveInput
+          && shiftRoundsRef.current === 0
+          && incoming.currentRound
+          && incoming.currentRound.round !== liveInput.currentRound
+        ) {
+          return;
+        }
         setResult((prev) => {
           // If the displayed plan was invalidated (player diverged) or doesn't
           // exist yet, accept the incoming plan unconditionally. Otherwise
@@ -182,17 +193,19 @@ export function useSolverMode(
             planValidRef.current = true;
             setStatus('new-best');
             setChangeNote(planChangeNote(previousPlan, incoming));
+            setStale(false);
+            setStatus('stable');
             return { ok: true, plan: incoming };
           }
           if (shouldAcceptPlan(previousPlan, incoming, displayModeRef.current)) {
             setStatus('new-best');
             setChangeNote(planChangeNote(previousPlan, incoming));
+            setStale(false);
+            setStatus('stable');
             return { ok: true, plan: incoming };
           }
           return prev;
         });
-        setStale(false);
-        setStatus('stable');
       } else if (msg.type === 'unavailable') {
         setResult({
           ok: false,
@@ -236,13 +249,6 @@ export function useSolverMode(
     const worker = workerRef.current;
     if (!worker) return;
 
-    // Always cancel any pending debounce first — a newer state change
-    // supersedes any queued restart.
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-
     if (!gameState || !privateState || !currentPlayerId) return;
 
     const draftPlan = buildDraftPlan(gameState, privateState, currentPlayerId);
@@ -260,6 +266,11 @@ export function useSolverMode(
       shiftRoundsRef.current = 0;
       setShiftRoundsState(0);
       planValidRef.current = true;
+      pendingRestartRef.current = null;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
       if (hadRunningSearch) worker.postMessage({ type: 'stop' });
       setResult({ ok: true, draft: draftPlan });
       setStale(false);
@@ -283,6 +294,11 @@ export function useSolverMode(
       shiftRoundsRef.current = 0;
       setShiftRoundsState(0);
       planValidRef.current = true;
+      pendingRestartRef.current = null;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
       if (hadRunningSearch) worker.postMessage({ type: 'stop' });
       setResult({
         ok: false,
@@ -303,6 +319,11 @@ export function useSolverMode(
     // there's no need to even re-classify — nothing changed.
     const newKey = solverInputKey(newInput);
     if (newKey === lastSentKeyRef.current) {
+      pendingRestartRef.current = null;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
       setStale(false);
       return;
     }
@@ -324,22 +345,33 @@ export function useSolverMode(
     const scheduleRestart = (delay: number) => {
       setStale(true);
       setStatus('rechecking');
-      const capturedInput = newInput;
-      const capturedPublicState = gameState;
-      const capturedKey = newKey;
-      const isFirstSend = lastSentKeyRef.current === null;
+      pendingRestartRef.current = { input: newInput, publicState: gameState, key: newKey };
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
-        lastSentKeyRef.current = capturedKey;
+        const pending = pendingRestartRef.current;
+        pendingRestartRef.current = null;
+        if (!pending) return;
+        const messageType = lastSentKeyRef.current === null ? 'start' : 'restart';
+        lastSentKeyRef.current = pending.key;
         worker.postMessage({
-          type: isFirstSend ? 'start' : 'restart',
-          input: capturedInput,
-          publicState: capturedPublicState,
+          type: messageType,
+          input: pending.input,
+          publicState: pending.publicState,
         });
       }, delay);
     };
 
     if (classification === 'CONSISTENT_PROGRESS') {
+      if (pendingRestartRef.current) {
+        planValidRef.current = false;
+        setShift(0);
+        scheduleRestart(0);
+        return;
+      }
       // Worker's in-flight search already accounts for this action sequence.
       // Keep it running, but trim already-resolved actions from the visible
       // current-round recommendation so "Do This Now" stays pointed at the
@@ -350,6 +382,12 @@ export function useSolverMode(
       return;
     }
     if (classification === 'CONSISTENT_TRANSITION') {
+      if (pendingRestartRef.current) {
+        planValidRef.current = false;
+        setShift(0);
+        scheduleRestart(0);
+        return;
+      }
       // Round advanced cleanly. Don't restart — instead bump the shift so
       // the displayed plan slides forward to the new "current" round.
       // If the plan doesn't extend that far, fall through to a restart.
@@ -432,7 +470,15 @@ export function useSolverMode(
     };
   }, [result, shiftRounds]);
 
-  return { enabled, toggle, objective, setObjective, displayMode, setDisplayMode, result: shiftedResult, stale, status, changeNote };
+  const liveResult = useMemo<SolverResult | null>(() => {
+    if (!stale || !shiftedResult || !shiftedResult.ok || !('plan' in shiftedResult) || !gameState) {
+      return shiftedResult;
+    }
+    const visibleRound = shiftedResult.plan.currentRound?.round;
+    return visibleRound !== undefined && visibleRound !== gameState.roundNumber ? null : shiftedResult;
+  }, [shiftedResult, stale, gameState?.roundNumber]);
+
+  return { enabled, toggle, objective, setObjective, displayMode, setDisplayMode, result: liveResult, stale, status, changeNote };
 }
 
 function planFromResult(result: SolverResult | null): Plan | null {
@@ -631,6 +677,8 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
 }
 
 function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode): boolean {
+  if (current.currentRound?.round !== incoming.currentRound?.round) return true;
+  if (current.currentPhase !== incoming.currentPhase) return true;
   if (current.partialResult && !incoming.partialResult) return true;
   if (!current.partialResult && incoming.partialResult) return false;
 
