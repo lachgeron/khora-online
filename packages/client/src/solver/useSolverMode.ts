@@ -631,6 +631,9 @@ function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
 }
 
 function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode): boolean {
+  if (current.partialResult && !incoming.partialResult) return true;
+  if (!current.partialResult && incoming.partialResult) return false;
+
   const incomingRank = analysisModeRank(incoming.analysisMode);
   const currentRank = analysisModeRank(current.analysisMode);
   if (incoming.objective === 'WIN_MARGIN' && incoming.analysisMode === 'ADVERSARIAL' && incomingRank > currentRank) {

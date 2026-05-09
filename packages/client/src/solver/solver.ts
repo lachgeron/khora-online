@@ -28,7 +28,7 @@ import type { PoliticsCard, ProgressTrackType } from '../types';
 import { enumerateActionPlans, heuristicScore } from './action-enum';
 import { enumerateProgressPlans } from './progress-enum';
 import { applyTaxPhase, finalizeScore } from './scoring';
-import { addMaskBit, cloneState, hasMaskBit, popcount } from './card-data';
+import { addMaskBit, cloneState, hasMaskBit, majorCount, popcount } from './card-data';
 import { canSolveFromPhase, cardsForSolver } from './snapshot';
 import { getAchievement } from './achievements';
 import { capTaxGloryTrack } from './tracks';
@@ -220,10 +220,14 @@ function simulateRoundTopK(
             const startedWithProgressDone = afterAction.state.progressAlreadyDone;
 
             for (const ev of eventCandidates) {
+              const claimableAchievementIds = ev.state.round === ctx.initialRound
+                ? ev.state.availableAchievementIds
+                : [];
               const postAchievementStates = applyAchievementPhase(
                 ev.state,
-                ev.state.availableAchievementIds,
+                claimableAchievementIds,
                 ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
+                ev.state.round !== ctx.initialRound,
               );
               ctx.nodesExplored.count += postAchievementStates.length;
 
@@ -291,13 +295,44 @@ function simulateRoundTopK(
 
 function thebesDev2Branches(s: SolverState): Array<{ state: SolverState; uses: number }> {
   if (!canActivateThebesDev2(s, s.cityId, s.developmentLevel)) return [{ state: s, uses: 0 }];
-  const out: Array<{ state: SolverState; uses: number }> = [{ state: s, uses: 0 }];
-  for (let uses = 1; uses <= s.gloryTrack; uses++) {
+  const out: Array<{ state: SolverState; uses: number }> = [];
+  const seen = new Set<string>();
+  for (const uses of thebesDev2UseCounts(s)) {
+    const key = String(uses);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (uses === 0) {
+      out.push({ state: s, uses: 0 });
+      continue;
+    }
     const variant = cloneState(s);
     applyThebesDev2Activation(variant, uses);
     out.push({ state: variant, uses });
   }
   return out;
+}
+
+function thebesDev2UseCounts(s: SolverState): number[] {
+  const maxUses = Math.max(0, s.gloryTrack);
+  if (maxUses <= 0) return [0];
+
+  const counts: number[] = [0];
+
+  // Include a small "fund this turn" branch so the solver can unlock a
+  // development/progress/card line without enumerating every possible cash-out.
+  if (s.coins < 8) {
+    counts.push(Math.min(maxUses, Math.ceil((8 - s.coins) / 2)));
+  }
+
+  // If Glory is already worth at least the 4 VP cash-out, preserve most of it;
+  // otherwise include the full cash-out branch. This keeps Thebes from
+  // exploding combinatorially while retaining the important strategic choices.
+  const majors = majorCount(s);
+  counts.push(majors >= 4 ? Math.min(maxUses, Math.max(1, maxUses - 1)) : maxUses);
+
+  return Array.from(new Set(counts))
+    .filter(uses => uses >= 0 && uses <= maxUses)
+    .sort((a, b) => a - b);
 }
 
 /**
@@ -320,6 +355,7 @@ function applyAchievementPhase(
   s: SolverState,
   availableAchievementIds: string[],
   pendingChoices: number,
+  clearUnclaimed: boolean = false,
 ): Array<{ state: SolverState; claimedNames: string[]; unnamedClaims: number; taxAdd: number; gloryAdd: number }> {
   const claimedNames: string[] = [];
   for (const id of availableAchievementIds) {
@@ -329,7 +365,10 @@ function applyAchievementPhase(
   const unnamedClaims = Math.max(0, pendingChoices);
   const total = claimedNames.length + unnamedClaims;
   if (total === 0) {
-    return [{ state: s, claimedNames: [], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
+    if (!clearUnclaimed) return [{ state: s, claimedNames: [], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
+    const variant = cloneState(s);
+    variant.availableAchievementIds = [];
+    return [{ state: variant, claimedNames: [], unnamedClaims: 0, taxAdd: 0, gloryAdd: 0 }];
   }
 
   const branches: Array<{ state: SolverState; claimedNames: string[]; unnamedClaims: number; taxAdd: number; gloryAdd: number }> = [];
@@ -339,7 +378,9 @@ function applyAchievementPhase(
     variant.taxTrack = capTaxGloryTrack(variant.taxTrack + taxAdd);
     variant.gloryTrack = capTaxGloryTrack(variant.gloryTrack + gloryAdd);
     const claimed = new Set(claimedNames.map(name => achievementIdForName(name, availableAchievementIds)));
-    variant.availableAchievementIds = variant.availableAchievementIds.filter(id => !claimed.has(id));
+    variant.availableAchievementIds = clearUnclaimed
+      ? []
+      : variant.availableAchievementIds.filter(id => !claimed.has(id));
     branches.push({ state: variant, claimedNames, unnamedClaims, taxAdd, gloryAdd });
   }
   return branches;
@@ -738,7 +779,7 @@ function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext, allowSe
     if (p.playerId === ctx.playerId || !p.isConnected) continue;
     strongest = Math.max(strongest, allowSearch
       ? estimateOpponentBestReachableVP(p, s, ctx)
-      : estimateOpponentVP(p, s.boardTokens, ctx.fullState.roundNumber));
+      : estimateOpponentVP(p, s.boardTokens, ctx, s.availableAchievementIds));
   }
   return strongest;
 }
@@ -759,7 +800,7 @@ function estimateOpponentBestReachableVP(
   if (cached !== undefined) return cached;
 
   const searched = runOpponentBeamSearch(p, ourLineState, ctx);
-  const fallback = estimateOpponentVP(p, ourLineState.boardTokens, ctx.fullState?.roundNumber ?? ourLineState.round);
+  const fallback = estimateOpponentVP(p, ourLineState.boardTokens, ctx, ourLineState.availableAchievementIds);
   const best = Math.max(searched ?? -Infinity, fallback);
   ctx.opponentSearchCache.set(cacheKey, best);
   return best;
@@ -900,8 +941,10 @@ function remainingDeckForOpponent(
 function estimateOpponentVP(
   p: SolverFullPlayerState,
   remainingBoardTokens: BoardExplorationToken[],
-  currentRound: number,
+  ctx: SolverContext,
+  availableAchievementIds: string[],
 ): number {
+  const currentRound = ctx.fullState?.roundNumber ?? ctx.initialRound;
   const cardIds = p.playedCards.map(c => c.id);
   let playedMask = 0;
   for (let i = 0; i < cardIds.length; i++) playedMask = addMaskBit(playedMask, i);
@@ -943,7 +986,33 @@ function estimateOpponentVP(
   );
   const handPotential = Math.min(p.handCards.length, roundsLeft) * 2.5;
   const boardPotential = estimateOpponentBoardPotential(p, remainingBoardTokens, roundsLeft);
-  return currentFinal + tempo + handPotential + boardPotential;
+  const achievementPotential = estimateOpponentAchievementPotential(p, state, ctx, availableAchievementIds, roundsLeft);
+  return currentFinal + tempo + handPotential + boardPotential + achievementPotential;
+}
+
+function estimateOpponentAchievementPotential(
+  p: SolverFullPlayerState,
+  state: SolverState,
+  ctx: SolverContext,
+  availableAchievementIds: string[],
+  roundsLeft: number,
+): number {
+  const pendingChoices = ctx.fullState?.pendingDecisions
+    .filter(d => d.playerId === p.playerId && d.decisionType === 'ACHIEVEMENT_TRACK_CHOICE')
+    .length ?? 0;
+  let claimCount = pendingChoices;
+
+  if (ctx.currentPhase !== 'ACHIEVEMENT') {
+    for (const id of availableAchievementIds) {
+      const def = getAchievement(id);
+      if (def?.qualifies(state)) claimCount += 1;
+    }
+  }
+
+  if (claimCount <= 0) return 0;
+  const futureTaxValue = Math.max(1, Math.max(0, roundsLeft - 1) * 0.75);
+  const gloryValue = Math.max(1, majorCount(state));
+  return claimCount * Math.max(2, futureTaxValue, gloryValue);
 }
 
 function knowledgeFromTokens(tokens: KnowledgeToken[]): SolverState['knowledge'] {
@@ -1099,8 +1168,16 @@ export async function runSolver(
         const stateAtRound = { ...entry.state, round };
         const results = simulateRoundTopK(stateAtRound, ctx, beamWidth);
         for (const r of results) {
+          const nextState = advanceToNextRound(r.stateAfter);
+          if (round === ctx.initialRound) {
+            // Achievement tokens are contested by every player at the end of
+            // each real round. Do not let our long-range line reserve tokens
+            // for speculative future claims; only claims/pending choices in
+            // the live round are trusted.
+            nextState.availableAchievementIds = [];
+          }
           nextBeam.push({
-            state: advanceToNextRound(r.stateAfter),
+            state: nextState,
             roundPlans: [
               ...entry.roundPlans,
               {
@@ -1123,6 +1200,9 @@ export async function runSolver(
         (rankState(a.state, ctx) + rankJitter(a.state, seed))
       );
       beam = diversifyBeam(nextBeam, beamWidth);
+      if (round === initialState.round && onProgress && beam[0]) {
+        onProgress(buildPlan(beam[0], cardIds, allCardObjs, nodesExploredShared, start, ctx, [], true));
+      }
       // Yield to host event loop between rounds so pending worker messages
       // (abort/restart) get processed without waiting for the full pass.
       await yieldToHost();
@@ -1371,6 +1451,7 @@ function buildPlan(
   start: number,
   ctx: SolverContext,
   moveAlternatives: MoveAlternative[] = [],
+  partialResult: boolean = false,
 ): Plan {
   const finalized = finalizeScore(best.state, cardIds, allCardObjs);
   const strongestOpponentVP = ctx.fullState ? estimateStrongestOpponentVP(best.state, ctx, ctx.opponentSearchEnabled) : null;
@@ -1397,7 +1478,7 @@ function buildPlan(
     futureRounds,
     moveAlternatives,
     currentPhase: ctx.currentPhase,
-    partialResult: false,
+    partialResult,
     computeMs: Date.now() - start,
     exploredNodes: nodesExploredShared.count,
   };
