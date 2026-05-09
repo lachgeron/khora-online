@@ -141,8 +141,6 @@ export interface PrivatePlayerState {
   actionSlots: ActionSlotTuple;
   handCards: PoliticsCard[];
   playedCards: PoliticsCard[];
-  /** Cards still in the draw deck. Used only by client-side solver god-mode. */
-  availableGodModeCards: PoliticsCard[];
   /** Omniscient solver-only snapshot. This intentionally contains hidden game information. */
   solverFullState: SolverFullState | null;
   // Draft phase fields (null when not in a draft phase)

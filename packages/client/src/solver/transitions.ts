@@ -134,7 +134,7 @@ export function applyAction(
       if (idx < 0 || idx >= cardIds.length) return false;
       if (hasMaskBit(s.playedMask, idx)) return false;
       const inHand = hasMaskBit(s.handMask, idx);
-      if (!inHand && !s.godMode) return false; // not in hand
+      if (!inHand) return false;
       if (s.handSlots <= 0) return false;
       const cardId = cardIds[idx];
       const card = allCards[idx];
@@ -146,8 +146,7 @@ export function applyAction(
       const pairsNeeded = choice.philosophyPairs ?? 0;
       if (s.philosophyTokens < pairsNeeded * 2) return false;
       s.philosophyTokens -= pairsNeeded * 2;
-      if (inHand) s.handMask = removeMaskBit(s.handMask, idx);
-      else s.handMask = removeLowestValueHandCard(s.handMask, allCards);
+      s.handMask = removeMaskBit(s.handMask, idx);
       s.handSlots -= 1;
       s.playedMask = addMaskBit(s.playedMask, idx);
       // Play-card triggers
@@ -188,11 +187,15 @@ export function applyAction(
     }
     case 'LEGISLATION': {
       // Grants +3 citizens (capped at 15)
-      // and draws 2 politics cards, keeping 1. Normal mode does not invent the
-      // unknown card identity; god-mode can use the added hand slot against
-      // its deck-card pool.
-      if (s.legislationDoneThisRound) return false;
+      // and draws 2 politics cards, keeping 1 from the known deck order.
+      if (s.legislationDoneThisRound || s.deckCardIndices.length === 0) return false;
       s.citizenTrack = Math.min(15, s.citizenTrack + 3);
+      const drawn = s.deckCardIndices.slice(0, 2);
+      const keepIndex = choice.keepCardIndex ?? drawn[0];
+      if (keepIndex === undefined || !drawn.includes(keepIndex)) return false;
+      const unchosen = drawn.filter(idx => idx !== keepIndex);
+      s.deckCardIndices = [...s.deckCardIndices.slice(drawn.length), ...unchosen];
+      s.handMask = addMaskBit(s.handMask, keepIndex);
       s.handSlots += 1;
       s.legislationDoneThisRound = true;
       applyOngoingOnAction(s, 'LEGISLATION', hasCardFn);
@@ -201,21 +204,6 @@ export function applyAction(
     }
   }
   return false;
-}
-
-function removeLowestValueHandCard(handMask: number, allCards: PoliticsCard[]): number {
-  let removeIndex = -1;
-  let removeScore = Infinity;
-  for (let i = 0; i < allCards.length; i++) {
-    if (!hasMaskBit(handMask, i)) continue;
-    const card = allCards[i];
-    const score = (card?.cost ?? 0) + (card?.type === 'END_GAME' ? 3 : 0);
-    if (score < removeScore) {
-      removeScore = score;
-      removeIndex = i;
-    }
-  }
-  return removeIndex >= 0 ? removeMaskBit(handMask, removeIndex) : handMask;
 }
 
 /** Actions-phase action name from ActionChoice. */

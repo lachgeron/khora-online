@@ -4,8 +4,6 @@ import type { CheatControlMode, SolverObjective, SolverResult, RoundPlan, Plan, 
 interface SolverPanelProps {
   result: SolverResult | null;
   stale: boolean;
-  godMode: boolean;
-  onGodModeChange: (enabled: boolean) => void;
   objective: SolverObjective;
   onObjectiveChange: (objective: SolverObjective) => void;
   displayMode: SolverDisplayMode;
@@ -31,8 +29,6 @@ interface SolverPanelProps {
 export const SolverPanel: React.FC<SolverPanelProps> = ({
   result,
   stale,
-  godMode,
-  onGodModeChange,
   objective,
   onObjectiveChange,
   displayMode,
@@ -87,15 +83,6 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
             Live
           </button>
         </div>
-        <label className="flex items-center gap-2 text-xs text-sand-700">
-          <input
-            type="checkbox"
-            checked={godMode}
-            onChange={(e) => onGodModeChange(e.currentTarget.checked)}
-            className="h-3.5 w-3.5 accent-terracotta"
-          />
-          <span>God-mode</span>
-        </label>
         <button
           onClick={onClose}
           className="text-sand-500 hover:text-sand-800 transition-colors text-xl leading-none"
@@ -145,7 +132,6 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
           <PlanView
             plan={result.plan}
             stale={stale}
-            godMode={godMode}
             status={status}
             changeNote={changeNote}
             controlMode={controlMode}
@@ -271,7 +257,6 @@ const DraftView: React.FC<{ draft: DraftPlan; stale: boolean }> = ({ draft, stal
 const PlanView: React.FC<{
   plan: Plan;
   stale: boolean;
-  godMode: boolean;
   status: 'stable' | 'rechecking' | 'new-best';
   changeNote: string | null;
   controlMode: CheatControlMode;
@@ -279,7 +264,7 @@ const PlanView: React.FC<{
   onApplyMove?: (move: RecommendedMove) => void;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, godMode, status, changeNote, controlMode, autopilotLog, onApplyMove, expanded, onToggleExpanded }) => {
+}> = ({ plan, stale, status, changeNote, controlMode, autopilotLog, onApplyMove, expanded, onToggleExpanded }) => {
   const nowLines = focusLines(plan);
   const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
   const reasons = reasonChips(plan);
@@ -434,7 +419,7 @@ const PlanView: React.FC<{
         </div>
         <p className="mt-1">
           {plan.objective === 'WIN_MARGIN' ? winModeCopy(plan.analysisMode) : ''}
-          Assumes {godMode ? 'deck cards are swappable.' : 'only known hand cards are playable.'}
+          Assumes only known hand cards are playable.
         </p>
       </div>
     </div>

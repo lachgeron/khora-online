@@ -32,7 +32,6 @@ export function buildSolverInput(
   publicState: PublicGameState,
   privateState: PrivatePlayerState,
   myPlayerId: string,
-  godMode = false,
   objective: SolverObjective = 'MAX_VP',
 ): SolverInput | null {
   const me = publicState.players.find(p => p.playerId === myPlayerId);
@@ -163,8 +162,6 @@ export function buildSolverInput(
     victoryPoints: fullMe?.victoryPoints ?? me.victoryPoints,
     handCards: fullMe?.handCards ?? privateState.handCards,
     playedCards: fullMe?.playedCards ?? privateState.playedCards,
-    availableGodModeCards: fullState?.politicsDeck ?? privateState.availableGodModeCards,
-    godMode,
     objective,
     fullState,
     predeterminedDice: fullState?.predeterminedDice ?? null,
@@ -210,7 +207,7 @@ export function buildSolverInput(
   return rawInput;
 }
 
-export function cardsForSolver(input: Pick<SolverInput, 'handCards' | 'playedCards' | 'availableGodModeCards' | 'godMode'>): PoliticsCard[] {
+export function cardsForSolver(input: Pick<SolverInput, 'handCards' | 'playedCards' | 'fullState'>): PoliticsCard[] {
   const cards: PoliticsCard[] = [];
   const seen = new Set<string>();
   for (const c of input.handCards) {
@@ -223,12 +220,10 @@ export function cardsForSolver(input: Pick<SolverInput, 'handCards' | 'playedCar
     seen.add(c.id);
     cards.push(c);
   }
-  if (input.godMode) {
-    for (const c of input.availableGodModeCards) {
-      if (seen.has(c.id)) continue;
-      seen.add(c.id);
-      cards.push(c);
-    }
+  for (const c of input.fullState?.politicsDeck ?? []) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    cards.push(c);
   }
   return cards;
 }

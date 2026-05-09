@@ -50,6 +50,7 @@ type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 const TIME_BANK_DANGER_SECONDS = 10;
 const CHEAT_LOG_LIMIT = 6;
+const AUTOPILOT_MIN_SOLVER_MS = 1000;
 
 interface TimeBankDangerOverlayProps {
   active: boolean;
@@ -113,13 +114,13 @@ function solverPlanFromResult(result: SolverResult | null): Plan | null {
   return result && result.ok && 'plan' in result ? result.plan : null;
 }
 
-function firstCheatMoveForPhase(plan: Plan, phase: PublicGameState['currentPhase']): RecommendedMove | null {
+function cheatMovesForPhase(plan: Plan, phase: PublicGameState['currentPhase']): RecommendedMove[] {
   const moves = plan.currentRound?.recommendedMoves ?? [];
-  if (phase === 'DICE') return moves.find(m => m.kind === 'ASSIGN_DICE') ?? null;
-  if (phase === 'ACTIONS') return moves.find(m => m.kind === 'RESOLVE_ACTION') ?? null;
-  if (phase === 'PROGRESS') return moves.find(m => m.kind === 'PROGRESS_TRACK') ?? null;
-  if (phase === 'ACHIEVEMENT') return moves.find(m => m.kind === 'ACHIEVEMENT_TRACK_CHOICE') ?? null;
-  return null;
+  if (phase === 'DICE') return moves.filter(m => m.kind === 'ASSIGN_DICE');
+  if (phase === 'ACTIONS') return moves.filter(m => m.kind === 'RESOLVE_ACTION');
+  if (phase === 'PROGRESS') return moves.filter(m => m.kind === 'PROGRESS_TRACK');
+  if (phase === 'ACHIEVEMENT') return moves.filter(m => m.kind === 'ACHIEVEMENT_TRACK_CHOICE');
+  return [];
 }
 
 function currentPendingDecision(gameState: PublicGameState, currentPlayerId: string) {
@@ -141,10 +142,153 @@ function makeCheatCommand(
   };
 }
 
+function directCommandToCheatCommand(
+  pending: NonNullable<ReturnType<typeof currentPendingDecision>>,
+  command: DirectActionCommand,
+): CheatCommand {
+  return makeCheatCommand(pending, command.message, command.label);
+}
+
 function nextResolvableAction(slots: PrivatePlayerState['actionSlots']): ActionType | null {
   return slots
     .filter((slot): slot is NonNullable<typeof slot> => slot !== null && !slot.resolved)
     .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType])[0]?.actionType ?? null;
+}
+
+function actionCanBeSkipped(action: ActionType): boolean {
+  return action === 'LEGISLATION' || action === 'POLITICS' || action === 'DEVELOPMENT';
+}
+
+function solverActionChoicesAreLive(
+  actionType: ActionType,
+  choices: ActionChoices,
+  gameState: PublicGameState,
+  privateState: PrivatePlayerState,
+  currentPlayerId: string,
+): boolean {
+  if (actionType === 'POLITICS') {
+    if (!choices.targetCardId) return false;
+    const card = privateState.handCards.find(candidate => candidate.id === choices.targetCardId);
+    if (!card) return false;
+    if (privateState.coins < card.cost) return false;
+    const philosophyPairs = choices.philosophyPairsToUse ?? 0;
+    const shortfall = knowledgeShortfall(card, privateState.knowledgeTokens);
+    if (philosophyPairs < shortfall || philosophyPairs * 2 > privateState.philosophyTokens) return false;
+    if (card.id === 'scholarly-welcome' && !choices.scholarlyWelcomeColor) return false;
+    if (card.id === 'ostracism') {
+      if (!choices.ostracismReturnCardId) return false;
+      if (!privateState.playedCards.some(played => played.id === choices.ostracismReturnCardId)) return false;
+    }
+    return choices.ostracismReturnCardId === undefined
+      || privateState.playedCards.some(played => played.id === choices.ostracismReturnCardId);
+  }
+  if (actionType === 'LEGISLATION' && choices.targetCardId) {
+    const legalDraw = privateState.legislationDraw?.length
+      ? privateState.legislationDraw
+      : (privateState.solverFullState?.politicsDeck.slice(0, 2) ?? []);
+    return legalDraw.some(card => card.id === choices.targetCardId);
+  }
+  if (actionType === 'MILITARY') {
+    const me = gameState.players.find(player => player.playerId === currentPlayerId);
+    if (!me) return false;
+    return [choices.explorationTokenId, choices.secondExplorationTokenId]
+      .filter((id): id is string => Boolean(id))
+      .every(id => {
+        const token = gameState.centralBoardTokens.find(candidate => candidate.id === id);
+        return token !== undefined && !token.explored && (token.militaryRequirement ?? 99) <= me.troopTrack + me.militaryTrack;
+      });
+  }
+  if (actionType === 'TRADE' && choices.buyMinorKnowledge) {
+    const me = gameState.players.find(player => player.playerId === currentPlayerId);
+    if (!me || !choices.minorKnowledgeColor) return false;
+    const tokenCost = hasPlayedCard(privateState, 'corinthian-columns') ? 3 : 5;
+    return privateState.coins + me.economyTrack + 1 >= tokenCost;
+  }
+  if (actionType === 'DEVELOPMENT') {
+    const me = gameState.players.find(player => player.playerId === currentPlayerId);
+    if (!me) return false;
+    const development = nextDevelopmentForPlayer(gameState, me);
+    if (!development) return false;
+    const philosophyPairs = choices.philosophyPairsToUse ?? 0;
+    const shortfall = requirementShortfall(development.knowledgeRequirement, privateState.knowledgeTokens);
+    return philosophyPairs >= shortfall
+      && philosophyPairs * 2 <= privateState.philosophyTokens
+      && development.drachmaCost <= privateState.coins;
+  }
+  return true;
+}
+
+function currentRoundPlanIsExecutable(
+  plan: Plan,
+  gameState: PublicGameState,
+  privateState: PrivatePlayerState,
+  currentPlayerId: string,
+): boolean {
+  const virtualHand = new Set(privateState.handCards.map(card => card.id));
+  const legalDraw = privateState.legislationDraw?.length
+    ? privateState.legislationDraw
+    : (privateState.solverFullState?.politicsDeck.slice(0, 2) ?? []);
+
+  for (const move of plan.currentRound?.recommendedMoves ?? []) {
+    if (move.kind !== 'RESOLVE_ACTION') continue;
+    if (move.actionType === 'LEGISLATION' && move.choices.targetCardId) {
+      if (!legalDraw.some(card => card.id === move.choices.targetCardId)) return false;
+      virtualHand.add(move.choices.targetCardId);
+      continue;
+    }
+    if (move.actionType === 'POLITICS') {
+      if (!move.choices.targetCardId) return false;
+      if (!virtualHand.has(move.choices.targetCardId)) return false;
+      if (move.choices.ostracismReturnCardId !== undefined
+        && !privateState.playedCards.some(card => card.id === move.choices.ostracismReturnCardId)) {
+        return false;
+      }
+      virtualHand.delete(move.choices.targetCardId);
+      if (move.choices.ostracismReturnCardId) virtualHand.add(move.choices.ostracismReturnCardId);
+      continue;
+    }
+    if (move.actionType === 'MILITARY'
+      && !solverActionChoicesAreLive(move.actionType as ActionType, move.choices, gameState, privateState, currentPlayerId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function solverProgressMoveIsLive(
+  move: Extract<RecommendedMove, { kind: 'PROGRESS_TRACK' }>,
+  player: PublicPlayerState,
+  privateState: PrivatePlayerState,
+): boolean {
+  const [first, ...rest] = move.tracks;
+  if (!first) return true;
+  let shadow: PublicPlayerState = { ...player, coins: privateState.coins };
+  let philosophyTokens = privateState.philosophyTokens;
+  const extraCount = Math.max(0, Math.min(rest.length, move.philosophySpent));
+  const ordered = [
+    { track: first, spendsPhilosophy: false },
+    ...rest.slice(0, extraCount).map(track => ({ track, spendsPhilosophy: true })),
+    ...rest.slice(extraCount).map(track => ({ track, spendsPhilosophy: false })),
+  ];
+
+  for (const step of ordered) {
+    if (step.spendsPhilosophy) {
+      if (philosophyTokens <= 0) return false;
+      philosophyTokens -= 1;
+    }
+    if (progressLevel(shadow, step.track) >= 7) return false;
+    const cost = discountedProgressCost(shadow, privateState, step.track, 0);
+    if (cost > shadow.coins) return false;
+    shadow = advanceVirtualProgress(shadow, step.track, cost);
+  }
+  return true;
+}
+
+function advanceVirtualProgress(player: PublicPlayerState, track: ProgressTrackType, cost: number): PublicPlayerState {
+  const next = progressLevel(player, track) + 1;
+  if (track === 'ECONOMY') return { ...player, coins: player.coins - cost, economyTrack: next };
+  if (track === 'CULTURE') return { ...player, coins: player.coins - cost, cultureTrack: next };
+  return { ...player, coins: player.coins - cost, militaryTrack: next };
 }
 
 function buildCheatCommand(
@@ -152,6 +296,7 @@ function buildCheatCommand(
   gameState: PublicGameState,
   privateState: PrivatePlayerState,
   currentPlayerId: string,
+  plan?: Plan | null,
 ): CheatCommand | null {
   const pending = currentPendingDecision(gameState, currentPlayerId);
   if (!pending) return null;
@@ -164,6 +309,7 @@ function buildCheatCommand(
     const assignedDice = move.assignments.map(assignment => assignment.dieValue).sort((a, b) => a - b);
     const liveDice = [...(privateState.diceRoll ?? [])].sort((a, b) => a - b);
     if (assignedDice.length !== liveDice.length || assignedDice.some((die, index) => die !== liveDice[index])) return null;
+    if (plan && !currentRoundPlanIsExecutable(plan, gameState, privateState, currentPlayerId)) return null;
     message = {
       type: 'ASSIGN_DICE',
       assignments: move.assignments.map((assignment, index) => ({
@@ -177,10 +323,13 @@ function buildCheatCommand(
   } else if (move.kind === 'RESOLVE_ACTION') {
     if (pending.decisionType !== 'RESOLVE_ACTION') return null;
     if (nextResolvableAction(privateState.actionSlots) !== move.actionType) return null;
+    if (!solverActionChoicesAreLive(move.actionType as ActionType, move.choices, gameState, privateState, currentPlayerId)) return null;
     message = { type: 'RESOLVE_ACTION', actionType: move.actionType as ActionType, choices: move.choices };
     label = `resolved ${formatCheatAction(move.actionType)}`;
   } else if (move.kind === 'PROGRESS_TRACK') {
     if (pending.decisionType !== 'PROGRESS_TRACK') return null;
+    const me = gameState.players.find(player => player.playerId === currentPlayerId);
+    if (!me || !solverProgressMoveIsLive(move, me, privateState)) return null;
     const [first, ...rest] = move.tracks;
     const extraCount = Math.max(0, Math.min(rest.length, move.philosophySpent));
     const extraTracks = rest.slice(0, extraCount).map(track => ({ track }));
@@ -243,7 +392,7 @@ function buildDirectCheatCommand(
       if (!me) return null;
       const command = buildDirectDiceAssignmentMessage(gameState, privateState, me);
       return command
-        ? makeCheatCommand(pending, command.message, command.label)
+        ? directCommandToCheatCommand(pending, command)
         : null;
     }
     case 'RESOLVE_ACTION': {
@@ -253,8 +402,10 @@ function buildDirectCheatCommand(
         ? buildDirectActionMessage(action, gameState, privateState, me)
         : null;
       return command
-        ? makeCheatCommand(pending, command.message, command.label)
-        : null;
+        ? directCommandToCheatCommand(pending, command)
+        : action && actionCanBeSkipped(action)
+          ? makeCheatCommand(pending, { type: 'SKIP_PHASE' }, `skipped ${formatCheatAction(action)}`)
+          : null;
     }
     case 'PROGRESS_TRACK': {
       if (!me) return null;
@@ -304,15 +455,16 @@ function buildDirectCheatCommand(
         : makeCheatCommand(pending, { type: 'SKIP_PHASE' }, 'skipped discard');
     }
     case 'PROSPERITY_POLITICS': {
-      const card = chooseBestPlayablePoliticsCard(privateState);
-      return card
-        ? makeCheatCommand(pending, { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices: card.choices }, `played ${card.card.name} from Prosperity`)
+      if (!me) return makeCheatCommand(pending, { type: 'SKIP_PHASE' }, 'skipped Prosperity politics');
+      const command = buildDirectActionMessage('POLITICS', gameState, privateState, me, 'Prosperity');
+      return command
+        ? directCommandToCheatCommand(pending, command)
         : makeCheatCommand(pending, { type: 'SKIP_PHASE' }, 'skipped Prosperity politics');
     }
     case 'CONQUEST_ACTION': {
       const command = buildConquestActionMessage(gameState, privateState, currentPlayerId);
       return command
-        ? makeCheatCommand(pending, command.message, command.label)
+        ? directCommandToCheatCommand(pending, command)
         : makeCheatCommand(pending, { type: 'SKIP_PHASE' }, 'skipped Conquest action');
     }
     default:
@@ -574,13 +726,13 @@ function buildDirectActionMessage(
     }
     case 'POLITICS': {
       const politics = chooseBestPlayablePoliticsCard(privateState);
-      return politics
-        ? {
-            message: { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices: politics.choices },
-            label: `played ${politics.card.name}${suffix}`,
-            score: 34 + politics.score + politicsActionBonus(player, privateState),
-          }
-        : null;
+      if (!politics) return null;
+      const score = 34 + politics.score + politicsActionBonus(player, privateState);
+      return {
+        message: { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices: politics.choices },
+        label: `played ${politics.card.name}${suffix}`,
+        score,
+      };
     }
     case 'DEVELOPMENT': {
       const plan = developmentActionPlan(gameState, player, privateState);
@@ -889,6 +1041,30 @@ function autopilotBlockedReason(
   return `no safe autopilot command for ${pending.decisionType.toLowerCase().replaceAll('_', ' ')}`;
 }
 
+function pendingDecisionNeedsSolver(pending: NonNullable<ReturnType<typeof currentPendingDecision>>): boolean {
+  return pending.decisionType === 'ASSIGN_DICE'
+    || pending.decisionType === 'RESOLVE_ACTION'
+    || pending.decisionType === 'PROGRESS_TRACK'
+    || pending.decisionType === 'ACHIEVEMENT_TRACK_CHOICE';
+}
+
+function solverPlanAutopilotSignature(plan: Plan | null): string | null {
+  if (!plan) return null;
+  const firstMove = plan.currentRound?.recommendedMoves[0];
+  return JSON.stringify({
+    objectiveScore: Math.round(plan.objectiveScore * 10) / 10,
+    final: plan.projectedFinalVP,
+    round: plan.currentRound?.round ?? null,
+    firstMove,
+  });
+}
+
+function solverPlanReadyForAutopilot(plan: Plan | null, visibleMs: number): boolean {
+  return Boolean(plan
+    && !plan.partialResult
+    && Math.max(plan.computeMs, visibleMs) >= AUTOPILOT_MIN_SOLVER_MS);
+}
+
 function formatCheatAction(action: string): string {
   return action.charAt(0) + action.slice(1).toLowerCase();
 }
@@ -918,6 +1094,10 @@ export const App: React.FC = () => {
   const [autopilotPauseReason, setAutopilotPauseReason] = useState<string | null>(null);
   const autoRoundAnchorRef = useRef<number | null>(null);
   const lastAutopilotSendKeyRef = useRef<string | null>(null);
+  const autopilotPlanSignatureRef = useRef<string | null>(null);
+  const autopilotPlanSeenAtRef = useRef(0);
+  const autopilotWakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [autopilotWakeTick, setAutopilotWakeTick] = useState(0);
 
   const appendCheatLog = useCallback((line: string) => {
     setCheatLog(prev => [`${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} ${line}`, ...prev].slice(0, CHEAT_LOG_LIMIT));
@@ -1046,7 +1226,7 @@ export const App: React.FC = () => {
   const handlePickBanCard = (cardId: string, action: 'BAN' | 'PICK') => sendMessage({ type: 'PICK_BAN_CARD', cardId, action });
   const handleApplySolverMove = (move: RecommendedMove) => {
     if (!gameState || !privateState) return;
-    const command = buildCheatCommand(move, gameState, privateState, currentPlayerId);
+    const command = buildCheatCommand(move, gameState, privateState, currentPlayerId, solverPlanFromResult(solverMode.result));
     if (!command) {
       appendCheatLog('Apply blocked: recommendation does not match the live decision');
       return;
@@ -1059,6 +1239,12 @@ export const App: React.FC = () => {
     if (cheatControlMode === 'COACH') {
       autoRoundAnchorRef.current = null;
       lastAutopilotSendKeyRef.current = null;
+      autopilotPlanSignatureRef.current = null;
+      autopilotPlanSeenAtRef.current = 0;
+      if (autopilotWakeTimeoutRef.current) {
+        clearTimeout(autopilotWakeTimeoutRef.current);
+        autopilotWakeTimeoutRef.current = null;
+      }
       setAutopilotPauseReason(null);
       return;
     }
@@ -1089,9 +1275,50 @@ export const App: React.FC = () => {
     }
 
     const plan = solverPlanFromResult(solverMode.result);
-    const move = plan ? firstCheatMoveForPhase(plan, gameState.currentPhase) : null;
-    const solverCommand = move ? buildCheatCommand(move, gameState, privateState, currentPlayerId) : null;
-    const command = solverCommand ?? buildDirectCheatCommand(solverMode.result, gameState, privateState, currentPlayerId);
+    const planSignature = solverPlanAutopilotSignature(plan);
+    if (planSignature !== autopilotPlanSignatureRef.current) {
+      autopilotPlanSignatureRef.current = planSignature;
+      autopilotPlanSeenAtRef.current = planSignature ? Date.now() : 0;
+    }
+    if (pendingDecisionNeedsSolver(pending)) {
+      if (solverMode.stale) {
+        setAutopilotPauseReason('rechecking the live board');
+        return;
+      }
+      const visibleMs = autopilotPlanSeenAtRef.current > 0 ? Date.now() - autopilotPlanSeenAtRef.current : 0;
+      if (!solverPlanReadyForAutopilot(plan, visibleMs)) {
+        const effectiveMs = Math.max(plan?.computeMs ?? 0, visibleMs);
+        const remainingMs = Math.max(50, AUTOPILOT_MIN_SOLVER_MS - effectiveMs);
+        if (!autopilotWakeTimeoutRef.current) {
+          autopilotWakeTimeoutRef.current = setTimeout(() => {
+            autopilotWakeTimeoutRef.current = null;
+            setAutopilotWakeTick(tick => tick + 1);
+          }, remainingMs);
+        }
+        setAutopilotPauseReason(`letting the solver deepen (${Math.round(effectiveMs)}ms)`);
+        return;
+      }
+    }
+    if (autopilotWakeTimeoutRef.current) {
+      clearTimeout(autopilotWakeTimeoutRef.current);
+      autopilotWakeTimeoutRef.current = null;
+    }
+    const phaseMoves = plan ? cheatMovesForPhase(plan, gameState.currentPhase) : [];
+    let move = phaseMoves[0] ?? null;
+    let solverCommand: CheatCommand | null = null;
+    for (const candidate of phaseMoves) {
+      const commandForCandidate = buildCheatCommand(candidate, gameState, privateState, currentPlayerId, plan);
+      if (!commandForCandidate) continue;
+      move = candidate;
+      solverCommand = commandForCandidate;
+      break;
+    }
+    const command = solverCommand ?? buildDirectCheatCommand(
+      solverMode.result,
+      gameState,
+      privateState,
+      currentPlayerId,
+    );
     if (!command) {
       setAutopilotPauseReason(autopilotBlockedReason(pending, solverMode.result, move, solverCommand));
       return;
@@ -1108,6 +1335,7 @@ export const App: React.FC = () => {
     }
   }, [
     appendCheatLog,
+    autopilotWakeTick,
     cheatControlMode,
     currentPlayerId,
     gameState,
@@ -1115,6 +1343,7 @@ export const App: React.FC = () => {
     sendMessage,
     solverMode.enabled,
     solverMode.result,
+    solverMode.stale,
   ]);
 
   const currentPlayer = gameState?.players.find(p => p.playerId === currentPlayerId);
@@ -1522,8 +1751,6 @@ export const App: React.FC = () => {
           <SolverPanel
             result={solverMode.result}
             stale={solverMode.stale}
-            godMode={solverMode.godMode}
-            onGodModeChange={solverMode.setGodMode}
             objective={solverMode.objective}
             onObjectiveChange={solverMode.setObjective}
             displayMode={solverMode.displayMode}

@@ -104,9 +104,16 @@ async function drive(): Promise<void> {
         continue;
       }
 
+      // Always publish the returned plan as a last resort. Most useful plans
+      // arrive through onProgress, but if the search exits with a partial
+      // fallback before any progress callback, the panel should still leave
+      // its initial loading state.
+      if ('plan' in result) {
+        post({ type: 'progress', plan: result.plan, generation: myGen });
+      }
+
       // If solver returned ok but we weren't aborted, it means runSolver's loop
-      // exited naturally. In practice it doesn't — the outer while runs forever
-      // unless shouldAbort is true. Treat as idle and wait for next restart.
+      // exited naturally. Treat as idle and wait for next restart.
       post({ type: 'idle', generation: myGen });
       await waitForNewGeneration(myGen);
     }

@@ -441,8 +441,7 @@ function opponentMeetsKnowledge(player: SolverFullPlayerState, card: PoliticsCar
 
 function canConsiderEventPolitics(s: SolverState, cardIndex: number): boolean {
   if (hasMaskBit(s.playedMask, cardIndex)) return false;
-  if (hasMaskBit(s.handMask, cardIndex)) return true;
-  return s.godMode && s.handSlots > 0;
+  return hasMaskBit(s.handMask, cardIndex);
 }
 
 function canPlayCard(s: SolverState, card: PoliticsCard): boolean {

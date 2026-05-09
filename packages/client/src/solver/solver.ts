@@ -98,6 +98,9 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     const idx = cardIds.indexOf(c.id);
     if (idx >= 0) playedMask = addMaskBit(playedMask, idx);
   }
+  const deckCardIndices = (input.fullState?.politicsDeck ?? [])
+    .map(c => cardIds.indexOf(c.id))
+    .filter((idx): idx is number => idx >= 0);
 
   return {
     round: input.currentRound,
@@ -120,7 +123,7 @@ export function buildInitialState(input: SolverInput, cardIds: string[]): Solver
     handMask,
     playedMask,
     handSlots: input.handCards.length,
-    godMode: input.godMode,
+    deckCardIndices,
     boardTokens: input.boardTokens,
     availableAchievementIds: input.availableAchievementIds,
     victoryPoints: input.victoryPoints,
@@ -135,6 +138,7 @@ interface RoundResult {
   progressTracks: ProgressTrackType[];
   philosophySpent: number;
   diceAssignments: SolverDiceAssignment[];
+  dicePhilosophySpent: number;
   description: string[];
   vpBefore: number;
   vpAfter: number;
@@ -246,6 +250,7 @@ function simulateRoundTopK(
                       progressTracks,
                       philosophySpent,
                       diceAssignments: ap.diceAssignments,
+                      dicePhilosophySpent: ap.philosophyTokensToSpend,
                       description: describeRound(
                         ap.choices,
                         progressTracks,
@@ -256,6 +261,7 @@ function simulateRoundTopK(
                         ev.description,
                         ap.diceAssignments,
                         ap.citizenCost,
+                        ap.philosophyTokensToSpend,
                         achievementDelta,
                         startedWithProgressDone,
                         thebesUses,
@@ -398,6 +404,7 @@ function describeRound(
   eventDelta: string | null,
   diceAssignments: SolverDiceAssignment[],
   citizenCost: number,
+  dicePhilosophySpent: number,
   achievementDelta: string | null,
   startedWithProgressDone: boolean,
   thebesDev2Uses: number,
@@ -410,7 +417,10 @@ function describeRound(
     const parts = diceAssignments
       .filter(a => a.citizenCost > 0)
       .map(a => `${formatActionName(a.action)} with ${a.dieValue} (-${a.citizenCost})`);
-    bullets.push(`Dice: spend ${citizenCost} citizens (${parts.join(', ')})`);
+    const scrolls = dicePhilosophySpent > 0
+      ? `, spending ${dicePhilosophySpent} scroll${dicePhilosophySpent === 1 ? '' : 's'} first`
+      : '';
+    bullets.push(`Dice: spend ${citizenCost} citizens${scrolls} (${parts.join(', ')})`);
   }
   for (const c of choices) {
     bullets.push(describeChoice(c, cardIds, allCards));
@@ -454,7 +464,11 @@ function buildRecommendedMoves(
 ): RecommendedMove[] {
   const moves: RecommendedMove[] = [];
   if (r.diceAssignments.length > 0) {
-    moves.push({ kind: 'ASSIGN_DICE', assignments: r.diceAssignments });
+    moves.push({
+      kind: 'ASSIGN_DICE',
+      assignments: r.diceAssignments,
+      philosophyTokensToSpend: r.dicePhilosophySpent > 0 ? r.dicePhilosophySpent : undefined,
+    });
   }
   for (const choice of r.chosenActions) {
     moves.push({
@@ -495,6 +509,10 @@ function toActionChoices(
         philosophyPairsToUse: choice.philosophyPairs || undefined,
         scholarlyWelcomeColor: choice.scholarlyWelcomeColor,
       };
+    }
+    case 'LEGISLATION': {
+      const kept = choice.keepCardIndex !== undefined ? allCards[choice.keepCardIndex] : null;
+      return kept ? { targetCardId: kept.id } : {};
     }
     case 'DEVELOPMENT':
       return {
@@ -583,7 +601,10 @@ function describeChoice(
       const choiceText = choices.length > 0 ? ` (${choices.join('; ')})` : '';
       return `Development — unlock next level${c.philosophyPairs ? ` (+${c.philosophyPairs * 2} scrolls)` : ''}${choiceText}`;
     }
-    case 'LEGISLATION': return 'Legislation — +3 citizens';
+    case 'LEGISLATION': {
+      const kept = c.keepCardIndex !== undefined ? allCards[c.keepCardIndex] : null;
+      return kept ? `Legislation — keep ${kept.name}` : 'Legislation — +3 citizens';
+    }
   }
 }
 
@@ -729,7 +750,11 @@ function estimateOpponentBestReachableVP(
 ): number {
   const tokenKey = ourLineState.boardTokens.map(t => t.id).join(',');
   const achievementKey = ourLineState.availableAchievementIds.join(',');
-  const cacheKey = `${p.playerId}|${ctx.initialRound}|${tokenKey}|${achievementKey}`;
+  const deckKey = ourLineState.deckCardIndices
+    .slice(0, 8)
+    .map(index => ctx.cardIds[index] ?? index)
+    .join(',');
+  const cacheKey = `${p.playerId}|${ctx.initialRound}|${tokenKey}|${achievementKey}|${deckKey}`;
   const cached = ctx.opponentSearchCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -746,9 +771,10 @@ function runOpponentBeamSearch(
   parentCtx: SolverContext,
 ): number | null {
   if (!parentCtx.fullState || parentCtx.shouldAbort()) return null;
-  const allCards = uniqueCards([...p.handCards, ...p.playedCards]);
+  const remainingDeckCards = remainingDeckForOpponent(ourLineState, parentCtx);
+  const allCards = uniqueCards([...p.handCards, ...p.playedCards, ...remainingDeckCards]);
   const cardIds = allCards.map(c => c.id);
-  const state = opponentInitialState(p, ourLineState, parentCtx.initialRound, cardIds);
+  const state = opponentInitialState(p, ourLineState, parentCtx.initialRound, cardIds, remainingDeckCards);
   const opponentCtx: SolverContext = {
     ...parentCtx,
     cardIds,
@@ -816,6 +842,7 @@ function opponentInitialState(
   ourLineState: SolverState,
   startRound: number,
   cardIds: string[],
+  remainingDeckCards: PoliticsCard[],
 ): SolverState {
   let handMask = 0;
   let playedMask = 0;
@@ -848,11 +875,26 @@ function opponentInitialState(
     handMask,
     playedMask,
     handSlots: p.handCards.length,
-    godMode: false,
+    deckCardIndices: remainingDeckCards
+      .map(card => cardIds.indexOf(card.id))
+      .filter((index): index is number => index >= 0),
     boardTokens: ourLineState.boardTokens,
     availableAchievementIds: ourLineState.availableAchievementIds,
     victoryPoints: p.victoryPoints,
   };
+}
+
+function remainingDeckForOpponent(
+  ourLineState: SolverState,
+  ctx: SolverContext,
+): PoliticsCard[] {
+  if (!ctx.fullState || ourLineState.deckCardIndices.length === 0) return [];
+  const remainingIds = new Set(
+    ourLineState.deckCardIndices
+      .map(index => ctx.cardIds[index])
+      .filter((id): id is string => Boolean(id)),
+  );
+  return ctx.fullState.politicsDeck.filter(card => remainingIds.has(card.id));
 }
 
 function estimateOpponentVP(
@@ -884,7 +926,7 @@ function estimateOpponentVP(
     handMask: 0,
     playedMask,
     handSlots: p.handCards.length,
-    godMode: false,
+    deckCardIndices: [],
     boardTokens: remainingBoardTokens,
     availableAchievementIds: [],
     victoryPoints: p.victoryPoints,

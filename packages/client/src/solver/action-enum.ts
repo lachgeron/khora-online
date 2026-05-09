@@ -19,6 +19,7 @@ export interface ActionPlan {
   state: SolverState;
   diceAssignments: SolverDiceAssignment[];
   citizenCost: number;
+  philosophyTokensToSpend: number;
 }
 
 export interface ActionEnumerationOptions {
@@ -42,8 +43,9 @@ function candidateSingleChoices(
     !usedActions.has(action) && actionNumber(action) > highestUsedActionNumber(usedActions);
 
   if (canTakeNext('PHILOSOPHY')) out.push({ type: 'PHILOSOPHY' });
-  if (canTakeNext('LEGISLATION') && !s.legislationDoneThisRound) {
-    out.push({ type: 'LEGISLATION' });
+  if (canTakeNext('LEGISLATION') && !s.legislationDoneThisRound && s.deckCardIndices.length > 0) {
+    const draw = s.deckCardIndices.slice(0, 2);
+    for (const keepCardIndex of draw) out.push({ type: 'LEGISLATION', keepCardIndex });
   }
   if (canTakeNext('CULTURE')) out.push({ type: 'CULTURE' });
   if (canTakeNext('TRADE')) {
@@ -110,8 +112,7 @@ function hasPlayedCard(s: SolverState, allCards: PoliticsCard[], cardId: string)
 
 function canConsiderPoliticsCard(s: SolverState, cardIndex: number): boolean {
   if (hasMaskBit(s.playedMask, cardIndex)) return false;
-  if (hasMaskBit(s.handMask, cardIndex)) return true;
-  return s.godMode && s.handSlots > 0;
+  return hasMaskBit(s.handMask, cardIndex);
 }
 
 function actionNumber(action: SolverAction): number {
@@ -345,17 +346,22 @@ export function enumerateActionPlans(
     const prefixAssignment = chooseDiceAssignment(prefixChoices, options, []);
     if (!prefixAssignment) continue;
     const incrementalCitizenCost = Math.max(0, prefixAssignment.citizenCost - currentCitizenCost);
-    if (!options.citizenCostsAlreadyPaid && incrementalCitizenCost > s.citizenTrack) continue;
+    const dicePayment = options.citizenCostsAlreadyPaid
+      ? { citizenAfter: s.citizenTrack, philosophyAfter: s.philosophyTokens }
+      : payDiceCitizenCost(s.citizenTrack, s.philosophyTokens, incrementalCitizenCost);
+    if (!dicePayment) continue;
     const next = cloneState(s);
     if (!options.citizenCostsAlreadyPaid) {
-      next.citizenTrack -= incrementalCitizenCost;
+      next.citizenTrack = dicePayment.citizenAfter;
+      next.philosophyTokens = dicePayment.philosophyAfter;
     }
     const ok = applyAction(next, c, cardIds, allCards, opponents, (id) => {
       const idx = cardIds.indexOf(id);
       return idx >= 0 && hasMaskBit(next.playedMask, idx);
     });
     if (!ok) continue;
-    const score = heuristicScore(next, cardIds) - baseScore;
+    const score = heuristicScore(next, cardIds) - baseScore
+      + choicePriorityBonus(s, next, c, cardIds);
     scored.push({ choice: c, next, score });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -383,6 +389,7 @@ export function enumerateActionPlans(
         state: sp.state,
         diceAssignments: sp.diceAssignments,
         citizenCost: sp.citizenCost,
+        philosophyTokensToSpend: sp.philosophyTokensToSpend,
       });
     }
   }
@@ -400,11 +407,15 @@ function finalizeActionPlan(
 ): ActionPlan | null {
   const assignment = chooseDiceAssignment(choices, options, existingAssignments);
   if (!assignment) return null;
-  if (!options.citizenCostsAlreadyPaid && assignment.citizenCost > initial.citizenTrack) return null;
+  const dicePayment = options.citizenCostsAlreadyPaid
+    ? { citizenAfter: initial.citizenTrack, philosophyAfter: initial.philosophyTokens, philosophyTokensToSpend: 0 }
+    : payDiceCitizenCost(initial.citizenTrack, initial.philosophyTokens, assignment.citizenCost);
+  if (!dicePayment) return null;
 
   const replay = cloneState(initial);
   if (!options.citizenCostsAlreadyPaid) {
-    replay.citizenTrack -= assignment.citizenCost;
+    replay.citizenTrack = dicePayment.citizenAfter;
+    replay.philosophyTokens = dicePayment.philosophyAfter;
   }
   for (const choice of choices) {
     const ok = applyAction(replay, choice, cardIds, allCards, opponents, (id) => {
@@ -418,7 +429,28 @@ function finalizeActionPlan(
     state: replay,
     diceAssignments: assignment.assignments,
     citizenCost: assignment.citizenCost,
+    philosophyTokensToSpend: dicePayment.philosophyTokensToSpend,
   };
+}
+
+function payDiceCitizenCost(
+  citizenTrack: number,
+  philosophyTokens: number,
+  citizenCost: number,
+): { citizenAfter: number; philosophyAfter: number; philosophyTokensToSpend: number } | null {
+  if (citizenCost <= citizenTrack) {
+    return { citizenAfter: citizenTrack - citizenCost, philosophyAfter: philosophyTokens, philosophyTokensToSpend: 0 };
+  }
+  for (let tokensToSpend = 1; tokensToSpend <= philosophyTokens; tokensToSpend++) {
+    const boostedCitizens = Math.min(15, citizenTrack + tokensToSpend * 3);
+    if (boostedCitizens < citizenCost) continue;
+    return {
+      citizenAfter: boostedCitizens - citizenCost,
+      philosophyAfter: philosophyTokens - tokensToSpend,
+      philosophyTokensToSpend: tokensToSpend,
+    };
+  }
+  return null;
 }
 
 function chooseDiceAssignment(
@@ -484,8 +516,12 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
   const minors = s.knowledge.greenMinor + s.knowledge.blueMinor + s.knowledge.redMinor;
   const majors = majorCount(s);
 
-  // Tax grants drachma/round; drachma convert to VP via cards/devs at ~0.45 VP/coin.
-  const taxVP = s.taxTrack * roundsLeft * 0.95;
+  // Tax grants drachma in future tax phases, but it is easy to overvalue late:
+  // unspent coins do not score. Count only remaining future collections and
+  // discount hard as the game approaches its final scoring turn.
+  const futureTaxCollections = Math.max(0, roundsLeft - 1);
+  const taxConversion = roundsLeft <= 2 ? 0.35 : roundsLeft <= 4 ? 0.65 : 0.85;
+  const taxVP = s.taxTrack * futureTaxCollections * taxConversion;
 
   // Glory × majors end-game scoring. We also anticipate extra majors (~0.4/round left)
   // via Military exploration so Glory track still contributes even when majors == 0.
@@ -527,13 +563,17 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
   const usableCoins = Math.min(s.coins, roundsLeft * 6);
   const coinVal = usableCoins * endGameCoinDecay;
 
-  // Hand cards: each unplayed card has latent value (future immediate + ongoing + endgame).
-  // If cardIds is available, we can estimate potential endgame contribution for hand cards
-  // crudely — ignore for now but boost the generic per-card weight.
+  // Hand cards: generic draw flexibility plus card-specific cash-out potential.
+  // The specific potential is deliberately below the played value: a premium card in
+  // hand should be worth something, but converting it before the game ends must
+  // still read as a real improvement to the search.
   const handCount = s.handSlots;
   const playedCount = popcount(s.playedMask);
   const perHandLatent = roundsLeft >= 4 ? 3.2 : roundsLeft >= 2 ? 2.0 : 0.8;
   const handLatent = Math.min(handCount, roundsLeft) * perHandLatent;
+  const handCashoutPotential = cardIds
+    ? unplayedHandCashoutPotential(s, cardIds, roundsLeft)
+    : 0;
 
   // Played cards: generic ongoing-bonus accrual for non-endgame cards. End-game
   // cards are scored by their actual current formula below; adding a generic
@@ -570,9 +610,159 @@ export function heuristicScore(s: SolverState, cardIds?: string[]): number {
     devVal +
     devProximity +
     handLatent +
+    handCashoutPotential +
     playedVal +
     playedEndGameVP
   );
+}
+
+function choicePriorityBonus(
+  before: SolverState,
+  after: SolverState,
+  choice: ActionChoice,
+  cardIds: string[],
+): number {
+  if (choice.type !== 'POLITICS') return 0;
+  const cardId = cardIds[choice.cardIndex];
+  if (!cardId) return 0;
+  const roundsLeft = Math.max(0, 9 - before.round + 1);
+  const cashout = politicsCardCashoutPotential(cardId, after, true);
+  const immediateVP = Math.max(0, after.victoryPoints - before.victoryPoints);
+  const urgency = roundsLeft <= 1 ? 4.0 : roundsLeft <= 2 ? 3.0 : roundsLeft <= 4 ? 1.8 : 0.8;
+  const highValueBonus = Math.min(34, cashout * urgency * 0.75);
+  const conversionBonus = cashout >= 6
+    ? Math.min(
+        roundsLeft <= 2 ? 22 : roundsLeft <= 4 ? 16 : 10,
+        cashout * (roundsLeft <= 2 ? 1.25 : roundsLeft <= 4 ? 0.9 : 0.55),
+      )
+    : 0;
+  const tacticalBonus = tacticalPoliticsPriority(cardId, after, roundsLeft);
+  return highValueBonus + conversionBonus + tacticalBonus + Math.min(10, immediateVP * 0.7);
+}
+
+function tacticalPoliticsPriority(cardId: string, s: SolverState, roundsLeft: number): number {
+  const lateCashout = roundsLeft <= 2 ? 10 : roundsLeft <= 4 ? 6 : 0;
+  switch (cardId) {
+    case 'colossus-of-rhodes': return 16 + lateCashout;
+    case 'central-government': return Math.min(28, 8 + popcount(s.playedMask) * 1.6) + lateCashout;
+    case 'hall-of-statues': return Math.min(22, 5 + totalKnowledge(s) * 1.4) + lateCashout;
+    case 'tunnel-of-eupalinos': return 11 + lateCashout;
+    case 'gold-reserve': return Math.min(20, s.economyTrack * 1.6) + lateCashout;
+    case 'heavy-taxes': return Math.min(18, s.taxTrack * 1.5) + lateCashout;
+    case 'diversification': return Math.min(18, Math.min(s.economyTrack, s.cultureTrack, s.militaryTrack) * 2.4) + lateCashout;
+    case 'proskenion': return Math.min(18, s.citizenTrack * 1.5) + lateCashout;
+    case 'bank': return Math.min(16, Math.floor(s.coins / 2)) + lateCashout;
+    default: return isEndGameCardId(cardId) ? 5 + lateCashout : 0;
+  }
+}
+
+function unplayedHandCashoutPotential(
+  s: SolverState,
+  cardIds: string[],
+  roundsLeft: number,
+): number {
+  let total = 0;
+  const latentFactor = roundsLeft <= 1 ? 0.03 : roundsLeft <= 2 ? 0.08 : roundsLeft <= 4 ? 0.18 : 0.30;
+  const reserveFactor = roundsLeft <= 1 ? 0.55 : roundsLeft <= 2 ? 0.46 : roundsLeft <= 4 ? 0.34 : 0.20;
+  const latePenaltyFactor = roundsLeft <= 1 ? 0.24 : roundsLeft <= 2 ? 0.16 : roundsLeft <= 4 ? 0.06 : 0;
+
+  for (let i = 0; i < cardIds.length; i++) {
+    if (!hasMaskBit(s.handMask, i)) continue;
+    const cardId = cardIds[i];
+    const cashout = politicsCardCashoutPotential(cardId, s, false);
+    if (cashout <= 0) continue;
+    total += cashout * latentFactor;
+
+    const cost = politicsCardCashoutCost(cardId);
+    if (cost > 0 && cashout >= cost) {
+      const reserveProgress = Math.min(s.coins, cost) / cost;
+      total += Math.min(cashout, 14) * reserveProgress * reserveFactor;
+      if (s.coins < cost) {
+        const shortfall = cost - s.coins;
+        total -= Math.min(5, shortfall * latePenaltyFactor * 1.8);
+      }
+    }
+
+    if (latePenaltyFactor > 0 && cashout >= 6) {
+      total -= Math.min(4, cashout * latePenaltyFactor);
+    }
+  }
+
+  return total;
+}
+
+function politicsCardCashoutPotential(
+  cardId: string,
+  s: SolverState,
+  alreadyPlayed: boolean,
+): number {
+  if (isEndGameCardId(cardId)) {
+    if (cardId === 'central-government' && !alreadyPlayed) {
+      return (popcount(s.playedMask) + 1) * 2;
+    }
+    return endGameCardVP(cardId, s);
+  }
+
+  switch (cardId) {
+    case 'colossus-of-rhodes': return 10;
+    case 'tunnel-of-eupalinos': return 6;
+    case 'silver-mining': return Math.min(12, Math.max(2, 2 * Math.max(1, 9 - s.round + 1) * 0.95));
+    case 'quarry': return Math.min(6, Math.max(1, Math.max(1, 9 - s.round + 1) * 0.95));
+    case 'gold-reserve': return s.economyTrack * 2;
+    case 'peripteros': return 4;
+    case 'reformists': return Math.max(3, Math.max(0, 9 - s.round + 1) * 2.2);
+    case 'lighthouse': return Math.max(3, Math.max(0, 9 - s.round + 1) * 1.6);
+    case 'constructing-the-mint': return Math.max(2, Math.max(0, 9 - s.round + 1) * 1.5);
+    case 'diolkos': return Math.max(2, Math.max(0, 9 - s.round + 1) * 1.4);
+    case 'oracle': return 4 + Math.max(0, 4 - s.developmentLevel) * 2;
+    default: return 0;
+  }
+}
+
+function politicsCardCashoutCost(cardId: string): number {
+  switch (cardId) {
+    case 'austerity': return 6;
+    case 'central-government': return 4;
+    case 'gold-reserve': return 8;
+    case 'heavy-taxes': return 4;
+    case 'hall-of-statues': return 2;
+    case 'colossus-of-rhodes': return 6;
+    case 'diversification': return 6;
+    case 'tunnel-of-eupalinos': return 4;
+    case 'oracle': return 3;
+    case 'public-market': return 3;
+    case 'founding-the-lyceum': return 3;
+    case 'ostracism': return 3;
+    case 'silver-mining': return 3;
+    case 'amnesty-for-socrates': return 2;
+    case 'foreign-supplies': return 2;
+    case 'stadion': return 2;
+    case 'constructing-the-mint': return 2;
+    case 'scholarly-welcome': return 2;
+    case 'archives': return 2;
+    case 'lighthouse': return 1;
+    case 'helepole': return 1;
+    case 'peripteros': return 1;
+    case 'bank': return 0;
+    case 'proskenion': return 0;
+    case 'stoa-poikile': return 0;
+    case 'persians': return 0;
+    case 'extraordinary-collection': return 0;
+    case 'diolkos': return 0;
+    case 'corinthian-columns': return 0;
+    case 'gradualism': return 0;
+    case 'old-guard': return 0;
+    case 'power': return 0;
+    case 'reformists': return 0;
+    case 'rivalry': return 0;
+    case 'quarry': return 0;
+    case 'contribution': return 0;
+    case 'gifts-from-the-west': return 0;
+    case 'council': return 0;
+    case 'mercenary-recruitment': return 0;
+    case 'greek-fire': return 0;
+    default: return 0;
+  }
 }
 
 function countPlayedNonEndGameCards(s: SolverState, cardIds: string[]): number {

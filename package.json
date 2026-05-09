@@ -9,6 +9,7 @@
     "build": "npm run build --workspaces",
     "test": "vitest --run",
     "lint": "eslint packages/*/src/**/*.ts",
+    "benchmark:solver": "tsx tools/solver-self-play.ts",
     "dev:server": "npm run start --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client"
   },

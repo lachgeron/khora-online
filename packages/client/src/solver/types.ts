@@ -8,9 +8,8 @@
  * - Dice/citizen costs are enforced when known or predetermined.
  * - Any knowledge token can be acquired via Military exploration.
  * - Citizens are tracked for action feasibility and scoring.
- * - Only cards currently in hand are considered; Legislation adds hand slots
- *   but normal mode does not invent unknown card identities.
- * - God-mode may opt into treating unpicked deck cards as playable.
+ * - Only cards currently in hand are considered playable; Legislation may add
+ *   a known top-deck card to the simulated hand.
  * - Opponents are frozen at calculation time.
  */
 
@@ -117,7 +116,7 @@ export interface SolverState {
   handMask: number;
   playedMask: number;
   handSlots: number;
-  godMode: boolean;
+  deckCardIndices: number[];            // remaining politics deck order, as card-table indices
 
   // Public board tokens still available along this simulated line.
   boardTokens: BoardExplorationToken[];
@@ -141,7 +140,7 @@ export type ActionChoice =
       spartaDev3Colors?: [KnowledgeColor, KnowledgeColor];
       argosDev2Reward?: 'TROOPS' | 'COINS' | 'VP' | 'CITIZENS';
     }
-  | { type: 'LEGISLATION' };
+  | { type: 'LEGISLATION'; keepCardIndex?: number };
 
 /** The full choice set for one round. */
 export interface MacroAction {
@@ -238,8 +237,6 @@ export interface SolverInput {
   victoryPoints: number;
   handCards: PoliticsCard[];
   playedCards: PoliticsCard[];
-  availableGodModeCards: PoliticsCard[];
-  godMode: boolean;
   objective: SolverObjective;
   fullState: SolverFullState | null;
   predeterminedDice: PredeterminedDiceSchedule | null;

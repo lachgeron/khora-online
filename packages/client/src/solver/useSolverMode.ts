@@ -58,8 +58,6 @@ const NODE_REFRESH_THRESHOLD = 100_000;
 export interface SolverModeState {
   enabled: boolean;
   toggle: () => void;
-  godMode: boolean;
-  setGodMode: (enabled: boolean) => void;
   objective: SolverObjective;
   setObjective: (objective: SolverObjective) => void;
   displayMode: SolverDisplayMode;
@@ -83,7 +81,6 @@ export function useSolverMode(
   currentPlayerId: string,
 ): SolverModeState {
   const [enabled, setEnabled] = useState(false);
-  const [godMode, setGodModeState] = useState(false);
   const [objective, setObjectiveState] = useState<SolverObjective>('WIN_MARGIN');
   const [displayMode, setDisplayModeState] = useState<SolverDisplayMode>('CONSERVATIVE');
   const [result, setResult] = useState<SolverResult | null>(null);
@@ -126,10 +123,6 @@ export function useSolverMode(
 
   const toggle = useCallback(() => {
     setEnabled((v) => !v);
-  }, []);
-
-  const setGodMode = useCallback((next: boolean) => {
-    setGodModeState(next);
   }, []);
 
   const setObjective = useCallback((next: SolverObjective) => {
@@ -302,7 +295,7 @@ export function useSolverMode(
       return;
     }
 
-    const newInput = buildSolverInput(gameState, privateState, currentPlayerId, godMode, objective);
+    const newInput = buildSolverInput(gameState, privateState, currentPlayerId, objective);
     if (!newInput) return;
 
     // Structural comparison: if every field the solver consumes is identical,
@@ -393,7 +386,7 @@ export function useSolverMode(
     planValidRef.current = false;
     setShift(0);
     scheduleRestart(RESTART_DEBOUNCE_MS);
-  }, [enabled, gameState, privateState, currentPlayerId, godMode, objective, displayMode, setShift]);
+  }, [enabled, gameState, privateState, currentPlayerId, objective, displayMode, setShift]);
 
   // Pause/resume on tab visibility change to reclaim CPU when hidden.
   useEffect(() => {
@@ -439,7 +432,7 @@ export function useSolverMode(
     };
   }, [result, shiftRounds]);
 
-  return { enabled, toggle, godMode, setGodMode, objective, setObjective, displayMode, setDisplayMode, result: shiftedResult, stale, status, changeNote };
+  return { enabled, toggle, objective, setObjective, displayMode, setDisplayMode, result: shiftedResult, stale, status, changeNote };
 }
 
 function planFromResult(result: SolverResult | null): Plan | null {
@@ -616,7 +609,7 @@ function hardConstraintChanged(prev: SolverInput, next: SolverInput): boolean {
  *   achievement claims are still on the table for us this round.
  */
 function externalStateChanged(prev: SolverInput, next: SolverInput): boolean {
-  if (prev.objective !== next.objective || prev.godMode !== next.godMode) return true;
+  if (prev.objective !== next.objective) return true;
   if (solverExternalKey(prev) !== solverExternalKey(next)) return true;
   if (prev.opponents.length !== next.opponents.length) return true;
   for (let i = 0; i < prev.opponents.length; i++) {
@@ -729,8 +722,6 @@ function solverInputKey(input: SolverInput): string {
     victoryPoints: input.victoryPoints,
     handCards: cardKey(input.handCards),
     playedCards: cardKey(input.playedCards),
-    availableGodModeCards: cardKey(input.availableGodModeCards),
-    godMode: input.godMode,
     objective: input.objective,
     currentRound: input.currentRound,
     currentPhase: input.currentPhase,

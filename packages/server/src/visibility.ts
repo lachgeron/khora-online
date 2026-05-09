@@ -64,7 +64,6 @@ export function buildPrivatePlayerState(player: PlayerState): PrivatePlayerState
     actionSlots: player.actionSlots,
     handCards: player.handCards,
     playedCards: player.playedCards,
-    availableGodModeCards: [],
     solverFullState: null,
     offeredCities: null,
     draftPack: null,
@@ -232,7 +231,6 @@ export function getStateForPlayer(
   const privateState: PrivatePlayerState = player
     ? {
         ...buildPrivatePlayerState(player),
-        availableGodModeCards: state.politicsDeck,
         solverFullState: buildSolverFullState(state),
         offeredCities,
         draftPack,
@@ -247,7 +245,6 @@ export function getStateForPlayer(
         actionSlots: [null, null, null],
         handCards: [],
         playedCards: [],
-        availableGodModeCards: [],
         solverFullState: null,
         offeredCities: null,
         draftPack: null,

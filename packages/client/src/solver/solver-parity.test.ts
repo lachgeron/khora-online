@@ -11,6 +11,7 @@ import { applyTaxPhase } from './scoring';
 import {
   applyImmediateCardEffect as applySolverImmediateCardEffect,
   applyOngoingOnAction as applySolverOngoingOnAction,
+  hasMaskBit,
 } from './card-data';
 import type { SolverState } from './types';
 
@@ -133,6 +134,29 @@ describe('solver card-effect parity', () => {
 
     expect(projectSolverState(solverState)).toEqual(projectPlayerState(serverAfter));
   });
+
+  it('mirrors Council drawing the next two deck cards', () => {
+    const deck = [cardById('gifts-from-the-west'), cardById('archives'), cardById('quarry')];
+    const serverAfter = applyServerImmediateCardEffect(
+      { ...baseGameState(), politicsDeck: deck },
+      PLAYER_ID,
+      'council',
+    );
+
+    const solverState = {
+      ...baseSolverState(),
+      deckCardIndices: [0, 1, 2],
+    };
+    applySolverImmediateCardEffect(solverState, 'council', []);
+
+    expect(serverAfter.players[0].handCards.map(card => card.id)).toEqual(['gifts-from-the-west', 'archives']);
+    expect(serverAfter.politicsDeck.map(card => card.id)).toEqual(['quarry']);
+    expect(solverState.handSlots).toBe(2);
+    expect(hasMaskBit(solverState.handMask, 0)).toBe(true);
+    expect(hasMaskBit(solverState.handMask, 1)).toBe(true);
+    expect(hasMaskBit(solverState.handMask, 2)).toBe(false);
+    expect(solverState.deckCardIndices).toEqual([2]);
+  });
 });
 
 function baseGameState(): GameState {
@@ -221,7 +245,7 @@ function baseSolverState(): SolverState {
     handMask: 0,
     playedMask: 0,
     handSlots: 0,
-    godMode: false,
+    deckCardIndices: [],
     boardTokens: [],
     availableAchievementIds: [],
     victoryPoints: 7,

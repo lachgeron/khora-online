@@ -3,7 +3,7 @@
  *
  * This mirrors server/card-handlers.ts but expressed as pure transformations
  * on SolverState. We only handle the cards that matter for a solo simulation
- * (no opponent card effects, no events, no draws).
+ * (no opponent card effects, no events).
  */
 
 import type { SolverState, FrozenOpponent, SolverAction } from './types';
@@ -11,7 +11,13 @@ import { advanceProgressTrack, capTaxGloryTrack } from './tracks';
 
 /** Clone a SolverState cheaply (shallow copy is fine — knowledge is replaced below if touched). */
 export function cloneState(s: SolverState): SolverState {
-  return { ...s, knowledge: { ...s.knowledge }, boardTokens: [...s.boardTokens], availableAchievementIds: [...s.availableAchievementIds] };
+  return {
+    ...s,
+    knowledge: { ...s.knowledge },
+    deckCardIndices: [...s.deckCardIndices],
+    boardTokens: [...s.boardTokens],
+    availableAchievementIds: [...s.availableAchievementIds],
+  };
 }
 
 /** How many knowledge tokens of a given color the player has. */
@@ -144,9 +150,15 @@ export function applyImmediateCardEffect(
       return;
     }
 
-    case 'council':
-      s.handSlots += 2;
+    case 'council': {
+      const drawn = s.deckCardIndices.slice(0, 2);
+      for (const cardIndex of drawn) {
+        s.handMask = addMaskBit(s.handMask, cardIndex);
+      }
+      s.handSlots += drawn.length;
+      s.deckCardIndices = s.deckCardIndices.slice(drawn.length);
       return;
+    }
     case 'ostracism':
       returnPlayedCardToHand(s, options?.playedCardIndex);
       return;

@@ -8,7 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage, GameState } from '@khora/shared';
+import type { ClientMessage, GameState, ServerMessage } from '@khora/shared';
 import { activateDev } from './city-dev-handlers';
 import { RANDOM_EVENTS, STARTING_EVENT, FINAL_EVENT } from './game-data';
 import { LobbyManager, generatePlayerId } from './lobby';
@@ -375,6 +375,7 @@ wss.on('connection', (ws, req) => {
 
         const removedFromHand = player.handCards[handIdx];
         const removedFromDeck = currentState.politicsDeck[deckIdx];
+        if (!removedFromDeck) return;
         const newHandCards = [...player.handCards];
         newHandCards[handIdx] = removedFromDeck;
         const newDeck = [...currentState.politicsDeck];
