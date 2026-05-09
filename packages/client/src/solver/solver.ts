@@ -48,8 +48,8 @@ interface SolverContext {
   actionTopK: number;
   initialRound: number;    // the first round we were asked to plan for
   initialRoundTaxApplied: boolean;  // if true, skip tax at end of the first simulated round
-  // Achievements still on the board THIS round (the initial round only).
-  // Future rounds in the search assume these are gone (taken by opponents).
+  // Achievements still on the board at the snapshot. Projected future rounds
+  // keep these tokens only until our line or opponent pressure claims them.
   availableAchievementIds: string[];
   // Achievement Tax/Glory picks already due to the player this round (the
   // server has decided which were claimed, only the choice remains). Set
@@ -65,6 +65,7 @@ interface SolverContext {
   opponentSearchCache: Map<string, number>;
   currentRoundActionTopK: number;
   opponentSearchEnabled: boolean;
+  sharedPressureExemptPlayerIds?: ReadonlySet<string>;
 }
 
 const CURRENT_ROUND_ACTION_TOP_K = 999;
@@ -220,14 +221,10 @@ function simulateRoundTopK(
             const startedWithProgressDone = afterAction.state.progressAlreadyDone;
 
             for (const ev of eventCandidates) {
-              const claimableAchievementIds = ev.state.round === ctx.initialRound
-                ? ev.state.availableAchievementIds
-                : [];
               const postAchievementStates = applyAchievementPhase(
                 ev.state,
-                claimableAchievementIds,
+                ev.state.availableAchievementIds,
                 ev.state.round === ctx.initialRound ? ctx.pendingAchievementChoices : 0,
-                ev.state.round !== ctx.initialRound,
               );
               ctx.nodesExplored.count += postAchievementStates.length;
 
@@ -716,7 +713,7 @@ function diversifyBeam<T extends { state: SolverState }>(
     return `${devCap}-${cult4}-${mil4}-${mt}-${playedT}-${taxBin}-${coinBin}-${scrollBin}`;
   };
 
-    const exactKey = (s: SolverState): string =>
+  const exactKey = (s: SolverState): string =>
     `${s.handMask}|${s.playedMask}|${s.handSlots}|${s.victoryPoints}|${s.coins}|${s.philosophyTokens}|` +
     `${s.economyTrack}|${s.cultureTrack}|${s.militaryTrack}|${s.taxTrack}|${s.gloryTrack}|` +
     `${s.troopTrack}|${s.citizenTrack}|${s.developmentLevel}|` +
@@ -724,6 +721,7 @@ function diversifyBeam<T extends { state: SolverState }>(
     `${s.knowledge.greenMajor},${s.knowledge.blueMajor},${s.knowledge.redMajor}|` +
     `${s.round}|${s.actionsAlreadyTaken.join(',')}|${s.progressAlreadyDone ? 1 : 0}|` +
     `${s.legislationDoneThisRound ? 1 : 0}|${s.boardTokens.map(t => t.id).join(',')}|` +
+    `${s.deckCardIndices.slice(0, 8).join(',')}|` +
     `${s.availableAchievementIds.join(',')}`;
 
   const seenExact = new Set<string>();
@@ -779,7 +777,7 @@ function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext, allowSe
     if (p.playerId === ctx.playerId || !p.isConnected) continue;
     strongest = Math.max(strongest, allowSearch
       ? estimateOpponentBestReachableVP(p, s, ctx)
-      : estimateOpponentVP(p, s.boardTokens, ctx, s.availableAchievementIds));
+      : estimateOpponentVP(p, s.boardTokens, ctx, s.availableAchievementIds, s.round));
   }
   return strongest;
 }
@@ -795,12 +793,12 @@ function estimateOpponentBestReachableVP(
     .slice(0, 8)
     .map(index => ctx.cardIds[index] ?? index)
     .join(',');
-  const cacheKey = `${p.playerId}|${ctx.initialRound}|${tokenKey}|${achievementKey}|${deckKey}`;
+  const cacheKey = `${p.playerId}|${ctx.initialRound}|${ourLineState.round}|${tokenKey}|${achievementKey}|${deckKey}`;
   const cached = ctx.opponentSearchCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   const searched = runOpponentBeamSearch(p, ourLineState, ctx);
-  const fallback = estimateOpponentVP(p, ourLineState.boardTokens, ctx, ourLineState.availableAchievementIds);
+  const fallback = estimateOpponentVP(p, ourLineState.boardTokens, ctx, ourLineState.availableAchievementIds, ourLineState.round);
   const best = Math.max(searched ?? -Infinity, fallback);
   ctx.opponentSearchCache.set(cacheKey, best);
   return best;
@@ -844,6 +842,7 @@ function runOpponentBeamSearch(
     opponentSearchCache: parentCtx.opponentSearchCache,
     currentRoundActionTopK: parentCtx.currentRoundActionTopK,
     opponentSearchEnabled: false,
+    sharedPressureExemptPlayerIds: new Set([parentCtx.playerId]),
   };
 
   let beam: Array<{ state: SolverState }> = [{ state }];
@@ -853,7 +852,11 @@ function runOpponentBeamSearch(
     const next: Array<{ state: SolverState }> = [];
     for (const entry of beam) {
       const results = simulateRoundTopK({ ...entry.state, round }, opponentCtx, beamWidth);
-      for (const r of results) next.push({ state: advanceToNextRound(r.stateAfter) });
+      for (const r of results) {
+        const nextState = advanceToNextRound(r.stateAfter);
+        applySharedOpponentPressure(nextState, opponentCtx, round);
+        next.push({ state: nextState });
+      }
     }
     if (next.length === 0) break;
     next.sort((a, b) => heuristicScore(b.state, cardIds) - heuristicScore(a.state, cardIds));
@@ -943,8 +946,9 @@ function estimateOpponentVP(
   remainingBoardTokens: BoardExplorationToken[],
   ctx: SolverContext,
   availableAchievementIds: string[],
+  lineRound: number,
 ): number {
-  const currentRound = ctx.fullState?.roundNumber ?? ctx.initialRound;
+  const currentRound = Math.max(ctx.initialRound, Math.min(10, lineRound));
   const cardIds = p.playedCards.map(c => c.id);
   let playedMask = 0;
   for (let i = 0; i < cardIds.length; i++) playedMask = addMaskBit(playedMask, i);
@@ -986,7 +990,14 @@ function estimateOpponentVP(
   );
   const handPotential = Math.min(p.handCards.length, roundsLeft) * 2.5;
   const boardPotential = estimateOpponentBoardPotential(p, remainingBoardTokens, roundsLeft);
-  const achievementPotential = estimateOpponentAchievementPotential(p, state, ctx, availableAchievementIds, roundsLeft);
+  const achievementPotential = estimateOpponentAchievementPotential(
+    p,
+    state,
+    ctx,
+    availableAchievementIds,
+    roundsLeft,
+    Math.max(0, currentRound - ctx.initialRound),
+  );
   return currentFinal + tempo + handPotential + boardPotential + achievementPotential;
 }
 
@@ -996,17 +1007,23 @@ function estimateOpponentAchievementPotential(
   ctx: SolverContext,
   availableAchievementIds: string[],
   roundsLeft: number,
+  projectedRoundsElapsed: number,
 ): number {
   const pendingChoices = ctx.fullState?.pendingDecisions
     .filter(d => d.playerId === p.playerId && d.decisionType === 'ACHIEVEMENT_TRACK_CHOICE')
     .length ?? 0;
   let claimCount = pendingChoices;
 
+  const stillAvailable = new Set(availableAchievementIds);
   if (ctx.currentPhase !== 'ACHIEVEMENT') {
     for (const id of availableAchievementIds) {
       const def = getAchievement(id);
       if (def?.qualifies(state)) claimCount += 1;
     }
+  }
+  for (const id of ctx.availableAchievementIds) {
+    if (stillAvailable.has(id)) continue;
+    if (opponentLikelyClaimsAchievement(p, id, Math.max(1, projectedRoundsElapsed))) claimCount += 1;
   }
 
   if (claimCount <= 0) return 0;
@@ -1049,6 +1066,209 @@ function estimateOpponentBoardPotential(
     })
     .sort((a, b) => b - a);
   return values.slice(0, Math.min(roundsLeft, 4)).reduce((sum, v) => sum + Math.max(0, v), 0);
+}
+
+function applySharedOpponentPressure(
+  s: SolverState,
+  ctx: SolverContext,
+  completedRound: number,
+): void {
+  if (!ctx.fullState) return;
+  removeOpponentClaimedAchievements(s, ctx, completedRound);
+  removeOpponentBoardTokens(s, ctx, completedRound);
+  applyOpponentDeckPressure(s, ctx, completedRound);
+}
+
+function sharedPressurePlayers(ctx: SolverContext): SolverFullPlayerState[] {
+  if (!ctx.fullState) return [];
+  return ctx.fullState.players.filter(p =>
+    p.playerId !== ctx.playerId
+    && !ctx.sharedPressureExemptPlayerIds?.has(p.playerId)
+    && p.isConnected
+    && !p.hasFlagged,
+  );
+}
+
+function projectedRoundCount(ctx: SolverContext, completedRound: number): number {
+  return Math.max(0, completedRound - ctx.initialRound + 1);
+}
+
+function removeOpponentClaimedAchievements(
+  s: SolverState,
+  ctx: SolverContext,
+  completedRound: number,
+): void {
+  if (s.availableAchievementIds.length === 0) return;
+  const rounds = projectedRoundCount(ctx, completedRound);
+  if (rounds <= 0) return;
+  const opponents = sharedPressurePlayers(ctx);
+  if (opponents.length === 0) return;
+
+  s.availableAchievementIds = s.availableAchievementIds.filter(id =>
+    !opponents.some(p => opponentLikelyClaimsAchievement(p, id, rounds)),
+  );
+}
+
+function opponentLikelyClaimsAchievement(
+  p: SolverFullPlayerState,
+  achievementId: string,
+  projectedRounds: number,
+): boolean {
+  const playedCount = p.playedCards.length;
+  switch (achievementId) {
+    case 'ach-10vp': {
+      const cultureRate = Math.max(1, p.cultureTrack);
+      const taxRate = Math.max(0, p.taxTrack - 1) * 0.75;
+      return p.victoryPoints + projectedRounds * (cultureRate + taxRate + 1) >= 10;
+    }
+    case 'ach-12citizens':
+      return p.citizenTrack + projectedRounds * 3 >= 12;
+    case 'ach-4economy':
+      return p.economyTrack + Math.ceil(projectedRounds / 2) >= 4;
+    case 'ach-3cards': {
+      const likelyNewCards = Math.min(
+        projectedRounds,
+        p.handCards.length + Math.max(0, Math.floor(projectedRounds / 2)),
+      );
+      return playedCount + likelyNewCards >= 3;
+    }
+    case 'ach-6troops':
+      return p.troopTrack + projectedRounds * Math.max(1, p.militaryTrack) >= 6;
+    default:
+      return false;
+  }
+}
+
+function removeOpponentBoardTokens(
+  s: SolverState,
+  ctx: SolverContext,
+  completedRound: number,
+): void {
+  if (s.boardTokens.length === 0) return;
+  const opponents = sharedPressurePlayers(ctx);
+  if (opponents.length === 0) return;
+  const roundOffset = projectedRoundCount(ctx, completedRound);
+  if (roundOffset <= 0) return;
+
+  let remaining = s.boardTokens;
+  const removed = new Set<string>();
+  for (const p of opponents) {
+    const claims = opponentBoardClaimsThisRound(p, remaining, roundOffset);
+    for (const token of claims) removed.add(token.id);
+    if (claims.length > 0) {
+      const claimed = new Set(claims.map(token => token.id));
+      remaining = remaining.filter(token => !claimed.has(token.id));
+    }
+  }
+  if (removed.size === 0) return;
+  s.boardTokens = remaining;
+}
+
+function opponentBoardClaimsThisRound(
+  p: SolverFullPlayerState,
+  tokens: BoardExplorationToken[],
+  roundOffset: number,
+): BoardExplorationToken[] {
+  const projectedTroops = Math.min(15, p.troopTrack + p.militaryTrack * roundOffset);
+  const affordable = tokens
+    .filter(token => token.militaryRequirement <= projectedTroops)
+    .map(token => ({ token, score: opponentTokenRaceValue(token, p) }))
+    .filter(entry => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (affordable.length === 0) return [];
+
+  const likelyMilitaryTempo = p.militaryTrack >= 4 || p.troopTrack >= 6 || roundOffset % 2 === 1;
+  if (!likelyMilitaryTempo) return [];
+  const maxClaims = p.cityId === 'thebes' && p.developmentLevel >= 3 ? 2 : 1;
+  return affordable.slice(0, maxClaims).map(entry => entry.token);
+}
+
+function opponentTokenRaceValue(token: BoardExplorationToken, p: SolverFullPlayerState): number {
+  const knowledgeValue = token.isPersepolis
+    ? 10 + p.gloryTrack * 3
+    : token.tokenType === 'MAJOR'
+      ? 4 + p.gloryTrack
+      : 1.5;
+  return token.bonusVP + token.bonusCoins * 0.45 + knowledgeValue - Math.max(0, token.skullCost) * 0.35;
+}
+
+function applyOpponentDeckPressure(
+  s: SolverState,
+  ctx: SolverContext,
+  completedRound: number,
+): void {
+  if (s.deckCardIndices.length === 0) return;
+  const opponents = sharedPressurePlayers(ctx);
+  if (opponents.length === 0) return;
+  const roundOffset = projectedRoundCount(ctx, completedRound);
+  if (roundOffset <= 0) return;
+
+  for (const p of opponents) {
+    const draws = opponentLegislationDrawsThisRound(p, roundOffset);
+    for (let i = 0; i < draws && s.deckCardIndices.length > 0; i += 1) {
+      const drawn = s.deckCardIndices.slice(0, 2);
+      const keepIndex = bestOpponentDeckKeep(drawn, p, ctx.allCards);
+      if (keepIndex === null) break;
+      const unchosen = drawn.filter(index => index !== keepIndex);
+      s.deckCardIndices = [...s.deckCardIndices.slice(drawn.length), ...unchosen];
+    }
+  }
+}
+
+function opponentLegislationDrawsThisRound(
+  p: SolverFullPlayerState,
+  roundOffset: number,
+): number {
+  if (p.handCards.length <= 1 && roundOffset <= 2) return 1;
+  if (p.handCards.length <= 2 && roundOffset === 1 && p.cultureTrack >= 3) return 1;
+  if (roundOffset >= 3 && roundOffset % 3 === 0) return 1;
+  return 0;
+}
+
+function bestOpponentDeckKeep(
+  drawn: number[],
+  p: SolverFullPlayerState,
+  allCards: PoliticsCard[],
+): number | null {
+  let bestIndex: number | null = null;
+  let bestScore = -Infinity;
+  for (const index of drawn) {
+    const card = allCards[index];
+    if (!card) continue;
+    const score = opponentCardRaceValue(card, p);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+}
+
+function opponentCardRaceValue(card: PoliticsCard, p: SolverFullPlayerState): number {
+  const marquee: Record<string, number> = {
+    'central-government': 40,
+    diversification: 36,
+    'gold-reserve': 34,
+    'hall-of-statues': 32,
+    'public-market': 30,
+    taxation: 28,
+    'corinthian-columns': 26,
+    'greek-fire': 24,
+    council: 23,
+    gradualism: 22,
+    'old-guard': 20,
+    'constructing-the-mint': 20,
+    'scholarly-welcome': 18,
+  };
+  const typeValue = card.type === 'END_GAME' ? 18 : card.type === 'ONGOING' ? 14 : 10;
+  const affordability = p.coins >= card.cost ? 4 : -Math.max(0, card.cost - p.coins) * 0.8;
+  const trackFit =
+    (card.id === 'diversification' ? Math.min(p.economyTrack, p.cultureTrack, p.militaryTrack) * 2 : 0)
+    + (card.id === 'gold-reserve' ? p.economyTrack * 1.5 : 0)
+    + (card.id === 'heavy-taxes' ? p.taxTrack * 1.5 : 0)
+    + (card.id === 'proskenion' ? p.citizenTrack * 0.9 : 0)
+    + (card.id === 'hall-of-statues' ? p.knowledgeTokens.length * 0.8 : 0);
+  return (marquee[card.id] ?? 0) + typeValue + affordability + trackFit;
 }
 
 // ─── Entry point ────────────────────────────────────────────────────────────
@@ -1126,6 +1346,7 @@ export async function runSolver(
     opponentSearchCache: opponentSearchCacheShared,
     currentRoundActionTopK,
     opponentSearchEnabled,
+    sharedPressureExemptPlayerIds: new Set(),
   });
 
   /**
@@ -1169,13 +1390,7 @@ export async function runSolver(
         const results = simulateRoundTopK(stateAtRound, ctx, beamWidth);
         for (const r of results) {
           const nextState = advanceToNextRound(r.stateAfter);
-          if (round === ctx.initialRound) {
-            // Achievement tokens are contested by every player at the end of
-            // each real round. Do not let our long-range line reserve tokens
-            // for speculative future claims; only claims/pending choices in
-            // the live round are trusted.
-            nextState.availableAchievementIds = [];
-          }
+          applySharedOpponentPressure(nextState, ctx, round);
           nextBeam.push({
             state: nextState,
             roundPlans: [

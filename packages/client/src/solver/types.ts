@@ -4,13 +4,15 @@
  * Assumptions (per feature spec):
  * - Events are modeled from full-state knowledge; competitive events are
  *   conservative against opponents' current-round troop ceiling.
- * - Remaining achievements are carried through simulated rounds.
+ * - Remaining achievements are contested in simulated rounds; likely opponent
+ *   claims remove them from future search nodes.
  * - Dice/citizen costs are enforced when known or predetermined.
  * - Any knowledge token can be acquired via Military exploration.
  * - Citizens are tracked for action feasibility and scoring.
  * - Only cards currently in hand are considered playable; Legislation may add
  *   a known top-deck card to the simulated hand.
- * - Opponents are frozen at calculation time.
+ * - Win mode estimates opponent best replies and applies shared-resource
+ *   pressure to achievements, board tokens, and top-deck cards.
  */
 
 import type { ActionChoices, ActionSlotTuple, GamePhase, KnowledgeColor, PoliticsCard, KnowledgeToken, PredeterminedDiceSchedule, ProgressTrackType, SolverFullState } from '@khora/shared';

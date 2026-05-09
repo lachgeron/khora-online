@@ -289,6 +289,7 @@ const PlanView: React.FC<{
         </div>
         <div className="mt-2 text-[0.7rem] text-sand-600 flex flex-wrap gap-x-3">
           <span>Mode: <b>{analysisLabel}</b></span>
+          <span>Line: <b>{plan.partialResult ? 'fast warmup' : 'locked'}</b></span>
           <span>Track: <b>{plan.vpBreakdown.scoreTrack}</b></span>
           <span>Cards: <b>{plan.vpBreakdown.politicsCards}</b></span>
           <span>Devs: <b>{plan.vpBreakdown.developments}</b></span>
@@ -309,6 +310,11 @@ const PlanView: React.FC<{
             Do This Now (Round {plan.currentRound.round})
           </p>
           <p className="text-sand-800 text-sm font-medium">{bestMove}</p>
+          {plan.partialResult && (
+            <p className="mt-1 text-[0.65rem] text-sand-500">
+              Fast line; waiting for the locked search to settle.
+            </p>
+          )}
           {actionableMove && onApplyMove && (
             <button
               onClick={() => onApplyMove(actionableMove)}

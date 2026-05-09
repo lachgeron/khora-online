@@ -13,6 +13,7 @@ import {
   applyOngoingOnAction as applySolverOngoingOnAction,
   hasMaskBit,
 } from './card-data';
+import { applyAction } from './transitions';
 import type { SolverState } from './types';
 
 const PLAYER_ID = 'p1';
@@ -156,6 +157,40 @@ describe('solver card-effect parity', () => {
     expect(hasMaskBit(solverState.handMask, 1)).toBe(true);
     expect(hasMaskBit(solverState.handMask, 2)).toBe(false);
     expect(solverState.deckCardIndices).toEqual([2]);
+  });
+
+  it('mirrors Legislation keeping one top-two card and bottoming the other', () => {
+    const deck = [cardById('gifts-from-the-west'), cardById('archives'), cardById('quarry')];
+    const legislationResult = new LegislationResolver().resolve(
+      { ...baseGameState(), politicsDeck: deck },
+      PLAYER_ID,
+      { targetCardId: 'archives' },
+    );
+    expect(legislationResult.ok).toBe(true);
+    if (!legislationResult.ok) return;
+
+    const cardIds = deck.map(card => card.id);
+    const solverState = {
+      ...baseSolverState(),
+      deckCardIndices: [0, 1, 2],
+    };
+    const ok = applyAction(
+      solverState,
+      { type: 'LEGISLATION', keepCardIndex: 1 },
+      cardIds,
+      deck,
+      [],
+      () => false,
+    );
+
+    expect(ok).toBe(true);
+    expect(legislationResult.value.players[0].handCards.map(card => card.id)).toEqual(['archives']);
+    expect(legislationResult.value.politicsDeck.map(card => card.id)).toEqual(['quarry', 'gifts-from-the-west']);
+    expect(solverState.citizenTrack).toBe(7);
+    expect(solverState.handSlots).toBe(1);
+    expect(hasMaskBit(solverState.handMask, 0)).toBe(false);
+    expect(hasMaskBit(solverState.handMask, 1)).toBe(true);
+    expect(solverState.deckCardIndices).toEqual([2, 0]);
   });
 });
 

@@ -6,7 +6,8 @@
  * silently ignored — the solver simply won't count them.
  *
  * Remaining achievement IDs are carried in SolverState so future simulated
- * rounds can claim rewards that are still available along that line.
+ * rounds can claim rewards unless our line or projected opponent pressure
+ * removes them first.
  */
 
 import type { SolverState } from './types';
