@@ -28,15 +28,16 @@
  *                              invalid — the new worker only replaces it if
  *                              it produces something at least as good.
  *
- * Best-plan persistence
+ * Visible-plan stability
  * ─────────────────────
- * The displayed plan is the highest-VP plan seen so far in the current "valid"
- * window. A new plan from the worker only replaces the displayed plan when:
+ * The displayed plan is intentionally stickier than the raw search stream.
+ * A new plan from the worker replaces the displayed plan when:
  *   (a) the displayed plan was invalidated (DIVERGENT_ACTION), or
  *   (b) there is no currently-displayed plan, or
- *   (c) the new plan's `projectedFinalVP` is >= the displayed plan's.
- * This means a freshly-restarted worker that has only had a few ms to think
- * does not visually regress the recommendation.
+ *   (c) the same current move got meaningfully stronger, or
+ *   (d) a different current move clears the sticky switch threshold.
+ * This keeps coach mode usable: future details can improve without the
+ * immediate "Do This Now" instruction wobbling on near-ties.
  *
  * Pauses when the tab is hidden (Page Visibility API) to reclaim CPU.
  */
@@ -50,10 +51,12 @@ import { buildDraftPlan, draftPlanKey } from './draft-solver';
 import SolverWorker from './solver.worker?worker';
 
 const RESTART_DEBOUNCE_MS = 150;
-const CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD = 1;
-const CONSERVATIVE_REORDER_THRESHOLD = 3;
-const CONSERVATIVE_SWITCH_THRESHOLD = 7;
-const NODE_REFRESH_THRESHOLD = 100_000;
+const CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD = 2;
+const CONSERVATIVE_REORDER_THRESHOLD = 6;
+const CONSERVATIVE_SWITCH_THRESHOLD = 18;
+const CONSERVATIVE_LOCKED_SWITCH_THRESHOLD = 28;
+const AGGRESSIVE_SWITCH_THRESHOLD = 8;
+const NODE_REFRESH_THRESHOLD = 250_000;
 
 export interface SolverModeState {
   enabled: boolean;
@@ -695,19 +698,25 @@ function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode
   const incomingMove = immediateMoveSignature(incoming.currentRound);
 
   if (incoming.objectiveScore < current.objectiveScore) return false;
-  if (incomingRank > currentRank && (mode === 'AGGRESSIVE' || currentMove === incomingMove || currentSig === incomingSig)) {
-    return true;
-  }
-  if (mode === 'AGGRESSIVE') return true;
 
   if (currentMove === incomingMove) {
     return improvement >= CONSERVATIVE_SAME_MOVE_REFRESH_THRESHOLD
       || incoming.exploredNodes >= current.exploredNodes + NODE_REFRESH_THRESHOLD;
   }
+
+  if (incomingRank > currentRank && currentSig === incomingSig) return true;
+  if (mode === 'AGGRESSIVE') {
+    return incomingRank > currentRank || improvement >= AGGRESSIVE_SWITCH_THRESHOLD;
+  }
+
   if (currentSig === incomingSig) {
     return improvement >= CONSERVATIVE_REORDER_THRESHOLD;
   }
-  return improvement >= CONSERVATIVE_SWITCH_THRESHOLD;
+
+  const switchThreshold = current.analysisMode === 'ADVERSARIAL'
+    ? CONSERVATIVE_LOCKED_SWITCH_THRESHOLD
+    : CONSERVATIVE_SWITCH_THRESHOLD;
+  return improvement >= switchThreshold;
 }
 
 function analysisModeRank(mode: Plan['analysisMode']): number {

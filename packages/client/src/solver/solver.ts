@@ -1349,31 +1349,11 @@ export async function runSolver(
     sharedPressureExemptPlayerIds: new Set(),
   });
 
-  /**
-   * Deterministic jitter for ranking diversity in restart passes. Amplitude scales
-   * with |seed| so later restarts perturb rankings more aggressively and expose
-   * trajectories the main beam pruned. When seed=0 the jitter is 0 (pure heuristic).
-   */
-  const rankJitter = (s: SolverState, seed: number): number => {
-    if (seed === 0) return 0;
-    let h = seed * 2654435761;
-    h ^= s.handMask | 0;
-    h ^= (s.playedMask | 0) * 31;
-    h ^= (s.victoryPoints | 0) * 97;
-    h ^= (s.coins | 0) * 131;
-    h ^= (s.economyTrack | 0) * 7 + (s.cultureTrack | 0) * 11 + (s.militaryTrack | 0) * 13;
-    h ^= (s.developmentLevel | 0) * 17 + (s.philosophyTokens | 0) * 19 + (s.troopTrack | 0) * 23;
-    h ^= (s.taxTrack | 0) * 29 + (s.gloryTrack | 0) * 37 + (s.citizenTrack | 0) * 41;
-    h = (h ^ (h >>> 16)) >>> 0;
-    const amp = Math.min(6, 1.5 + Math.abs(seed) * 0.3);
-    return ((h / 0xffffffff) - 0.5) * amp;
-  };
-
   /** Run a full 9-round beam search with the given widths. Returns best trajectory or null if aborted. */
   const runBeam = async (
     beamWidth: number,
     actionTopK: number,
-    seed: number = 0,
+    _pass: number = 0,
     currentRoundActionTopK = CURRENT_ROUND_ACTION_TOP_K,
     opponentSearchEnabled = false,
   ): Promise<{ best: BeamEntry; alternatives: MoveAlternative[] } | null> => {
@@ -1411,8 +1391,7 @@ export async function runSolver(
       }
       if (nextBeam.length === 0) return null;
       nextBeam.sort((a, b) =>
-        (rankState(b.state, ctx) + rankJitter(b.state, seed)) -
-        (rankState(a.state, ctx) + rankJitter(a.state, seed))
+        rankState(b.state, ctx) - rankState(a.state, ctx)
       );
       beam = diversifyBeam(nextBeam, beamWidth);
       if (round === initialState.round && onProgress && beam[0]) {
@@ -1423,14 +1402,12 @@ export async function runSolver(
       await yieldToHost();
     }
 
-    let best: BeamEntry | null = null;
-    let bestScore = -Infinity;
     const scoredEntries: ScoredBeamEntry[] = [];
     for (const entry of beam) {
       const sc = finalObjectiveScore(entry.state, ctx, cardIds, allCardObjs);
       scoredEntries.push({ ...entry, objectiveScore: sc });
-      if (sc > bestScore) { bestScore = sc; best = entry; }
     }
+    const best = selectRobustBestEntry(scoredEntries, ctx);
     if (!best) return null;
     return { best, alternatives: buildMoveAlternatives(scoredEntries, ctx, cardIds, allCardObjs) };
   };
@@ -1489,15 +1466,17 @@ export async function runSolver(
   ];
   for (const [beamWidth, actionTopK, currentRoundActionTopK] of baseWidths) {
     if (shouldAbort()) break;
-    const useOpponentSearch = input.objective === 'WIN_MARGIN' && beamWidth >= 48;
+    const useOpponentSearch = input.objective === 'WIN_MARGIN' && beamWidth >= 280;
     const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, useOpponentSearch);
     if (!result) break;
     reportIfBetter(result, useOpponentSearch, beamWidth, actionTopK, currentRoundActionTopK);
   }
 
-  // Phase 2: continuous randomized restarts with progressively widening profiles.
-  // Each cycle through `restartProfiles` is scaled up by `widenMultiplier`, so
-  // later cycles explore deeper rather than just re-rolling the same geometry.
+  // Phase 2: continuous deterministic widening passes. Earlier versions used
+  // randomized ranking jitter here, which made the visible current move wobble
+  // even when the board had not meaningfully changed. These passes now widen
+  // the same ordered search profile, and robust first-move selection handles
+  // near-ties without injecting noise.
   // Runs until aborted — there is no convergence shortcut.
   const restartProfiles: Array<[number, number]> = [
     [500, 96],
@@ -1557,6 +1536,37 @@ function analysisModeRank(ctx: SolverContext): number {
   if (ctx.opponentSearchEnabled) return 2;
   if (ctx.beamWidth >= 800) return 1;
   return 0;
+}
+
+function selectRobustBestEntry<T extends { state: SolverState; roundPlans: RoundPlan[]; objectiveScore: number }>(
+  entries: T[],
+  ctx: SolverContext,
+): T | null {
+  if (entries.length === 0) return null;
+  const buckets = new Map<string, T[]>();
+  for (const entry of entries) {
+    const round = entry.roundPlans[0];
+    const move = firstActionableMove(round, ctx.currentPhase);
+    const signature = move ? recommendedMoveSignature(move) : roundSignature(round);
+    const bucket = buckets.get(signature);
+    if (bucket) bucket.push(entry);
+    else buckets.set(signature, [entry]);
+  }
+
+  let bestBucket: { entry: T; robustScore: number; bestScore: number; samples: number } | null = null;
+  for (const bucket of buckets.values()) {
+    bucket.sort((a, b) => b.objectiveScore - a.objectiveScore);
+    const supportIndex = bucket.length >= 12 ? 2 : bucket.length >= 4 ? 1 : 0;
+    const robustScore = bucket[supportIndex].objectiveScore + Math.log2(bucket.length + 1) * 0.8;
+    const bestScore = bucket[0].objectiveScore;
+    if (!bestBucket
+      || robustScore > bestBucket.robustScore
+      || (robustScore === bestBucket.robustScore && bestScore > bestBucket.bestScore)
+      || (robustScore === bestBucket.robustScore && bestScore === bestBucket.bestScore && bucket.length > bestBucket.samples)) {
+      bestBucket = { entry: bucket[0], robustScore, bestScore, samples: bucket.length };
+    }
+  }
+  return bestBucket?.entry ?? null;
 }
 
 function buildMoveAlternatives(

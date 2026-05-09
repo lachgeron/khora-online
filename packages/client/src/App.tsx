@@ -1062,6 +1062,7 @@ function solverPlanAutopilotSignature(plan: Plan | null): string | null {
 function solverPlanReadyForAutopilot(plan: Plan | null, visibleMs: number): boolean {
   return Boolean(plan
     && !plan.partialResult
+    && (plan.objective !== 'WIN_MARGIN' || plan.analysisMode === 'ADVERSARIAL')
     && Math.max(plan.computeMs, visibleMs) >= AUTOPILOT_MIN_SOLVER_MS);
 }
 

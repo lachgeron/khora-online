@@ -270,6 +270,7 @@ const PlanView: React.FC<{
   const reasons = reasonChips(plan);
   const actionableMove = firstActionableMove(plan);
   const analysisLabel = analysisModeLabel(plan.analysisMode);
+  const lineLabel = lineStateLabel(plan);
 
   return (
     <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
@@ -289,7 +290,7 @@ const PlanView: React.FC<{
         </div>
         <div className="mt-2 text-[0.7rem] text-sand-600 flex flex-wrap gap-x-3">
           <span>Mode: <b>{analysisLabel}</b></span>
-          <span>Line: <b>{plan.partialResult ? 'fast warmup' : 'locked'}</b></span>
+          <span>Line: <b>{lineLabel}</b></span>
           <span>Track: <b>{plan.vpBreakdown.scoreTrack}</b></span>
           <span>Cards: <b>{plan.vpBreakdown.politicsCards}</b></span>
           <span>Devs: <b>{plan.vpBreakdown.developments}</b></span>
@@ -310,9 +311,9 @@ const PlanView: React.FC<{
             Do This Now (Round {plan.currentRound.round})
           </p>
           <p className="text-sand-800 text-sm font-medium">{bestMove}</p>
-          {plan.partialResult && (
+          {lineLabel !== 'locked' && (
             <p className="mt-1 text-[0.65rem] text-sand-500">
-              Fast line; waiting for the locked search to settle.
+              Candidate line; waiting for the adversarial search to settle.
             </p>
           )}
           {actionableMove && onApplyMove && (
@@ -457,6 +458,13 @@ function analysisModeLabel(mode: Plan['analysisMode']): string {
   if (mode === 'ADVERSARIAL') return 'opponent search';
   if (mode === 'DEEP') return 'deep';
   return 'fast';
+}
+
+function lineStateLabel(plan: Plan): string {
+  if (plan.partialResult) return 'warmup';
+  if (plan.analysisMode === 'ADVERSARIAL') return 'locked';
+  if (plan.analysisMode === 'DEEP') return 'deep check';
+  return 'candidate';
 }
 
 function winModeCopy(mode: Plan['analysisMode']): string {
