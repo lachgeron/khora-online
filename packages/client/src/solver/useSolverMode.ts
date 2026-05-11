@@ -15,9 +15,10 @@
  *                              Worker keeps running. We do not restart.
  *   - CONSISTENT_TRANSITION — round advanced by one, and every action the
  *                              player resolved last round was in the plan's
- *                              recommended bag. Worker keeps running; we
- *                              "shift" the displayed plan so its
- *                              `futureRounds[0]` becomes the new currentRound.
+ *                              recommended bag. We may briefly shift the
+ *                              displayed future round forward, but immediately
+ *                              restart so the next advice uses real dice,
+ *                              deck, opponent, and achievement state.
  *   - DIVERGENT_ACTION      — player resolved an action this round that the
  *                              plan didn't recommend. Existing plan is invalid
  *                              for the new game state — restart now (no
@@ -345,7 +346,7 @@ export function useSolverMode(
 
     // Helper for the restart path — captures local closure values and queues
     // the postMessage with the appropriate delay.
-    const scheduleRestart = (delay: number) => {
+    const scheduleRestart = (delay: number, resetShiftOnStart = true) => {
       setStale(true);
       setStatus('rechecking');
       pendingRestartRef.current = { input: newInput, publicState: gameState, key: newKey };
@@ -358,6 +359,7 @@ export function useSolverMode(
         const pending = pendingRestartRef.current;
         pendingRestartRef.current = null;
         if (!pending) return;
+        if (resetShiftOnStart) setShift(0);
         const messageType = lastSentKeyRef.current === null ? 'start' : 'restart';
         lastSentKeyRef.current = pending.key;
         worker.postMessage({
@@ -391,19 +393,20 @@ export function useSolverMode(
         scheduleRestart(0);
         return;
       }
-      // Round advanced cleanly. Don't restart — instead bump the shift so
-      // the displayed plan slides forward to the new "current" round.
-      // If the plan doesn't extend that far, fall through to a restart.
+      // Round advanced cleanly. Shift the displayed plan only as a temporary
+      // placeholder, then restart immediately so real dice/opponent/deck
+      // state replaces the stale projected future.
       const nextShift = shiftRoundsRef.current + 1;
       const planLength = currentPlan ? currentPlan.futureRounds.length : -1;
       if (currentPlan && nextShift <= planLength) {
         setShift(nextShift);
-        setStale(false);
-        setStatus('stable');
+        planValidRef.current = false;
+        scheduleRestart(0);
         return;
       }
       // Plan exhausted — must restart.
       setShift(0);
+      planValidRef.current = false;
       scheduleRestart(RESTART_DEBOUNCE_MS);
       return;
     }

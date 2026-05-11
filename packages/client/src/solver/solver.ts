@@ -71,6 +71,7 @@ interface SolverContext {
 const CURRENT_ROUND_ACTION_TOP_K = 999;
 const FAST_CURRENT_ROUND_ACTION_TOP_K = 48;
 const OPPONENT_BEAM_WIDTH = 240;
+const MAX_ADVERSARIAL_EVAL_CANDIDATES = 32;
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
   const knowledge = {
@@ -764,10 +765,11 @@ function finalObjectiveScore(
   ctx: SolverContext,
   cardIds: string[],
   allCards: PoliticsCard[],
+  allowOpponentSearch: boolean = ctx.opponentSearchEnabled,
 ): number {
   const ownVP = finalizeScore(s, cardIds, allCards).total;
   if (ctx.objective !== 'WIN_MARGIN') return ownVP;
-  return ownVP - estimateStrongestOpponentVP(s, ctx, ctx.opponentSearchEnabled);
+  return ownVP - estimateStrongestOpponentVP(s, ctx, allowOpponentSearch);
 }
 
 function estimateStrongestOpponentVP(s: SolverState, ctx: SolverContext, allowSearch: boolean): number {
@@ -846,7 +848,7 @@ function runOpponentBeamSearch(
   };
 
   let beam: Array<{ state: SolverState }> = [{ state }];
-  const beamWidth = OPPONENT_BEAM_WIDTH;
+  const beamWidth = opponentBeamWidth(parentCtx);
   for (let round = state.round; round <= 9; round++) {
     if (parentCtx.shouldAbort()) return null;
     const next: Array<{ state: SolverState }> = [];
@@ -868,6 +870,13 @@ function runOpponentBeamSearch(
     best = Math.max(best, finalizeScore(entry.state, cardIds, allCards).total);
   }
   return Number.isFinite(best) ? best : null;
+}
+
+function opponentBeamWidth(ctx: SolverContext): number {
+  if (ctx.beamWidth <= 160) return 80;
+  if (ctx.beamWidth <= 280) return 120;
+  if (ctx.beamWidth <= 480) return 160;
+  return OPPONENT_BEAM_WIDTH;
 }
 
 function uniqueCards(cards: PoliticsCard[]): PoliticsCard[] {
@@ -948,7 +957,8 @@ function estimateOpponentVP(
   availableAchievementIds: string[],
   lineRound: number,
 ): number {
-  const currentRound = Math.max(ctx.initialRound, Math.min(10, lineRound));
+  const projectedRoundsElapsed = Math.max(0, Math.min(9, lineRound) - ctx.initialRound);
+  const currentRound = ctx.fullState?.roundNumber ?? ctx.initialRound;
   const cardIds = p.playedCards.map(c => c.id);
   let playedMask = 0;
   for (let i = 0; i < cardIds.length; i++) playedMask = addMaskBit(playedMask, i);
@@ -996,7 +1006,7 @@ function estimateOpponentVP(
     ctx,
     availableAchievementIds,
     roundsLeft,
-    Math.max(0, currentRound - ctx.initialRound),
+    projectedRoundsElapsed,
   );
   return currentFinal + tempo + handPotential + boardPotential + achievementPotential;
 }
@@ -1402,9 +1412,12 @@ export async function runSolver(
       await yieldToHost();
     }
 
+    const entriesToScore = ctx.opponentSearchEnabled
+      ? beam.slice(0, adversarialEvaluationLimit(ctx))
+      : beam;
     const scoredEntries: ScoredBeamEntry[] = [];
-    for (const entry of beam) {
-      const sc = finalObjectiveScore(entry.state, ctx, cardIds, allCardObjs);
+    for (const entry of entriesToScore) {
+      const sc = finalObjectiveScore(entry.state, ctx, cardIds, allCardObjs, ctx.opponentSearchEnabled);
       scoredEntries.push({ ...entry, objectiveScore: sc });
     }
     const best = selectRobustBestEntry(scoredEntries, ctx);
@@ -1466,7 +1479,7 @@ export async function runSolver(
   ];
   for (const [beamWidth, actionTopK, currentRoundActionTopK] of baseWidths) {
     if (shouldAbort()) break;
-    const useOpponentSearch = input.objective === 'WIN_MARGIN' && beamWidth >= 280;
+    const useOpponentSearch = input.objective === 'WIN_MARGIN' && beamWidth >= 160;
     const result = await runBeam(beamWidth, actionTopK, 0, currentRoundActionTopK, useOpponentSearch);
     if (!result) break;
     reportIfBetter(result, useOpponentSearch, beamWidth, actionTopK, currentRoundActionTopK);
@@ -1538,6 +1551,15 @@ function analysisModeRank(ctx: SolverContext): number {
   return 0;
 }
 
+function adversarialEvaluationLimit(ctx: SolverContext): number {
+  if (!ctx.opponentSearchEnabled) return Number.POSITIVE_INFINITY;
+  if (ctx.beamWidth <= 160) return 8;
+  if (ctx.beamWidth <= 280) return 12;
+  if (ctx.beamWidth <= 480) return 16;
+  if (ctx.beamWidth <= 900) return 24;
+  return MAX_ADVERSARIAL_EVAL_CANDIDATES;
+}
+
 function selectRobustBestEntry<T extends { state: SolverState; roundPlans: RoundPlan[]; objectiveScore: number }>(
   entries: T[],
   ctx: SolverContext,
@@ -1588,7 +1610,7 @@ function buildMoveAlternatives(
     const signature = move ? recommendedMoveSignature(move) : roundSignature(entry.roundPlans[0]);
     const finalized = finalizeScore(entry.state, cardIds, allCardObjs);
     const margin = ctx.objective === 'WIN_MARGIN'
-      ? finalized.total - estimateStrongestOpponentVP(entry.state, ctx, ctx.opponentSearchEnabled)
+      ? entry.objectiveScore
       : null;
     const existing = buckets.get(signature);
     if (!existing) {

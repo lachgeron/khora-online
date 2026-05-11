@@ -50,7 +50,7 @@ type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 const TIME_BANK_DANGER_SECONDS = 10;
 const CHEAT_LOG_LIMIT = 6;
-const AUTOPILOT_MIN_SOLVER_MS = 1000;
+const AUTOPILOT_MIN_SOLVER_MS = 2000;
 
 interface TimeBankDangerOverlayProps {
   active: boolean;
