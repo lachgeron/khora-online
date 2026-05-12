@@ -79,14 +79,14 @@ interface ExactSearchResult {
 }
 
 const DEFAULT_OPTIONS: SearchOptions = {
-  timeBudgetMs: 3600,
-  beamWidth: 72,
-  targetBranches: 18,
+  timeBudgetMs: 8000,
+  beamWidth: 128,
+  targetBranches: 32,
   opponentBranches: 1,
-  completionWidth: 18,
+  completionWidth: 36,
   maxDecisionPlies: 900,
-  exactTimeBudgetMs: 6500,
-  exactNodeLimit: 250000,
+  exactTimeBudgetMs: 5000,
+  exactNodeLimit: 500000,
 };
 
 const COMPLETION_GRACE_MS = 1600;
@@ -138,31 +138,6 @@ export function runLiveSolver(
     return unavailableResult(requestId, playerId, start, 'Game is already over.');
   }
 
-  const exact = runExactProofSearch(state, playerId, opts, start);
-  if (exact.proven) {
-    const projection = projectScores(exact.node.state, playerId);
-    const currentMove = exact.node.moves[0] ?? null;
-    return {
-      requestId,
-      playerId,
-      generatedAt: Date.now(),
-      status: 'READY',
-      message: 'Optimal line proven by exhaustive minimax search.',
-      currentMove,
-      rounds: groupMovesByRound(exact.node.moves),
-      projections: projection.scores,
-      projectedMargin: projection.margin,
-      searchedNodes: exact.nodes,
-      completedLines: 1,
-      computeMs: Date.now() - start,
-      horizon: 'FULL_GAME',
-      proofStatus: 'PROVEN_OPTIMAL',
-      proofNodes: exact.nodes,
-      proofReason: exact.reason,
-      opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
-    };
-  }
-
   let beam: SearchNode[] = [{
     state: cloneGameState(state),
     moves: [],
@@ -207,9 +182,14 @@ export function runLiveSolver(
         continue;
       }
 
-      const scoringPlayerId = decision.playerId === playerId ? playerId : decision.playerId;
-      const candidates = enumerateCandidates(normalized.node.state, decision.playerId, decision.decisionType, scoringPlayerId)
-        .slice(0, decision.playerId === playerId ? opts.targetBranches : opts.opponentBranches);
+      const actorIsTarget = decision.playerId === playerId;
+      const candidates = orderSearchCandidates(
+        normalized.node.state,
+        decision.playerId,
+        decision.decisionType,
+        playerId,
+        actorIsTarget,
+      ).slice(0, actorIsTarget ? opts.targetBranches : opts.opponentBranches);
 
       const usableCandidates = candidates.length > 0
         ? candidates
@@ -278,6 +258,12 @@ export function runLiveSolver(
     ? completedNodes.sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
     : normalizeNode(best, playerId).node;
   const horizon: LiveSolverResult['horizon'] = finalBest.state.currentPhase === 'GAME_OVER' ? 'FULL_GAME' : 'PARTIAL';
+
+  const exact = runExactProofSearch(state, playerId, opts, Date.now());
+  if (exact.proven) {
+    return provenExactResult(requestId, playerId, start, exact);
+  }
+
   const projection = projectScores(finalBest.state, playerId);
   const currentMove = finalBest.moves[0] ?? null;
 
@@ -916,12 +902,13 @@ function completeLineToGameOver(
       continue;
     }
 
-    const scoringPlayerId = decision.playerId === targetPlayerId ? targetPlayerId : decision.playerId;
-    const rankedCandidates = enumerateCandidates(
+    const actorIsTarget = decision.playerId === targetPlayerId;
+    const rankedCandidates = orderSearchCandidates(
       current.state,
       decision.playerId,
       decision.decisionType,
-      scoringPlayerId,
+      targetPlayerId,
+      actorIsTarget,
     );
     const usableCandidates = rankedCandidates.length > 0
       ? rankedCandidates
@@ -931,8 +918,9 @@ function completeLineToGameOver(
       current.state,
       decision.playerId,
       usableCandidates,
-      scoringPlayerId,
-      decision.playerId === targetPlayerId ? Math.min(opts.targetBranches, 6) : opts.opponentBranches,
+      targetPlayerId,
+      actorIsTarget,
+      actorIsTarget ? Math.min(opts.targetBranches, 10) : opts.opponentBranches,
     );
 
     if (!choice) {
@@ -961,7 +949,8 @@ function chooseRolloutCandidate(
   state: GameState,
   actorId: string,
   candidates: Candidate[],
-  scoringPlayerId: string,
+  targetPlayerId: string,
+  actorIsTarget: boolean,
   limit: number,
 ): { candidate: Candidate; state: GameState; searched: number } | null {
   let best: { candidate: Candidate; state: GameState; score: number; searched: number } | null = null;
@@ -971,8 +960,9 @@ function chooseRolloutCandidate(
     const applied = applyMessage(state, actorId, candidate.message);
     searched++;
     if (!applied) continue;
-    const score = heuristicScore(applied, scoringPlayerId) + candidate.quickScore * 0.08;
-    if (!best || score > best.score) {
+    const score = heuristicScore(applied, targetPlayerId)
+      + (actorIsTarget ? candidate.quickScore * 0.08 : -candidate.quickScore * 0.02);
+    if (!best || (actorIsTarget ? score > best.score : score < best.score)) {
       best = { candidate, state: applied, score, searched };
     }
   }
@@ -1052,6 +1042,17 @@ function enumerateCandidates(
     .map(x => x.candidate);
 
   return scored;
+}
+
+function orderSearchCandidates(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+  targetPlayerId: string,
+  actorIsTarget: boolean,
+): Candidate[] {
+  const candidates = enumerateCandidates(state, actorId, decisionType, targetPlayerId);
+  return orderExactCandidates(state, actorId, candidates, targetPlayerId, actorIsTarget);
 }
 
 function fallbackCandidates(state: GameState, actorId: string, decisionType: DecisionType): Candidate[] {
@@ -2506,6 +2507,35 @@ function errorResult(requestId: string, playerId: string, start: number, message
     proofStatus: 'UNPROVEN',
     proofNodes: 0,
     proofReason: message,
+    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+  };
+}
+
+function provenExactResult(
+  requestId: string,
+  playerId: string,
+  start: number,
+  exact: ExactSearchResult,
+): LiveSolverResult {
+  const projection = projectScores(exact.node.state, playerId);
+  const currentMove = exact.node.moves[0] ?? null;
+  return {
+    requestId,
+    playerId,
+    generatedAt: Date.now(),
+    status: 'READY',
+    message: 'Optimal line proven by exhaustive minimax search.',
+    currentMove,
+    rounds: groupMovesByRound(exact.node.moves),
+    projections: projection.scores,
+    projectedMargin: projection.margin,
+    searchedNodes: exact.nodes,
+    completedLines: 1,
+    computeMs: Date.now() - start,
+    horizon: 'FULL_GAME',
+    proofStatus: 'PROVEN_OPTIMAL',
+    proofNodes: exact.nodes,
+    proofReason: exact.reason,
     opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
   };
 }

@@ -326,4 +326,24 @@ describe('live solver rule-content coverage', () => {
     expect(result.horizon).toBe('FULL_GAME');
     expect(result.proofStatus).toBe('PROVEN_OPTIMAL');
   });
+
+  it('does not let exact proof time starve the principal line search', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+
+    const result = runLiveSolver(state, playerId, 'principal-search-test', {
+      timeBudgetMs: 500,
+      beamWidth: 24,
+      targetBranches: 6,
+      opponentBranches: 1,
+      completionWidth: 6,
+      exactTimeBudgetMs: 600,
+      exactNodeLimit: 30_000,
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.horizon).toBe('FULL_GAME');
+    expect(result.completedLines).toBeGreaterThan(1);
+    expect(result.searchedNodes).toBeGreaterThan(500);
+  });
 });

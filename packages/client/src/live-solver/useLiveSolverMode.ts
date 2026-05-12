@@ -40,14 +40,14 @@ export function useLiveSolverMode({
       type: 'LIVE_SOLVER_REQUEST',
       requestId,
       options: {
-        timeBudgetMs: 3600,
-        beamWidth: 72,
-        targetBranches: 18,
+        timeBudgetMs: 8000,
+        beamWidth: 128,
+        targetBranches: 32,
         opponentBranches: 1,
-        completionWidth: 18,
+        completionWidth: 36,
         maxDecisionPlies: 900,
-        exactTimeBudgetMs: 6500,
-        exactNodeLimit: 250000,
+        exactTimeBudgetMs: 5000,
+        exactNodeLimit: 500000,
       },
     });
   }, [connected, currentPlayerId, gameState, sendMessage]);
