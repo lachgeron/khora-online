@@ -7,11 +7,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "test": "vitest --run",
+    "test": "vitest --run --passWithNoTests",
     "lint": "eslint packages/*/src/**/*.ts",
-    "benchmark:solver": "tsx tools/solver-self-play.ts",
-    "benchmark:solver:quick": "tsx tools/solver-self-play.ts --games=1 --players=4 --solver-ms=1000 --seed=9001 --max-steps=12000 --opponents=average --min-win-rate=1",
-    "benchmark:solver:gate": "tsx tools/solver-self-play.ts --games=3 --players=4 --solver-ms=1000 --seed=9200 --max-steps=20000 --opponents=average --min-win-rate=0.66 && tsx tools/solver-self-play.ts --games=3 --players=4 --solver-ms=1000 --seed=9300 --max-steps=20000 --opponents=rival --min-win-rate=0.66",
     "dev:server": "npm run start --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client"
   },

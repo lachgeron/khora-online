@@ -21,7 +21,6 @@ import type {
   PrivatePlayerState,
   DraftState,
   DraftMode,
-  SolverFullState,
 } from '@khora/shared';
 import type { KnowledgeToken } from '@khora/shared';
 
@@ -85,51 +84,6 @@ function buildPredeterminedDice(players: PlayerInfo[]): GameState['predetermined
     }
   }
   return schedule;
-}
-
-function buildSolverFullState(state: GameState): SolverFullState {
-  return {
-    roundNumber: state.roundNumber,
-    currentPhase: state.currentPhase,
-    currentEvent: state.currentEvent,
-    eventDeck: state.eventDeck,
-    predeterminedDice: state.predeterminedDice,
-    politicsDeck: state.politicsDeck,
-    centralBoardTokens: state.centralBoardTokens,
-    availableAchievements: state.availableAchievements,
-    claimedAchievements: Object.fromEntries(state.claimedAchievements),
-    players: state.players.map(p => ({
-      playerId: p.playerId,
-      playerName: p.playerName,
-      cityId: p.cityId,
-      coins: p.coins,
-      philosophyTokens: p.philosophyTokens,
-      knowledgeTokens: p.knowledgeTokens,
-      economyTrack: p.economyTrack,
-      cultureTrack: p.cultureTrack,
-      militaryTrack: p.militaryTrack,
-      taxTrack: p.taxTrack,
-      gloryTrack: p.gloryTrack,
-      troopTrack: p.troopTrack,
-      citizenTrack: p.citizenTrack,
-      handCards: p.handCards,
-      playedCards: p.playedCards,
-      developmentLevel: p.developmentLevel,
-      diceRoll: p.diceRoll,
-      actionSlots: p.actionSlots,
-      victoryPoints: p.victoryPoints,
-      isConnected: p.isConnected,
-      hasFlagged: p.hasFlagged,
-    })),
-    pendingDecisions: state.pendingDecisions.map(d => ({
-      playerId: d.playerId,
-      decisionType: d.decisionType,
-      timeoutAt: d.timeoutAt,
-      usingTimeBank: d.usingTimeBank,
-    })),
-    turnOrder: state.turnOrder,
-    startPlayerId: state.startPlayerId,
-  };
 }
 
 export class GameEngine {
@@ -531,7 +485,6 @@ export class GameEngine {
           actionSlots: player.actionSlots,
           handCards: player.handCards,
           playedCards: player.playedCards,
-          solverFullState: buildSolverFullState(state),
           offeredCities: offeredCities && offeredCities.length > 0 ? offeredCities : null,
           draftPack,
           draftedCards,
@@ -545,7 +498,6 @@ export class GameEngine {
           actionSlots: [null, null, null],
           handCards: [],
           playedCards: [],
-          solverFullState: null,
           offeredCities: null,
           draftPack: null,
           draftedCards: null,

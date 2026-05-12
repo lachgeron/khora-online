@@ -17,6 +17,7 @@ import { WebSocketGateway } from './api/websocket-gateway';
 import { GameEngine } from './game-engine';
 import { handleDisconnect, handleReconnect } from './disconnection';
 import { loadStats, recordGame } from './stats';
+import { runLiveSolver } from './live-solver';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
@@ -352,6 +353,15 @@ wss.on('connection', (ws, req) => {
 
       if (message.type === 'HEARTBEAT') {
         wsGateway.handleMessage(gameId, playerId, message);
+        return;
+      }
+
+      if (message.type === 'LIVE_SOLVER_REQUEST') {
+        const result = runLiveSolver(currentState, playerId, message.requestId, message.options);
+        wsGateway.sendToPlayer(gameId, playerId, {
+          type: 'LIVE_SOLVER_RESULT',
+          result,
+        });
         return;
       }
 

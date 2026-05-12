@@ -4,7 +4,7 @@
 
 import type { ActionType, DecisionType, DraftMode, GamePhase, KnowledgeColor, ProgressTrackType } from './enums';
 import type { KnowledgeToken } from './effects';
-import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard, PredeterminedDiceSchedule } from './models';
+import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard } from './models';
 import type {
   ActionChoices,
   DiceAssignment,
@@ -37,7 +37,8 @@ export type ClientMessage =
   | { type: 'ADMIN_REQUEST_DECK' }
   | { type: 'ADMIN_SWAP_CARD'; handCardId: string; deckCardId: string }
   | { type: 'ADMIN_REQUEST_EVENTS' }
-  | { type: 'ADMIN_REORDER_EVENTS'; eventOrder: string[] };
+  | { type: 'ADMIN_REORDER_EVENTS'; eventOrder: string[] }
+  | { type: 'LIVE_SOLVER_REQUEST'; requestId: string; options?: LiveSolverRequestOptions };
 
 // ---------------------------------------------------------------------------
 // Server -> Client
@@ -53,7 +54,8 @@ export type ServerMessage =
   | { type: 'GAME_OVER'; finalScores: FinalScoreBoard }
   | { type: 'ERROR'; code: string; message: string }
   | { type: 'ADMIN_DECK_RESPONSE'; deckCards: PoliticsCard[] }
-  | { type: 'ADMIN_EVENTS_RESPONSE'; eventCards: EventCard[]; unusedEvents: EventCard[] };
+  | { type: 'ADMIN_EVENTS_RESPONSE'; eventCards: EventCard[]; unusedEvents: EventCard[] }
+  | { type: 'LIVE_SOLVER_RESULT'; result: LiveSolverResult };
 
 // ---------------------------------------------------------------------------
 // Visibility-filtered state
@@ -141,8 +143,6 @@ export interface PrivatePlayerState {
   actionSlots: ActionSlotTuple;
   handCards: PoliticsCard[];
   playedCards: PoliticsCard[];
-  /** Omniscient solver-only snapshot. This intentionally contains hidden game information. */
-  solverFullState: SolverFullState | null;
   // Draft phase fields (null when not in a draft phase)
   offeredCities: CityCard[] | null;       // 3 cities offered during CITY_SELECTION (only for current picker)
   draftPack: PoliticsCard[] | null;       // Current pack of cards during DRAFT_POLITICS
@@ -150,42 +150,49 @@ export interface PrivatePlayerState {
   legislationDraw: PoliticsCard[] | null; // Top 2 cards peeked for legislation action choice
 }
 
-export interface SolverFullState {
-  roundNumber: number;
-  currentPhase: GamePhase;
-  currentEvent: EventCard | null;
-  eventDeck: EventCard[];
-  predeterminedDice: PredeterminedDiceSchedule;
-  politicsDeck: PoliticsCard[];
-  centralBoardTokens: KnowledgeToken[];
-  availableAchievements: AchievementToken[];
-  claimedAchievements: Record<string, AchievementToken[]>;
-  players: SolverFullPlayerState[];
-  pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number; usingTimeBank?: boolean }[];
-  turnOrder: string[];
-  startPlayerId: string;
+export interface LiveSolverRequestOptions {
+  timeBudgetMs?: number;
+  beamWidth?: number;
+  targetBranches?: number;
+  opponentBranches?: number;
 }
 
-export interface SolverFullPlayerState {
+export interface LiveSolverScoreProjection {
   playerId: string;
   playerName: string;
-  cityId: string;
-  coins: number;
-  philosophyTokens: number;
-  knowledgeTokens: KnowledgeToken[];
-  economyTrack: number;
-  cultureTrack: number;
-  militaryTrack: number;
-  taxTrack: number;
-  gloryTrack: number;
-  troopTrack: number;
-  citizenTrack: number;
-  handCards: PoliticsCard[];
-  playedCards: PoliticsCard[];
-  developmentLevel: number;
-  diceRoll: number[] | null;
-  actionSlots: ActionSlotTuple;
-  victoryPoints: number;
-  isConnected: boolean;
-  hasFlagged: boolean;
+  projectedTotal: number;
+  rank: number;
+}
+
+export interface LiveSolverMove {
+  round: number;
+  phase: GamePhase;
+  playerId: string;
+  playerName: string;
+  decisionType: DecisionType;
+  instruction: string;
+  detail: string;
+  message: ClientMessage | null;
+  estimatedSeconds: number;
+}
+
+export interface LiveSolverRoundPlan {
+  round: number;
+  moves: LiveSolverMove[];
+}
+
+export interface LiveSolverResult {
+  requestId: string;
+  playerId: string;
+  generatedAt: number;
+  status: 'READY' | 'UNAVAILABLE' | 'ERROR';
+  message: string;
+  currentMove: LiveSolverMove | null;
+  rounds: LiveSolverRoundPlan[];
+  projections: LiveSolverScoreProjection[];
+  projectedMargin: number | null;
+  searchedNodes: number;
+  completedLines: number;
+  computeMs: number;
+  horizon: 'FULL_GAME' | 'PARTIAL';
 }

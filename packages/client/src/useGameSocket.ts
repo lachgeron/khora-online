@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import type { ClientMessage, ServerMessage, PublicGameState, PrivatePlayerState, FinalScoreBoard, PoliticsCard, EventCard } from './types';
+import type { ClientMessage, ServerMessage, PublicGameState, PrivatePlayerState, FinalScoreBoard, PoliticsCard, EventCard, LiveSolverResult } from './types';
 
 export interface GameSocketState {
   gameState: PublicGameState | null;
@@ -14,6 +14,7 @@ export interface GameSocketState {
   adminDeckCards: PoliticsCard[] | null;
   adminEventCards: EventCard[] | null;
   adminUnusedEvents: EventCard[] | null;
+  liveSolverResult: LiveSolverResult | null;
 }
 
 export function useGameSocket(gameId: string | null, playerId: string | null) {
@@ -30,6 +31,7 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
     adminDeckCards: null,
     adminEventCards: null,
     adminUnusedEvents: null,
+    liveSolverResult: null,
   });
 
   useEffect(() => {
@@ -71,6 +73,8 @@ export function useGameSocket(gameId: string | null, playerId: string | null) {
           setState((s) => ({ ...s, adminDeckCards: msg.deckCards }));
         } else if (msg.type === 'ADMIN_EVENTS_RESPONSE') {
           setState((s) => ({ ...s, adminEventCards: msg.eventCards, adminUnusedEvents: msg.unusedEvents }));
+        } else if (msg.type === 'LIVE_SOLVER_RESULT') {
+          setState((s) => ({ ...s, liveSolverResult: msg.result }));
         } else if (msg.type === 'ERROR') {
           setState((s) => ({ ...s, error: msg.message }));
         }
