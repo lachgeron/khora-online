@@ -85,6 +85,20 @@ export const App: React.FC = () => {
     sendMessage,
   });
 
+  useLobbyPolling(
+    screen === 'LOBBY' ? lobbyId : null,
+    2000,
+    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats, draftMode: lobbyDraftMode }) => {
+      setLobbyPlayers(players);
+      setRecordStats(lobbyRecordStats);
+      setDraftMode(lobbyDraftMode);
+      if (started && detectedGameId && !gameId) {
+        setGameId(detectedGameId);
+        setScreen('GAME');
+      }
+    },
+  );
+
   const handleCreateGame = async () => {
     try {
       const data = await createLobby(playerName);
