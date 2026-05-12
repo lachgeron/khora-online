@@ -788,14 +788,18 @@ function planChangeNote(previous: Plan | null, incoming: Plan): string | null {
   if (!previous) return null;
   const previousSig = roundSignature(previous.currentRound);
   const incomingSig = roundSignature(incoming.currentRound);
+  const previousRank = analysisModeRank(previous.analysisMode);
+  const incomingRank = analysisModeRank(incoming.analysisMode);
   if (previousSig !== incomingSig) {
-    const gain = Math.round(incoming.objectiveScore - previous.objectiveScore);
-    return gain > 0
-      ? `Changed because the new current line cleared the sticky threshold by ${gain} point${gain === 1 ? '' : 's'}.`
-      : 'Changed because the previous line became stale.';
+    const vpGain = Math.round(incoming.projectedFinalVP - previous.projectedFinalVP);
+    const scoreGain = Math.round(incoming.objectiveScore - previous.objectiveScore);
+    if (incomingRank > previousRank) return 'Changed after the opponent check finished.';
+    if (vpGain > 0) return `Changed because this line scores ${vpGain} more VP.`;
+    if (scoreGain > 0) return `Changed because this line is ${scoreGain} points stronger.`;
+    return 'Changed because the previous line no longer matches the board.';
   }
   if (incoming.objectiveScore > previous.objectiveScore) {
-    return 'Future details improved; the immediate move stayed the same.';
+    return 'Same move; future details improved.';
   }
   return null;
 }

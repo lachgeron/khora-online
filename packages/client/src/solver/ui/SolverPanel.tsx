@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import type { CheatControlMode, SolverObjective, SolverResult, RoundPlan, Plan, SolverDisplayMode, DraftPlan, RecommendedMove } from '../types';
 
+export type CoachReadinessStatus = 'THINKING' | 'CHECKING' | 'READY' | 'STALE';
+export type CoachConfidence = 'WAIT' | 'GOOD' | 'STRONG' | 'LOCKED';
+
+export interface CoachAdvice {
+  status: CoachReadinessStatus;
+  confidence: CoachConfidence;
+  headline: string;
+  detail: string;
+  move: RecommendedMove | null;
+  canApply: boolean;
+}
+
 interface SolverPanelProps {
   result: SolverResult | null;
   stale: boolean;
@@ -14,6 +26,7 @@ interface SolverPanelProps {
   onControlModeChange: (mode: CheatControlMode) => void;
   autopilotLog: string[];
   autopilotPauseReason: string | null;
+  coachAdvice: CoachAdvice | null;
   onApplyMove?: (move: RecommendedMove) => void;
   onClose: () => void;
 }
@@ -39,6 +52,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
   onControlModeChange,
   autopilotLog,
   autopilotPauseReason,
+  coachAdvice,
   onApplyMove,
   onClose,
 }) => {
@@ -136,6 +150,7 @@ export const SolverPanel: React.FC<SolverPanelProps> = ({
             changeNote={changeNote}
             controlMode={controlMode}
             autopilotLog={autopilotLog}
+            coachAdvice={coachAdvice ?? defaultCoachAdvice(result.plan, stale)}
             onApplyMove={onApplyMove}
             expanded={expanded}
             onToggleExpanded={() => setExpanded((v) => !v)}
@@ -261,16 +276,20 @@ const PlanView: React.FC<{
   changeNote: string | null;
   controlMode: CheatControlMode;
   autopilotLog: string[];
+  coachAdvice: CoachAdvice;
   onApplyMove?: (move: RecommendedMove) => void;
   expanded: boolean;
   onToggleExpanded: () => void;
-}> = ({ plan, stale, status, changeNote, controlMode, autopilotLog, onApplyMove, expanded, onToggleExpanded }) => {
-  const nowLines = focusLines(plan);
-  const bestMove = nowLines[0] ?? plan.currentRound?.description?.[0] ?? null;
+}> = ({ plan, stale, status, changeNote, controlMode, autopilotLog, coachAdvice, onApplyMove, expanded, onToggleExpanded }) => {
   const reasons = reasonChips(plan);
-  const actionableMove = firstActionableMove(plan);
   const analysisLabel = analysisModeLabel(plan.analysisMode);
-  const lineLabel = lineStateLabel(plan);
+  const currentInstruction = coachAdvice.move
+    ? coachMoveLabel(coachAdvice.move, plan)
+    : focusLines(plan)[0] ?? null;
+  const isReady = coachAdvice.status === 'READY' && coachAdvice.move !== null && currentInstruction !== null;
+  const readinessTitle = isReady
+    ? `Do This Now${plan.currentRound ? ` (Round ${plan.currentRound.round})` : ''}`
+    : coachAdvice.headline;
 
   return (
     <div className={`flex flex-col h-full transition-opacity duration-200 ${stale ? 'opacity-50' : 'opacity-100'}`}>
@@ -289,8 +308,8 @@ const PlanView: React.FC<{
           <span className="text-sand-600 text-xs uppercase tracking-wider">projected final VP</span>
         </div>
         <div className="mt-2 text-[0.7rem] text-sand-600 flex flex-wrap gap-x-3">
-          <span>Mode: <b>{analysisLabel}</b></span>
-          <span>Line: <b>{lineLabel}</b></span>
+          <span>Advice: <b>{confidenceLabel(coachAdvice.confidence)}</b></span>
+          <span>Search: <b>{analysisLabel}</b></span>
           <span>Track: <b>{plan.vpBreakdown.scoreTrack}</b></span>
           <span>Cards: <b>{plan.vpBreakdown.politicsCards}</b></span>
           <span>Devs: <b>{plan.vpBreakdown.developments}</b></span>
@@ -304,34 +323,36 @@ const PlanView: React.FC<{
         )}
       </div>
 
-      {/* Best next move */}
-      {bestMove && plan.currentRound && (
-        <div className="px-5 py-3 bg-terracotta/5 border-b border-terracotta/20 shrink-0">
-          <p className="text-[0.65rem] uppercase tracking-wider text-terracotta font-bold mb-1">
-            Do This Now (Round {plan.currentRound.round})
+      {/* Coach step */}
+      {plan.currentRound && (
+        <div className={`px-5 py-3 border-b shrink-0 ${coachPanelClass(coachAdvice.status)}`}>
+          <p className={`text-[0.65rem] uppercase tracking-wider font-bold mb-1 ${coachTitleClass(coachAdvice.status)}`}>
+            {readinessTitle}
           </p>
-          <p className="text-sand-800 text-sm font-medium">{bestMove}</p>
-          {lineLabel !== 'locked' && (
+          {isReady ? (
+            <p className="text-sand-900 text-base font-semibold">{currentInstruction}</p>
+          ) : (
+            <p className="text-sand-800 text-sm font-medium">{coachAdvice.detail}</p>
+          )}
+          {!isReady && currentInstruction && (
             <p className="mt-1 text-[0.65rem] text-sand-500">
-              Candidate line; waiting for the adversarial search to settle.
+              Likely move: {currentInstruction}
             </p>
           )}
-          {actionableMove && onApplyMove && (
+          {isReady && coachAdvice.detail && (
+            <p className="mt-1 text-[0.65rem] text-sand-600">{coachAdvice.detail}</p>
+          )}
+          {isReady && coachAdvice.move && coachAdvice.canApply && onApplyMove && (
             <button
-              onClick={() => onApplyMove(actionableMove)}
+              onClick={() => {
+                if (coachAdvice.move) onApplyMove(coachAdvice.move);
+              }}
               className="mt-2 px-3 py-1.5 rounded border border-terracotta bg-terracotta text-white text-xs font-semibold hover:bg-terracotta/90 transition-colors"
             >
               Apply next
             </button>
           )}
-          {nowLines.length > 1 && (
-            <ul className="mt-2 list-disc list-inside space-y-0.5 text-xs text-sand-700">
-              {nowLines.slice(1).map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          )}
-          {reasons.length > 0 && (
+          {isReady && reasons.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {reasons.map((reason) => (
                 <span
@@ -344,7 +365,7 @@ const PlanView: React.FC<{
               ))}
             </div>
           )}
-          {plan.moveAlternatives.length > 1 && (
+          {isReady && plan.moveAlternatives.length > 1 && (
             <div className="mt-3 border-t border-terracotta/15 pt-2">
               <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold mb-1">
                 Alternatives
@@ -361,7 +382,7 @@ const PlanView: React.FC<{
               </ul>
             </div>
           )}
-          {changeNote && (
+          {isReady && changeNote && (
             <p className="mt-2 text-[0.65rem] text-sand-500">{changeNote}</p>
           )}
           {autopilotLog.length > 0 && (
@@ -454,23 +475,132 @@ function statusLabel(status: 'stable' | 'rechecking' | 'new-best', stale: boolea
   return 'stable';
 }
 
+function defaultCoachAdvice(plan: Plan, stale: boolean): CoachAdvice {
+  const move = firstActionableMove(plan);
+  if (stale) {
+    return {
+      status: 'STALE',
+      confidence: 'WAIT',
+      headline: 'Hold',
+      detail: 'Rechecking the live board.',
+      move,
+      canApply: false,
+    };
+  }
+  if (plan.partialResult) {
+    return {
+      status: 'THINKING',
+      confidence: 'WAIT',
+      headline: 'Hold',
+      detail: 'Building the first complete line.',
+      move,
+      canApply: false,
+    };
+  }
+  const checkingWinLine = plan.objective === 'WIN_MARGIN' && plan.analysisMode !== 'ADVERSARIAL';
+  if (checkingWinLine) {
+    return {
+      status: 'CHECKING',
+      confidence: 'WAIT',
+      headline: 'Checking Opponents',
+      detail: 'Waiting for the opponent search before this becomes a coach move.',
+      move,
+      canApply: false,
+    };
+  }
+  return {
+    status: 'READY',
+    confidence: plan.analysisMode === 'ADVERSARIAL' ? 'LOCKED' : plan.analysisMode === 'DEEP' ? 'STRONG' : 'GOOD',
+    headline: 'Ready',
+    detail: plan.analysisMode === 'ADVERSARIAL' ? 'Opponent lines checked.' : 'Current line is stable.',
+    move,
+    canApply: move !== null,
+  };
+}
+
 function analysisModeLabel(mode: Plan['analysisMode']): string {
   if (mode === 'ADVERSARIAL') return 'opponent search';
   if (mode === 'DEEP') return 'deep';
   return 'fast';
 }
 
-function lineStateLabel(plan: Plan): string {
-  if (plan.partialResult) return 'warmup';
-  if (plan.analysisMode === 'ADVERSARIAL') return 'locked';
-  if (plan.analysisMode === 'DEEP') return 'deep check';
-  return 'candidate';
+function confidenceLabel(confidence: CoachConfidence): string {
+  if (confidence === 'LOCKED') return 'Locked';
+  if (confidence === 'STRONG') return 'Strong';
+  if (confidence === 'GOOD') return 'Good';
+  return 'Wait';
+}
+
+function coachPanelClass(status: CoachReadinessStatus): string {
+  if (status === 'READY') return 'bg-emerald-50 border-emerald-200';
+  if (status === 'STALE') return 'bg-sand-100 border-sand-200';
+  return 'bg-amber-50 border-amber-200';
+}
+
+function coachTitleClass(status: CoachReadinessStatus): string {
+  if (status === 'READY') return 'text-emerald-700';
+  if (status === 'STALE') return 'text-sand-500';
+  return 'text-amber-700';
+}
+
+function coachMoveLabel(move: RecommendedMove, plan: Plan): string {
+  const described = descriptionForMove(move, plan);
+  if (move.kind === 'ASSIGN_DICE') {
+    const assignments = move.assignments.map(assignment =>
+      `${assignment.dieValue} to ${formatName(assignment.action)}`,
+    );
+    const spend = move.philosophyTokensToSpend && move.philosophyTokensToSpend > 0
+      ? `; spend ${move.philosophyTokensToSpend} scroll${move.philosophyTokensToSpend === 1 ? '' : 's'}`
+      : '';
+    return `Drag ${joinNatural(assignments)}${spend}`;
+  }
+  if (move.kind === 'PROGRESS_TRACK') {
+    if (move.tracks.length === 0) return 'Skip progress';
+    const spend = move.philosophySpent > 0
+      ? `; spend ${move.philosophySpent} scroll${move.philosophySpent === 1 ? '' : 's'}`
+      : '';
+    return `Advance ${joinNatural(move.tracks.map(formatName))}${spend}`;
+  }
+  if (move.kind === 'ACHIEVEMENT_TRACK_CHOICE') {
+    const choice = move.choices[0] ?? 'TAX';
+    return `Choose +1 ${formatName(choice)}`;
+  }
+  return described ?? `${formatName(move.actionType)} action`;
+}
+
+function descriptionForMove(move: RecommendedMove, plan: Plan): string | null {
+  const lines = plan.currentRound?.description ?? [];
+  if (move.kind === 'RESOLVE_ACTION') {
+    const prefix = formatName(move.actionType);
+    return lines.find(line => line.startsWith(prefix)) ?? null;
+  }
+  if (move.kind === 'PROGRESS_TRACK') {
+    return lines.find(line => line.startsWith('Progress:')) ?? null;
+  }
+  if (move.kind === 'ACHIEVEMENT_TRACK_CHOICE') {
+    return lines.find(line => line.startsWith('Achievement:')) ?? null;
+  }
+  return null;
+}
+
+function formatName(name: string): string {
+  return name
+    .toLowerCase()
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function joinNatural(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? '';
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
 }
 
 function winModeCopy(mode: Plan['analysisMode']): string {
-  if (mode === 'ADVERSARIAL') return 'Win mode is ranking against searched opponent lines. ';
-  if (mode === 'DEEP') return 'Win mode is deepening our line while opponent search warms up. ';
-  return 'Win mode is showing a fast line while deeper checks run. ';
+  if (mode === 'ADVERSARIAL') return 'Win mode has checked searched opponent lines. ';
+  if (mode === 'DEEP') return 'Win mode is still checking opponents. ';
+  return 'Win mode is still building a reliable line. ';
 }
 
 function controlModeLabel(mode: CheatControlMode): string {

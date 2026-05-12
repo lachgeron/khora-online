@@ -40,7 +40,7 @@ import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
 import { StatsPage } from './components/StatsPage';
-import { SolverPanel } from './solver/ui/SolverPanel';
+import { SolverPanel, type CoachAdvice } from './solver/ui/SolverPanel';
 import { useSolverKeybind } from './solver/ui/useSolverKeybind';
 import { useSolverMode } from './solver/useSolverMode';
 import type { CheatControlMode, Plan, RecommendedMove, SolverResult } from './solver/types';
@@ -51,6 +51,9 @@ const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 const TIME_BANK_DANGER_SECONDS = 10;
 const CHEAT_LOG_LIMIT = 6;
 const AUTOPILOT_MIN_SOLVER_MS = 2000;
+const COACH_MIN_READY_MS = 1500;
+const COACH_LOW_WIN_VP_FLOOR = 45;
+const COACH_LOW_WIN_ROUND_LIMIT = 5;
 
 interface TimeBankDangerOverlayProps {
   active: boolean;
@@ -1066,6 +1069,158 @@ function solverPlanReadyForAutopilot(plan: Plan | null, visibleMs: number): bool
     && Math.max(plan.computeMs, visibleMs) >= AUTOPILOT_MIN_SOLVER_MS);
 }
 
+function solverPlanCoachSignature(
+  plan: Plan | null,
+  gameState: PublicGameState | null,
+  currentPlayerId: string,
+): string | null {
+  if (!plan) return null;
+  const phase = gameState?.currentPhase ?? plan.currentPhase;
+  const pending = gameState && currentPlayerId ? currentPendingDecision(gameState, currentPlayerId) : null;
+  const firstMove = cheatMovesForPhase(plan, phase)[0] ?? plan.currentRound?.recommendedMoves[0] ?? null;
+  return JSON.stringify({
+    objective: plan.objective,
+    analysisMode: plan.analysisMode,
+    partial: plan.partialResult,
+    round: plan.currentRound?.round ?? null,
+    phase,
+    pending: pending ? `${pending.decisionType}:${pending.timeoutAt}` : null,
+    firstMove,
+  });
+}
+
+function buildCoachAdvice(
+  result: SolverResult | null,
+  stale: boolean,
+  gameState: PublicGameState | null,
+  privateState: PrivatePlayerState | null,
+  currentPlayerId: string,
+  visibleMs: number,
+): CoachAdvice | null {
+  const plan = solverPlanFromResult(result);
+  if (!plan) return null;
+
+  const livePhase = gameState?.currentPhase ?? plan.currentPhase;
+  const phaseMoves = cheatMovesForPhase(plan, livePhase);
+  const candidateMove = phaseMoves[0] ?? plan.currentRound?.recommendedMoves[0] ?? null;
+  const confidence = coachConfidenceForPlan(plan);
+  const wait = (
+    status: CoachAdvice['status'],
+    headline: string,
+    detail: string,
+    move: RecommendedMove | null = candidateMove,
+  ): CoachAdvice => ({
+    status,
+    confidence: 'WAIT',
+    headline,
+    detail,
+    move,
+    canApply: false,
+  });
+
+  if (!gameState || !privateState || !currentPlayerId) {
+    return wait('THINKING', 'Hold', 'Waiting for the live game state.');
+  }
+  if (stale) {
+    return wait('STALE', 'Hold', 'Rechecking the live board.');
+  }
+  if (!plan.currentRound) {
+    return wait('THINKING', 'Hold', 'Building the first complete line.');
+  }
+  if (plan.currentRound.round !== gameState.roundNumber || plan.currentPhase !== gameState.currentPhase) {
+    return wait('STALE', 'Hold', 'Waiting for a recommendation for this phase.');
+  }
+
+  const pending = currentPendingDecision(gameState, currentPlayerId);
+  if (!pending) {
+    return {
+      status: 'CHECKING',
+      confidence: 'WAIT',
+      headline: 'Waiting',
+      detail: 'No live decision for you yet.',
+      move: candidateMove,
+      canApply: false,
+    };
+  }
+  if (!pendingDecisionNeedsSolver(pending)) {
+    return {
+      status: 'READY',
+      confidence: 'GOOD',
+      headline: 'Use Game Prompt',
+      detail: pending.decisionType.toLowerCase().replaceAll('_', ' '),
+      move: null,
+      canApply: false,
+    };
+  }
+
+  let liveMove: RecommendedMove | null = null;
+  let liveCommand: CheatCommand | null = null;
+  for (const move of phaseMoves) {
+    const command = buildCheatCommand(move, gameState, privateState, currentPlayerId, plan);
+    if (!command) continue;
+    liveMove = move;
+    liveCommand = command;
+    break;
+  }
+  const move = liveMove ?? candidateMove;
+
+  if (plan.partialResult) {
+    return wait('THINKING', 'Hold', 'Building a complete line.', move);
+  }
+  if (plan.objective === 'WIN_MARGIN' && plan.analysisMode !== 'ADVERSARIAL') {
+    return {
+      status: 'CHECKING',
+      confidence: 'WAIT',
+      headline: 'Checking Opponents',
+      detail: 'Waiting for the opponent search before this becomes a coach move.',
+      move,
+      canApply: false,
+    };
+  }
+  if (plan.objective === 'WIN_MARGIN'
+    && plan.currentRound.round <= COACH_LOW_WIN_ROUND_LIMIT
+    && plan.projectedFinalVP < COACH_LOW_WIN_VP_FLOOR) {
+    return wait(
+      'CHECKING',
+      'Hold',
+      'Rejecting a weak early line while the search recovers.',
+      move,
+    );
+  }
+
+  const effectiveMs = Math.max(plan.computeMs, visibleMs);
+  if (effectiveMs < COACH_MIN_READY_MS) {
+    return {
+      status: 'CHECKING',
+      confidence: 'WAIT',
+      headline: 'Checking Line',
+      detail: 'Letting the current move settle.',
+      move,
+      canApply: false,
+    };
+  }
+  if (!liveMove || !liveCommand) {
+    return wait('STALE', 'Hold', 'Recommendation does not match the live decision.', move);
+  }
+
+  return {
+    status: 'READY',
+    confidence,
+    headline: 'Ready',
+    detail: confidence === 'LOCKED'
+      ? 'Opponent response checked; matches the live decision.'
+      : 'Matches the live decision.',
+    move: liveMove,
+    canApply: true,
+  };
+}
+
+function coachConfidenceForPlan(plan: Plan): CoachAdvice['confidence'] {
+  if (plan.objective === 'WIN_MARGIN' && plan.analysisMode === 'ADVERSARIAL') return 'LOCKED';
+  if (plan.analysisMode === 'DEEP') return 'STRONG';
+  return 'GOOD';
+}
+
 function formatCheatAction(action: string): string {
   return action.charAt(0) + action.slice(1).toLowerCase();
 }
@@ -1099,6 +1254,10 @@ export const App: React.FC = () => {
   const autopilotPlanSeenAtRef = useRef(0);
   const autopilotWakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [autopilotWakeTick, setAutopilotWakeTick] = useState(0);
+  const coachPlanSignatureRef = useRef<string | null>(null);
+  const coachPlanSeenAtRef = useRef(0);
+  const coachWakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [coachWakeTick, setCoachWakeTick] = useState(0);
 
   const appendCheatLog = useCallback((line: string) => {
     setCheatLog(prev => [`${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} ${line}`, ...prev].slice(0, CHEAT_LOG_LIMIT));
@@ -1346,6 +1505,54 @@ export const App: React.FC = () => {
     solverMode.result,
     solverMode.stale,
   ]);
+
+  const solverPlanForCoach = solverPlanFromResult(solverMode.result);
+  const coachPlanSignature = solverPlanCoachSignature(solverPlanForCoach, gameState, currentPlayerId);
+  if (coachPlanSignature !== coachPlanSignatureRef.current) {
+    coachPlanSignatureRef.current = coachPlanSignature;
+    coachPlanSeenAtRef.current = coachPlanSignature ? Date.now() : 0;
+  }
+  const coachVisibleMs = coachPlanSeenAtRef.current > 0 ? Date.now() - coachPlanSeenAtRef.current : 0;
+  const coachAdvice = buildCoachAdvice(
+    solverMode.result,
+    solverMode.stale,
+    gameState,
+    privateState,
+    currentPlayerId,
+    coachVisibleMs,
+  );
+
+  useEffect(() => {
+    if (!solverMode.enabled || !solverPlanForCoach || !coachAdvice || coachAdvice.status === 'READY') {
+      if (coachWakeTimeoutRef.current) {
+        clearTimeout(coachWakeTimeoutRef.current);
+        coachWakeTimeoutRef.current = null;
+      }
+      return;
+    }
+    const effectiveMs = Math.max(solverPlanForCoach.computeMs, coachVisibleMs);
+    const remainingRawMs = COACH_MIN_READY_MS - effectiveMs;
+    if (remainingRawMs <= 0 || coachWakeTimeoutRef.current) return;
+    const remainingMs = Math.max(50, remainingRawMs);
+    coachWakeTimeoutRef.current = setTimeout(() => {
+      coachWakeTimeoutRef.current = null;
+      setCoachWakeTick(tick => tick + 1);
+    }, remainingMs);
+  }, [
+    coachAdvice?.status,
+    coachPlanSignature,
+    coachVisibleMs,
+    coachWakeTick,
+    solverMode.enabled,
+    solverPlanForCoach?.computeMs,
+  ]);
+
+  useEffect(() => () => {
+    if (coachWakeTimeoutRef.current) {
+      clearTimeout(coachWakeTimeoutRef.current);
+      coachWakeTimeoutRef.current = null;
+    }
+  }, []);
 
   const currentPlayer = gameState?.players.find(p => p.playerId === currentPlayerId);
   const myTimeBankDecision = gameState?.pendingDecisions.find(
@@ -1762,6 +1969,7 @@ export const App: React.FC = () => {
             onControlModeChange={setCheatControlMode}
             autopilotLog={cheatLog}
             autopilotPauseReason={autopilotPauseReason}
+            coachAdvice={coachAdvice}
             onApplyMove={handleApplySolverMove}
             onClose={solverMode.toggle}
           />
