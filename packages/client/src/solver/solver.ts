@@ -72,6 +72,13 @@ const CURRENT_ROUND_ACTION_TOP_K = 999;
 const FAST_CURRENT_ROUND_ACTION_TOP_K = 48;
 const OPPONENT_BEAM_WIDTH = 240;
 const MAX_ADVERSARIAL_EVAL_CANDIDATES = 32;
+const WIN_MODE_VP_RESCUE_THRESHOLD = 18;
+const WIN_MODE_LOW_VP_RESCUE_CEILING = 60;
+const WIN_MODE_LOW_VP_RESCUE_GAIN = 40;
+const WIN_MODE_MARGIN_TOLERANCE = 24;
+const WIN_MODE_VP_DROP_GUARD = 30;
+const WIN_MODE_DROP_MARGIN_REQUIREMENT = 25;
+const WIN_MODE_MIN_RESCUE_MARGIN = -10;
 
 export function buildInitialState(input: SolverInput, cardIds: string[]): SolverState {
   const knowledge = {
@@ -1430,7 +1437,8 @@ export async function runSolver(
   let overallBestAlternatives: MoveAlternative[] = [];
   let bestHeuristicScore = -Infinity;
   let bestHeuristicModeRank = -1;
-  let bestAdversarialScore = -Infinity;
+  let acceptedAdversarialScore = -Infinity;
+  let acceptedAdversarialFinalVP = -Infinity;
   let hasAdversarialResult = false;
 
   const reportIfBetter = (
@@ -1442,11 +1450,19 @@ export async function runSolver(
   ): void => {
     const ctx = makeContext(beamWidth, actionTopK, currentRoundActionTopK, opponentSearchEnabled);
     const objectiveScore = finalObjectiveScore(result.best.state, ctx, cardIds, allCardObjs);
+    const projectedFinalVP = finalizeScore(result.best.state, cardIds, allCardObjs).total;
     const isAdversarial = input.objective === 'WIN_MARGIN' && opponentSearchEnabled;
     if (isAdversarial) {
-      if (hasAdversarialResult && objectiveScore <= bestAdversarialScore) return;
+      if (!shouldReplaceWinModeLine(
+        hasAdversarialResult,
+        acceptedAdversarialScore,
+        acceptedAdversarialFinalVP,
+        objectiveScore,
+        projectedFinalVP,
+      )) return;
       hasAdversarialResult = true;
-      bestAdversarialScore = objectiveScore;
+      acceptedAdversarialScore = objectiveScore;
+      acceptedAdversarialFinalVP = projectedFinalVP;
     } else {
       const modeRank = analysisModeRank(ctx);
       if (objectiveScore < bestHeuristicScore) return;
@@ -1549,6 +1565,31 @@ function analysisModeRank(ctx: SolverContext): number {
   if (ctx.opponentSearchEnabled) return 2;
   if (ctx.beamWidth >= 800) return 1;
   return 0;
+}
+
+function shouldReplaceWinModeLine(
+  hasCurrent: boolean,
+  currentMargin: number,
+  currentFinalVP: number,
+  nextMargin: number,
+  nextFinalVP: number,
+): boolean {
+  if (!hasCurrent) return true;
+  const vpGain = nextFinalVP - currentFinalVP;
+  const marginGain = nextMargin - currentMargin;
+  if (nextFinalVP < currentFinalVP - WIN_MODE_VP_DROP_GUARD
+    && marginGain < WIN_MODE_DROP_MARGIN_REQUIREMENT) {
+    return false;
+  }
+  if (marginGain > 0) return true;
+  const marginDrop = -marginGain;
+  if (currentFinalVP <= WIN_MODE_LOW_VP_RESCUE_CEILING
+    && vpGain >= WIN_MODE_LOW_VP_RESCUE_GAIN
+    && nextMargin >= WIN_MODE_MIN_RESCUE_MARGIN) {
+    return true;
+  }
+  return vpGain >= WIN_MODE_VP_RESCUE_THRESHOLD
+    && marginDrop <= WIN_MODE_MARGIN_TOLERANCE;
 }
 
 function adversarialEvaluationLimit(ctx: SolverContext): number {

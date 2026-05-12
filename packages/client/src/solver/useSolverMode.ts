@@ -58,6 +58,13 @@ const CONSERVATIVE_SWITCH_THRESHOLD = 18;
 const CONSERVATIVE_LOCKED_SWITCH_THRESHOLD = 28;
 const AGGRESSIVE_SWITCH_THRESHOLD = 8;
 const NODE_REFRESH_THRESHOLD = 250_000;
+const WIN_MODE_VP_RESCUE_THRESHOLD = 18;
+const WIN_MODE_LOW_VP_RESCUE_CEILING = 60;
+const WIN_MODE_LOW_VP_RESCUE_GAIN = 40;
+const WIN_MODE_MARGIN_TOLERANCE = 24;
+const WIN_MODE_VP_DROP_GUARD = 30;
+const WIN_MODE_DROP_MARGIN_REQUIREMENT = 25;
+const WIN_MODE_MIN_RESCUE_MARGIN = -10;
 
 export interface SolverModeState {
   enabled: boolean;
@@ -700,6 +707,9 @@ function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode
   const currentMove = immediateMoveSignature(current.currentRound);
   const incomingMove = immediateMoveSignature(incoming.currentRound);
 
+  if (shouldAcceptWinModeVpRescue(current, incoming, currentRank, incomingRank)) {
+    return true;
+  }
   if (incoming.objectiveScore < current.objectiveScore) return false;
 
   if (currentMove === incomingMove) {
@@ -720,6 +730,29 @@ function shouldAcceptPlan(current: Plan, incoming: Plan, mode: SolverDisplayMode
     ? CONSERVATIVE_LOCKED_SWITCH_THRESHOLD
     : CONSERVATIVE_SWITCH_THRESHOLD;
   return improvement >= switchThreshold;
+}
+
+function shouldAcceptWinModeVpRescue(
+  current: Plan,
+  incoming: Plan,
+  currentRank: number,
+  incomingRank: number,
+): boolean {
+  if (current.objective !== 'WIN_MARGIN' || incoming.objective !== 'WIN_MARGIN') return false;
+  if (incomingRank < currentRank) return false;
+  const vpGain = incoming.projectedFinalVP - current.projectedFinalVP;
+  const marginGain = incoming.objectiveScore - current.objectiveScore;
+  if (incoming.projectedFinalVP < current.projectedFinalVP - WIN_MODE_VP_DROP_GUARD
+    && marginGain < WIN_MODE_DROP_MARGIN_REQUIREMENT) {
+    return false;
+  }
+  if (current.projectedFinalVP <= WIN_MODE_LOW_VP_RESCUE_CEILING
+    && vpGain >= WIN_MODE_LOW_VP_RESCUE_GAIN
+    && incoming.objectiveScore >= WIN_MODE_MIN_RESCUE_MARGIN) {
+    return true;
+  }
+  return vpGain >= WIN_MODE_VP_RESCUE_THRESHOLD
+    && -marginGain <= WIN_MODE_MARGIN_TOLERANCE;
 }
 
 function analysisModeRank(mode: Plan['analysisMode']): number {
