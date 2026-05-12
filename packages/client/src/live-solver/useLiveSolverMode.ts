@@ -46,6 +46,8 @@ export function useLiveSolverMode({
         opponentBranches: 1,
         completionWidth: 18,
         maxDecisionPlies: 900,
+        exactTimeBudgetMs: 6500,
+        exactNodeLimit: 250000,
       },
     });
   }, [connected, currentPlayerId, gameState, sendMessage]);

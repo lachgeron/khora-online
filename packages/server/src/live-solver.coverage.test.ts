@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActionType, DecisionType, GameState, KnowledgeColor, KnowledgeToken, PlayerState, PoliticsCard } from '@khora/shared';
 import { ALL_CITIES, ALL_POLITICS_CARDS } from './game-data';
 import { GameServer } from './integration';
-import { __liveSolverInternals } from './live-solver';
+import { __liveSolverInternals, runLiveSolver } from './live-solver';
 
 const COLORS: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
 
@@ -251,5 +251,79 @@ describe('live solver rule-content coverage', () => {
     expect(updated?.gloryTrack).toBe(1);
     expect(updated?.coins).toBe(2);
     expect(updated?.victoryPoints).toBe(4);
+  });
+
+  it('prioritizes a same-turn playable scoring card over drawing another card', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const scoringCard = ALL_POLITICS_CARDS.find(card => card.id === 'colossus-of-rhodes')!;
+    const player = {
+      ...state.players[0],
+      cityId: 'athens',
+      coins: 12,
+      citizenTrack: 12,
+      philosophyTokens: 4,
+      knowledgeTokens: [
+        { id: 'green', color: 'GREEN' as const, tokenType: 'MAJOR' as const },
+        { id: 'blue', color: 'BLUE' as const, tokenType: 'MAJOR' as const },
+        { id: 'red', color: 'RED' as const, tokenType: 'MAJOR' as const },
+      ],
+      diceRoll: [5, 6],
+      handCards: [scoringCard],
+      playedCards: [],
+      actionSlots: [null, null, null] as PlayerState['actionSlots'],
+    };
+    const diceState: GameState = {
+      ...state,
+      currentPhase: 'DICE',
+      centralBoardTokens: makeBoardTokens(),
+      politicsDeck: ALL_POLITICS_CARDS.filter(card => card.id !== scoringCard.id),
+      players: state.players.map((p, index) => index === 0 ? player : p),
+      pendingDecisions: [pending(playerId, 'ASSIGN_DICE')],
+    };
+
+    const [topCandidate] = __liveSolverInternals.enumerateCandidates(diceState, playerId, 'ASSIGN_DICE', playerId);
+    expect(topCandidate?.message.type).toBe('ASSIGN_DICE');
+    if (topCandidate?.message.type !== 'ASSIGN_DICE') return;
+    expect(topCandidate.message.assignments.some(assignment => assignment.actionType === 'POLITICS')).toBe(true);
+    expect(topCandidate.message.assignments.every(assignment => assignment.actionType !== 'LEGISLATION')).toBe(true);
+  });
+
+  it('keeps exact military exploration uncapped', () => {
+    const { state, playerId } = prepareActionState('MILITARY', player => ({
+      ...player,
+      militaryTrack: 5,
+      troopTrack: 10,
+    }));
+
+    const candidates = __liveSolverInternals.enumerateExactCandidates(state, playerId, 'RESOLVE_ACTION');
+    const exploredIds = new Set(candidates.flatMap(candidate => {
+      const message = candidate.message;
+      if (message.type !== 'RESOLVE_ACTION' || message.actionType !== 'MILITARY') return [];
+      return message.choices.explorationTokenId ? [message.choices.explorationTokenId] : [];
+    }));
+
+    expect(exploredIds).toEqual(new Set(makeBoardTokens().map(token => token.id)));
+  });
+
+  it('marks a fully searched near-terminal line as proven optimal', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const terminalReadyState: GameState = {
+      ...state,
+      currentPhase: 'ACHIEVEMENT',
+      roundNumber: 9,
+      pendingDecisions: [],
+    };
+
+    const result = runLiveSolver(terminalReadyState, playerId, 'proof-test', {
+      exactTimeBudgetMs: 1000,
+      exactNodeLimit: 1000,
+      timeBudgetMs: 1,
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.horizon).toBe('FULL_GAME');
+    expect(result.proofStatus).toBe('PROVEN_OPTIMAL');
   });
 });

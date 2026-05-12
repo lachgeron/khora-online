@@ -17,6 +17,7 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
   const currentMove = result?.currentMove ?? null;
   const leader = result?.projections[0] ?? null;
   const margin = result?.projectedMargin ?? null;
+  const proofLabel = result?.proofStatus === 'PROVEN_OPTIMAL' ? 'Proven optimal' : 'Unproven';
 
   return (
     <aside className="fixed top-0 right-0 bottom-0 z-[60] w-[430px] max-w-[94vw] bg-sand-50 border-l border-sand-300 shadow-2xl flex flex-col">
@@ -30,7 +31,7 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
               </span>
             </div>
             <p className="text-[0.7rem] text-sand-500 mt-0.5">
-              {pending ? 'Searching...' : result ? `${result.computeMs}ms · ${result.searchedNodes.toLocaleString()} nodes` : 'Ready'}
+              {pending ? 'Searching...' : result ? `${result.computeMs}ms · ${result.searchedNodes.toLocaleString()} nodes · ${proofLabel}` : 'Ready'}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -89,6 +90,18 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-3 rounded border border-sand-200 bg-white px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold">Proof</p>
+              <span className={`text-[0.65rem] font-bold uppercase tracking-wider ${result.proofStatus === 'PROVEN_OPTIMAL' ? 'text-olive' : 'text-terracotta'}`}>
+                {proofLabel}
+              </span>
+            </div>
+            <p className="text-[0.7rem] text-sand-600 mt-1">
+              {result.proofNodes.toLocaleString()} exact nodes · adversarial field
+            </p>
+            <p className="text-xs text-sand-700 mt-1">{result.proofReason}</p>
           </div>
         </div>
       )}

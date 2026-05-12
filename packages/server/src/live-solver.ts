@@ -30,6 +30,8 @@ interface SearchOptions {
   opponentBranches: number;
   completionWidth: number;
   maxDecisionPlies: number;
+  exactTimeBudgetMs: number;
+  exactNodeLimit: number;
 }
 
 interface Candidate {
@@ -51,6 +53,31 @@ interface Projection {
   margin: number | null;
 }
 
+interface ExactSearchContext {
+  targetPlayerId: string;
+  startMs: number;
+  deadlineMs: number;
+  nodeLimit: number;
+  nodes: number;
+  cacheHits: number;
+  cache: Map<string, ExactCacheEntry>;
+}
+
+interface ExactCacheEntry {
+  score: number;
+  node: SearchNode;
+  proven: boolean;
+}
+
+interface ExactSearchResult {
+  score: number;
+  node: SearchNode;
+  proven: boolean;
+  reason: string;
+  nodes: number;
+  cacheHits: number;
+}
+
 const DEFAULT_OPTIONS: SearchOptions = {
   timeBudgetMs: 3600,
   beamWidth: 72,
@@ -58,9 +85,12 @@ const DEFAULT_OPTIONS: SearchOptions = {
   opponentBranches: 1,
   completionWidth: 18,
   maxDecisionPlies: 900,
+  exactTimeBudgetMs: 6500,
+  exactNodeLimit: 250000,
 };
 
 const COMPLETION_GRACE_MS = 1600;
+const EXACT_PROOF_REASON = 'Optimality proved by exhaustive minimax search with safe pruning.';
 
 const PHASE_ORDER: GamePhase[] = [
   'OMEN',
@@ -106,6 +136,31 @@ export function runLiveSolver(
   }
   if (state.currentPhase === 'GAME_OVER') {
     return unavailableResult(requestId, playerId, start, 'Game is already over.');
+  }
+
+  const exact = runExactProofSearch(state, playerId, opts, start);
+  if (exact.proven) {
+    const projection = projectScores(exact.node.state, playerId);
+    const currentMove = exact.node.moves[0] ?? null;
+    return {
+      requestId,
+      playerId,
+      generatedAt: Date.now(),
+      status: 'READY',
+      message: 'Optimal line proven by exhaustive minimax search.',
+      currentMove,
+      rounds: groupMovesByRound(exact.node.moves),
+      projections: projection.scores,
+      projectedMargin: projection.margin,
+      searchedNodes: exact.nodes,
+      completedLines: 1,
+      computeMs: Date.now() - start,
+      horizon: 'FULL_GAME',
+      proofStatus: 'PROVEN_OPTIMAL',
+      proofNodes: exact.nodes,
+      proofReason: exact.reason,
+      opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+    };
   }
 
   let beam: SearchNode[] = [{
@@ -242,6 +297,10 @@ export function runLiveSolver(
     completedLines: completedNodes.length,
     computeMs: Date.now() - start,
     horizon,
+    proofStatus: 'UNPROVEN',
+    proofNodes: exact.nodes,
+    proofReason: exact.reason,
+    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
   };
 }
 
@@ -253,6 +312,8 @@ function sanitizeOptions(options: Partial<SearchOptions>): SearchOptions {
     opponentBranches: clampNumber(options.opponentBranches, 1, 6, DEFAULT_OPTIONS.opponentBranches),
     completionWidth: clampNumber(options.completionWidth, 1, 40, DEFAULT_OPTIONS.completionWidth),
     maxDecisionPlies: clampNumber(options.maxDecisionPlies, 120, 1500, DEFAULT_OPTIONS.maxDecisionPlies),
+    exactTimeBudgetMs: clampNumber(options.exactTimeBudgetMs, 0, 60000, DEFAULT_OPTIONS.exactTimeBudgetMs),
+    exactNodeLimit: clampNumber(options.exactNodeLimit, 0, 5_000_000, DEFAULT_OPTIONS.exactNodeLimit),
   };
 }
 
@@ -269,9 +330,16 @@ function normalizeNode(node: SearchNode, playerId: string): { node: SearchNode; 
 
     const display = current.state.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
     if (display) {
+      const displayMove = buildAutoDisplayMove(current.state, playerId, display);
       const state = autoResolve(current.state, display.playerId);
       searched++;
-      current = scoreNode({ ...current, state }, playerId);
+      current = scoreNode({
+        ...current,
+        state,
+        moves: displayMove && !hasEquivalentMove(current.moves, displayMove)
+          ? [...current.moves, displayMove]
+          : current.moves,
+      }, playerId);
       continue;
     }
 
@@ -295,6 +363,486 @@ function pickDecision(state: GameState, targetPlayerId: string): GameState['pend
   const real = state.pendingDecisions.filter(d => d.decisionType !== 'PHASE_DISPLAY');
   if (real.length === 0) return null;
   return real.find(d => d.playerId === targetPlayerId) ?? real[0];
+}
+
+function runExactProofSearch(
+  state: GameState,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  startMs: number,
+): ExactSearchResult {
+  if (opts.exactTimeBudgetMs <= 0 || opts.exactNodeLimit <= 0) {
+    return {
+      score: heuristicScore(state, targetPlayerId),
+      node: scoreNode({ state: cloneGameState(state), moves: [], score: 0 }, targetPlayerId),
+      proven: false,
+      reason: 'Exact proof search disabled.',
+      nodes: 0,
+      cacheHits: 0,
+    };
+  }
+
+  const root = scoreNode({ state: cloneGameState(state), moves: [], score: 0 }, targetPlayerId);
+  const ctx: ExactSearchContext = {
+    targetPlayerId,
+    startMs,
+    deadlineMs: startMs + opts.exactTimeBudgetMs,
+    nodeLimit: opts.exactNodeLimit,
+    nodes: 0,
+    cacheHits: 0,
+    cache: new Map(),
+  };
+  const result = exactMinimax(root, ctx, -Infinity, Infinity);
+  return {
+    ...result,
+    nodes: ctx.nodes,
+    cacheHits: ctx.cacheHits,
+  };
+}
+
+function exactMinimax(
+  node: SearchNode,
+  ctx: ExactSearchContext,
+  alpha: number,
+  beta: number,
+): Omit<ExactSearchResult, 'nodes' | 'cacheHits'> {
+  if (Date.now() > ctx.deadlineMs) {
+    return {
+      score: heuristicScore(node.state, ctx.targetPlayerId),
+      node: scoreNode(node, ctx.targetPlayerId),
+      proven: false,
+      reason: 'Exact proof search reached its time budget.',
+    };
+  }
+  if (ctx.nodes >= ctx.nodeLimit) {
+    return {
+      score: heuristicScore(node.state, ctx.targetPlayerId),
+      node: scoreNode(node, ctx.targetPlayerId),
+      proven: false,
+      reason: 'Exact proof search reached its node limit.',
+    };
+  }
+
+  ctx.nodes++;
+  const normalized = normalizeDisplaysOnly(node, ctx.targetPlayerId);
+  ctx.nodes += normalized.searched;
+  const current = normalized.node;
+
+  if (current.state.currentPhase === 'GAME_OVER') {
+    return {
+      score: solvedStateScore(current.state, ctx.targetPlayerId),
+      node: scoreNode(current, ctx.targetPlayerId),
+      proven: true,
+      reason: EXACT_PROOF_REASON,
+    };
+  }
+
+  const cacheKey = exactCacheKey(current.state, ctx.targetPlayerId);
+  const cached = ctx.cache.get(cacheKey);
+  if (cached?.proven) {
+    ctx.cacheHits++;
+    return {
+      score: cached.score,
+      node: mergeCachedNode(current, cached.node),
+      proven: true,
+      reason: EXACT_PROOF_REASON,
+    };
+  }
+
+  const decision = pickDecision(current.state, ctx.targetPlayerId);
+  if (!decision) {
+    if (current.state.currentPhase === 'ACHIEVEMENT' && current.state.roundNumber >= 9) {
+      return exactTerminalActivationSearch(current, ctx, alpha, beta);
+    }
+
+    const before = exactStateSignature(current.state);
+    const advanced = advancePhase(current.state);
+    if (exactStateSignature(advanced) === before) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: 'Exact proof search reached a state that could not advance.',
+      };
+    }
+    const result = exactMinimax({ ...current, state: advanced }, ctx, alpha, beta);
+    if (result.proven) {
+      ctx.cache.set(cacheKey, { score: result.score, node: stripPrefixMoves(current, result.node), proven: true });
+    }
+    return result;
+  }
+
+  const actorIsTarget = decision.playerId === ctx.targetPlayerId;
+  const candidates = enumerateExactCandidates(current.state, decision.playerId, decision.decisionType);
+  if (candidates.length === 0) {
+    const before = exactStateSignature(current.state);
+    const auto = autoResolve(current.state, decision.playerId);
+    if (exactStateSignature(auto) === before) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: `No legal exact candidates found for ${decision.decisionType}.`,
+      };
+    }
+    return exactMinimax({ ...current, state: auto }, ctx, alpha, beta);
+  }
+
+  const ordered = orderExactCandidates(current.state, decision.playerId, candidates, ctx.targetPlayerId, actorIsTarget);
+  let bestScore = actorIsTarget ? -Infinity : Infinity;
+  let bestNode: SearchNode | null = null;
+  let allChildrenProven = true;
+  let reason = 'Every legal continuation was searched to final scoring.';
+
+  for (const candidate of ordered) {
+    const applied = applyMessage(current.state, decision.playerId, candidate.message);
+    if (!applied) continue;
+
+    const moves = decision.playerId === ctx.targetPlayerId
+      ? [
+          ...current.moves,
+          buildMove(current.state, decision.playerId, decision.decisionType, candidate),
+        ]
+      : current.moves;
+    const child = scoreNode({ state: applied, moves, score: 0 }, ctx.targetPlayerId);
+    const result = exactMinimax(child, ctx, alpha, beta);
+    if (!result.proven) {
+      allChildrenProven = false;
+      reason = result.reason;
+    }
+
+    if (actorIsTarget) {
+      if (result.score > bestScore) {
+        bestScore = result.score;
+        bestNode = result.node;
+      }
+      alpha = Math.max(alpha, bestScore);
+      if (allChildrenProven && alpha >= beta) break;
+    } else {
+      if (result.score < bestScore) {
+        bestScore = result.score;
+        bestNode = result.node;
+      }
+      beta = Math.min(beta, bestScore);
+      if (allChildrenProven && beta <= alpha) break;
+    }
+  }
+
+  if (!bestNode) {
+    return {
+      score: heuristicScore(current.state, ctx.targetPlayerId),
+      node: scoreNode(current, ctx.targetPlayerId),
+      proven: false,
+      reason: `All exact candidates failed to apply for ${decision.decisionType}.`,
+    };
+  }
+
+  const proven = allChildrenProven;
+  const result = {
+    score: bestScore,
+    node: scoreNode(bestNode, ctx.targetPlayerId),
+    proven,
+    reason: proven ? EXACT_PROOF_REASON : reason,
+  };
+  if (proven) {
+    ctx.cache.set(cacheKey, { score: result.score, node: stripPrefixMoves(current, result.node), proven: true });
+  }
+  return result;
+}
+
+function exactTerminalActivationSearch(
+  node: SearchNode,
+  ctx: ExactSearchContext,
+  alpha: number,
+  beta: number,
+): Omit<ExactSearchResult, 'nodes' | 'cacheHits'> {
+  const activationPlayerIds = orderedActivationPlayers(node.state, ctx.targetPlayerId);
+  if (activationPlayerIds.length === 0) {
+    const before = exactStateSignature(node.state);
+    const advanced = advancePhase(node.state);
+    if (exactStateSignature(advanced) === before) {
+      return {
+        score: heuristicScore(node.state, ctx.targetPlayerId),
+        node: scoreNode(node, ctx.targetPlayerId),
+        proven: false,
+        reason: 'Exact proof search could not enter final scoring.',
+      };
+    }
+    return exactMinimax({ ...node, state: advanced }, ctx, alpha, beta);
+  }
+
+  const chooseActivations = (
+    current: SearchNode,
+    index: number,
+    innerAlpha: number,
+    innerBeta: number,
+  ): Omit<ExactSearchResult, 'nodes' | 'cacheHits'> => {
+    if (Date.now() > ctx.deadlineMs) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: 'Exact proof search reached its time budget.',
+      };
+    }
+    if (ctx.nodes >= ctx.nodeLimit) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: 'Exact proof search reached its node limit.',
+      };
+    }
+
+    if (index >= activationPlayerIds.length) {
+      const before = exactStateSignature(current.state);
+      const advanced = advancePhase(current.state);
+      if (exactStateSignature(advanced) === before) {
+        return {
+          score: heuristicScore(current.state, ctx.targetPlayerId),
+          node: scoreNode(current, ctx.targetPlayerId),
+          proven: false,
+          reason: 'Exact proof search could not enter final scoring.',
+        };
+      }
+      return exactMinimax({ ...current, state: advanced }, ctx, innerAlpha, innerBeta);
+    }
+
+    const actorId = activationPlayerIds[index];
+    const actorIsTarget = actorId === ctx.targetPlayerId;
+    const options = enumerateTerminalActivationOptions(current.state, actorId);
+    let bestScore = actorIsTarget ? -Infinity : Infinity;
+    let bestNode: SearchNode | null = null;
+    let allChildrenProven = true;
+    let reason = EXACT_PROOF_REASON;
+
+    for (const option of options) {
+      ctx.nodes++;
+      const moves = actorIsTarget && option.candidates.length > 0
+        ? [
+            ...current.moves,
+            ...option.candidates.map(candidate => buildMove(current.state, actorId, 'ACTIVATE_DEV', candidate)),
+          ]
+        : current.moves;
+      const result = chooseActivations(
+        scoreNode({ state: option.state, moves, score: 0 }, ctx.targetPlayerId),
+        index + 1,
+        innerAlpha,
+        innerBeta,
+      );
+      if (!result.proven) {
+        allChildrenProven = false;
+        reason = result.reason;
+      }
+
+      if (actorIsTarget) {
+        if (result.score > bestScore) {
+          bestScore = result.score;
+          bestNode = result.node;
+        }
+        innerAlpha = Math.max(innerAlpha, bestScore);
+        if (allChildrenProven && innerAlpha >= innerBeta) break;
+      } else {
+        if (result.score < bestScore) {
+          bestScore = result.score;
+          bestNode = result.node;
+        }
+        innerBeta = Math.min(innerBeta, bestScore);
+        if (allChildrenProven && innerBeta <= innerAlpha) break;
+      }
+    }
+
+    if (!bestNode) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: 'No exact terminal activation branch could be applied.',
+      };
+    }
+
+    return {
+      score: bestScore,
+      node: scoreNode(bestNode, ctx.targetPlayerId),
+      proven: allChildrenProven,
+      reason: allChildrenProven ? EXACT_PROOF_REASON : reason,
+    };
+  };
+
+  return chooseActivations(node, 0, alpha, beta);
+}
+
+function orderedActivationPlayers(state: GameState, targetPlayerId: string): string[] {
+  const available = new Set(state.players
+    .filter(player => player.isConnected && !player.hasFlagged && getActivatableDevs(player).length > 0)
+    .map(player => player.playerId));
+  return [
+    targetPlayerId,
+    ...state.turnOrder.filter(playerId => playerId !== targetPlayerId),
+    ...state.players.map(player => player.playerId).filter(playerId => playerId !== targetPlayerId),
+  ].filter((playerId, index, all) => available.has(playerId) && all.indexOf(playerId) === index);
+}
+
+function enumerateTerminalActivationOptions(
+  state: GameState,
+  actorId: string,
+): Array<{ state: GameState; candidates: Candidate[] }> {
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!actor) return [{ state, candidates: [] }];
+
+  const options: Array<{ state: GameState; candidates: Candidate[] }> = [{ state, candidates: [] }];
+  let current = state;
+  const appliedCandidates: Candidate[] = [];
+
+  for (let i = 0; i < actor.gloryTrack; i++) {
+    const devId = getActivatableDevs(current.players.find(player => player.playerId === actorId) ?? actor)[0];
+    if (!devId) break;
+    const candidate = activationCandidate(devId);
+    const applied = applyMessage(current, actorId, candidate.message);
+    if (!applied) break;
+    current = applied;
+    appliedCandidates.push(candidate);
+    options.push({ state: current, candidates: [...appliedCandidates] });
+  }
+
+  return options;
+}
+
+function normalizeDisplaysOnly(node: SearchNode, targetPlayerId: string): { node: SearchNode; searched: number } {
+  let current = node;
+  let searched = 0;
+  for (let i = 0; i < 80; i++) {
+    if (current.state.currentPhase === 'GAME_OVER') break;
+    const display = current.state.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
+    if (!display) break;
+    const displayMove = buildAutoDisplayMove(current.state, targetPlayerId, display);
+    const state = autoResolve(current.state, display.playerId);
+    searched++;
+    current = scoreNode({
+      ...current,
+      state,
+      moves: displayMove && !hasEquivalentMove(current.moves, displayMove)
+        ? [...current.moves, displayMove]
+        : current.moves,
+    }, targetPlayerId);
+  }
+  return { node: current, searched };
+}
+
+function enumerateExactCandidates(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+): Candidate[] {
+  const actor = state.players.find(p => p.playerId === actorId);
+  if (!actor) return [];
+
+  const activationCandidates = getActivatableDevs(actor).map(activationCandidate);
+  const decisionCandidates = (() => {
+    switch (decisionType) {
+      case 'ROLL_DICE':
+        return [{
+          message: { type: 'ROLL_DICE' as const },
+          instruction: 'Roll dice',
+          detail: 'Reveal the scheduled dice for this round.',
+          estimatedSeconds: 1,
+          quickScore: 0,
+        }];
+      case 'ASSIGN_DICE':
+        return enumerateDiceAssignments(state, actor, true);
+      case 'RESOLVE_ACTION':
+        return enumerateExactActionResolution(state, actor);
+      case 'PROGRESS_TRACK':
+        return enumerateProgress(state, actor, true);
+      case 'ACHIEVEMENT_TRACK_CHOICE':
+        return enumerateAchievementChoices(actor);
+      case 'SELECT_CITY':
+        return enumerateCityChoices(state, actorId);
+      case 'DRAFT_CARD':
+        return enumerateDraftChoices(state, actorId, 'DRAFT_CARD');
+      case 'PICK_BAN_CARD':
+        return enumerateDraftChoices(state, actorId, 'PICK_BAN_CARD');
+      case 'ORACLE_CHOOSE_TOKEN':
+        return enumerateOracleChoices(actor);
+      case 'MILITARY_VICTORY_PROGRESS':
+        return enumerateEventProgress(actor, ['ECONOMY', 'CULTURE', 'MILITARY'], 'Military Victory');
+      case 'RISE_OF_PERSIA_PROGRESS':
+        return enumerateEventProgress(actor, ['MILITARY'], 'Rise of Persia');
+      case 'THIRTY_TYRANTS_DISCARD':
+        return enumerateDiscardChoices(actor, true);
+      case 'PROSPERITY_POLITICS':
+        return [
+          exactSkipCandidate('Prosperity: skip politics', 'Decline the optional Prosperity politics action.'),
+          ...enumeratePoliticsCards(state, actor, 'Prosperity politics'),
+        ];
+      case 'CONQUEST_ACTION':
+        return enumerateConquestActions(state, actor, true);
+      default:
+        return enumerateCandidates(state, actorId, decisionType, actorId);
+    }
+  })();
+
+  return [...activationCandidates, ...decisionCandidates];
+}
+
+function enumerateExactActionResolution(state: GameState, actor: PlayerState): Candidate[] {
+  const action = nextAction(actor);
+  if (!action) return [];
+  const candidates = enumerateActionResolution(state, actor, true);
+  if (['LEGISLATION', 'POLITICS', 'DEVELOPMENT'].includes(action)) {
+    candidates.push({
+      message: { type: 'SKIP_PHASE' },
+      instruction: `Skip ${ACTION_LABELS[action]} action`,
+      detail: 'Exact search includes the legal option to skip this optional action.',
+      estimatedSeconds: 1,
+      quickScore: -25,
+    });
+  }
+  return candidates;
+}
+
+function exactSkipCandidate(instruction: string, detail: string): Candidate {
+  return {
+    message: { type: 'SKIP_PHASE' },
+    instruction,
+    detail,
+    estimatedSeconds: 1,
+    quickScore: -25,
+  };
+}
+
+function orderExactCandidates(
+  state: GameState,
+  actorId: string,
+  candidates: Candidate[],
+  targetPlayerId: string,
+  actorIsTarget: boolean,
+): Candidate[] {
+  return [...candidates].sort((a, b) => {
+    const aState = applyMessage(state, actorId, a.message);
+    const bState = applyMessage(state, actorId, b.message);
+    const aScore = aState ? heuristicScore(aState, targetPlayerId) + a.quickScore * 0.02 : (actorIsTarget ? -Infinity : Infinity);
+    const bScore = bState ? heuristicScore(bState, targetPlayerId) + b.quickScore * 0.02 : (actorIsTarget ? -Infinity : Infinity);
+    return actorIsTarget ? bScore - aScore : aScore - bScore;
+  });
+}
+
+function exactCacheKey(state: GameState, targetPlayerId: string): string {
+  return `${targetPlayerId}|${exactStateSignature(state)}`;
+}
+
+function stripPrefixMoves(prefix: SearchNode, node: SearchNode): SearchNode {
+  return {
+    ...node,
+    moves: node.moves.slice(prefix.moves.length),
+  };
+}
+
+function mergeCachedNode(prefix: SearchNode, cached: SearchNode): SearchNode {
+  return {
+    ...cached,
+    moves: [...prefix.moves, ...cached.moves],
+  };
 }
 
 function chooseBestActivation(state: GameState): { playerId: string; candidate: Candidate; scoreDelta: number } | null {
@@ -529,12 +1077,12 @@ function fallbackCandidates(state: GameState, actorId: string, decisionType: Dec
   }];
 }
 
-function enumerateDiceAssignments(state: GameState, actor: PlayerState): Candidate[] {
+function enumerateDiceAssignments(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const dice = actor.diceRoll ?? state.predeterminedDice[state.roundNumber]?.[actor.playerId] ?? [];
   if (dice.length === 0) return [];
 
   const actionTypes = (Object.keys(ACTION_NUMBERS) as ActionType[])
-    .filter(action => actionLikelyUseful(state, actor, action));
+    .filter(action => exact || actionLikelyUseful(state, actor, action));
   const combos = combinations(actionTypes, dice.length);
   const candidates: Candidate[] = [];
 
@@ -561,7 +1109,7 @@ function enumerateDiceAssignments(state: GameState, actor: PlayerState): Candida
           ? `Spend ${spend} scroll${spend === 1 ? '' : 's'} first to cover citizen cost ${citizenCost}.`
           : `Citizen cost ${citizenCost}.`,
         estimatedSeconds: 8,
-        quickScore: actions.reduce((sum, action) => sum + actionPriority(actor, action), 0) - citizenCost * 1.5 - spend * 0.75,
+        quickScore: actions.reduce((sum, action) => sum + actionPriority(state, actor, action), 0) - citizenCost * 1.5 - spend * 0.75,
       });
     }
   }
@@ -579,7 +1127,7 @@ function bestDicePairing(dice: number[], actions: ActionType[]): Array<{ slotInd
   }));
 }
 
-function enumerateActionResolution(state: GameState, actor: PlayerState): Candidate[] {
+function enumerateActionResolution(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const action = nextAction(actor);
   if (!action) return [];
   switch (action) {
@@ -590,18 +1138,18 @@ function enumerateActionResolution(state: GameState, actor: PlayerState): Candid
         instruction: `Resolve ${ACTION_LABELS[action]}`,
         detail: action === 'PHILOSOPHY' ? 'Gain 1 scroll.' : `Gain ${actor.cultureTrack} VP.`,
         estimatedSeconds: 2,
-        quickScore: actionPriority(actor, action),
+        quickScore: actionPriority(state, actor, action),
       }];
     case 'TRADE':
       return enumerateTrade(actor);
     case 'MILITARY':
-      return enumerateMilitary(state, actor);
+      return enumerateMilitary(state, actor, exact);
     case 'LEGISLATION':
       return enumerateLegislation(state, actor);
     case 'POLITICS':
       return enumeratePoliticsCards(state, actor, 'Politics');
     case 'DEVELOPMENT':
-      return enumerateDevelopment(state, actor);
+      return enumerateDevelopment(state, actor, exact);
   }
 }
 
@@ -635,7 +1183,7 @@ function enumerateTrade(actor: PlayerState): Candidate[] {
   return candidates;
 }
 
-function enumerateMilitary(state: GameState, actor: PlayerState): Candidate[] {
+function enumerateMilitary(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const troopAfterGain = actor.troopTrack + actor.militaryTrack;
   const candidates: Candidate[] = [{
     message: { type: 'RESOLVE_ACTION', actionType: 'MILITARY', choices: {} },
@@ -648,7 +1196,7 @@ function enumerateMilitary(state: GameState, actor: PlayerState): Candidate[] {
   const explorable = state.centralBoardTokens
     .filter(t => !t.explored && canExploreToken(actor, t, troopAfterGain))
     .sort((a, b) => tokenValue(b) - tokenValue(a))
-    .slice(0, hasDevUnlocked(actor, 'thebes-dev-3') ? 5 : 4);
+    .slice(0, exact ? undefined : hasDevUnlocked(actor, 'thebes-dev-3') ? 5 : 4);
 
   for (const token of explorable) {
     candidates.push({
@@ -665,8 +1213,9 @@ function enumerateMilitary(state: GameState, actor: PlayerState): Candidate[] {
   }
 
   if (hasDevUnlocked(actor, 'thebes-dev-3') && explorable.length >= 2) {
-    for (let i = 0; i < Math.min(3, explorable.length); i++) {
-      for (let j = 0; j < Math.min(3, explorable.length); j++) {
+    const pairLimit = exact ? explorable.length : Math.min(3, explorable.length);
+    for (let i = 0; i < pairLimit; i++) {
+      for (let j = 0; j < pairLimit; j++) {
         if (i === j) continue;
         const first = explorable[i];
         const second = explorable[j];
@@ -764,7 +1313,7 @@ function politicsCandidateFromChoices(
   };
 }
 
-function enumerateDevelopment(state: GameState, actor: PlayerState): Candidate[] {
+function enumerateDevelopment(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const city = getAllCityCards().find(c => c.id === actor.cityId);
   const dev = city?.developments[actor.developmentLevel] ?? null;
   if (!dev || actor.coins < dev.drachmaCost) return [];
@@ -792,18 +1341,23 @@ function enumerateDevelopment(state: GameState, actor: PlayerState): Candidate[]
     );
   }
   if (dev.id === 'sparta-dev-3') {
-    const tokens = state.centralBoardTokens
-      .filter(t => !t.explored && canExploreToken(actor, t, actor.troopTrack + actor.militaryTrack))
-      .sort((a, b) => tokenValue(b) - tokenValue(a))
-      .slice(0, 6);
+    const allTokens = state.centralBoardTokens
+      .filter(t => !t.explored)
+      .sort((a, b) => tokenValue(b) - tokenValue(a));
+    const firstExploreTokens = allTokens
+      .filter(t => canExploreToken(actor, t, actor.troopTrack + actor.militaryTrack))
+      .slice(0, exact ? undefined : 6);
+    const secondExploreTokens = (exact ? allTokens : firstExploreTokens).slice(0, exact ? undefined : 6);
     choicesList.splice(0, choicesList.length, baseChoices);
-    for (const token of tokens) {
+    for (const token of firstExploreTokens) {
       choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [token.id] });
     }
-    for (let i = 0; i < Math.min(4, tokens.length); i++) {
-      for (let j = 0; j < Math.min(4, tokens.length); j++) {
-        if (i === j) continue;
-        choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [tokens[i].id, tokens[j].id] });
+    const firstLimit = exact ? firstExploreTokens.length : Math.min(4, firstExploreTokens.length);
+    const secondLimit = exact ? secondExploreTokens.length : Math.min(4, secondExploreTokens.length);
+    for (let i = 0; i < firstLimit; i++) {
+      for (let j = 0; j < secondLimit; j++) {
+        if (firstExploreTokens[i].id === secondExploreTokens[j].id) continue;
+        choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [firstExploreTokens[i].id, secondExploreTokens[j].id] });
       }
     }
   }
@@ -820,7 +1374,7 @@ function enumerateDevelopment(state: GameState, actor: PlayerState): Candidate[]
   }));
 }
 
-function enumerateProgress(_state: GameState, actor: PlayerState): Candidate[] {
+function enumerateProgress(_state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const candidates: Candidate[] = [{
     message: { type: 'SKIP_PHASE' },
     instruction: 'Skip progress',
@@ -837,7 +1391,10 @@ function enumerateProgress(_state: GameState, actor: PlayerState): Candidate[] {
     const bonusPlans = progressTrackPlans(afterPrimary, bonusCount, false);
     for (const bonusPlan of bonusPlans) {
       const afterBonus = bonusPlan.player;
-      const extraPlans = progressTrackPlans(afterBonus, Math.min(actor.philosophyTokens, 3), true);
+      const maxExtra = exact
+        ? Math.min(actor.philosophyTokens, remainingProgressSteps(afterBonus))
+        : Math.min(actor.philosophyTokens, 3);
+      const extraPlans = progressTrackPlans(afterBonus, maxExtra, true);
       for (const extraPlan of extraPlans) {
         const bonusTracks = bonusPlan.tracks.map(track => ({ track }));
         const extraTracks = extraPlan.tracks.map(track => ({ track }));
@@ -964,9 +1521,20 @@ function enumerateEventProgress(actor: PlayerState, tracks: ProgressTrackType[],
   return candidates;
 }
 
-function enumerateDiscardChoices(actor: PlayerState): Candidate[] {
+function enumerateDiscardChoices(actor: PlayerState, exact = false): Candidate[] {
   const count = Math.min(2, actor.handCards.length);
   if (count <= 0) return [{ message: { type: 'SKIP_PHASE' }, instruction: 'Skip discard', detail: 'No cards to discard.', estimatedSeconds: 1, quickScore: 0 }];
+  if (exact) {
+    return combinations(actor.handCards, count)
+      .map((discard): Candidate => ({
+        message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
+        instruction: `Discard ${joinNatural(discard.map(c => c.name))}`,
+        detail: 'Exact search is considering this discard set.',
+        estimatedSeconds: 8,
+        quickScore: -discard.reduce((sum, card) => sum + cardValue(card, actor), 0),
+      }))
+      .sort((a, b) => b.quickScore - a.quickScore);
+  }
   const discard = [...actor.handCards].sort((a, b) => cardValue(a, actor) - cardValue(b, actor)).slice(0, count);
   return [{
     message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
@@ -977,12 +1545,13 @@ function enumerateDiscardChoices(actor: PlayerState): Candidate[] {
   }];
 }
 
-function enumerateConquestActions(state: GameState, actor: PlayerState): Candidate[] {
+function enumerateConquestActions(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const candidates: Candidate[] = [
+    ...(exact ? [exactSkipCandidate('Conquest: skip action', 'Decline the optional Conquest action.')] : []),
     ...enumerateLegislation(state, actor),
     ...enumerateTrade(actor),
     ...enumeratePoliticsCards(state, actor, 'Conquest politics'),
-    ...enumerateDevelopment(state, actor),
+    ...enumerateDevelopment(state, actor, exact),
     {
       message: { type: 'RESOLVE_ACTION' as const, actionType: 'PHILOSOPHY' as const, choices: {} },
       instruction: 'Conquest: take Philosophy',
@@ -1005,7 +1574,55 @@ function enumerateConquestActions(state: GameState, actor: PlayerState): Candida
 function candidateOutcomeScore(state: GameState, actorId: string, candidate: Candidate, scoringPlayerId: string): number {
   const applied = applyMessage(state, actorId, candidate.message);
   if (!applied) return -10000;
-  return heuristicScore(applied, scoringPlayerId) - heuristicScore(state, scoringPlayerId);
+  const immediateDelta = heuristicScore(applied, scoringPlayerId) - heuristicScore(state, scoringPlayerId);
+  if (candidate.message.type === 'ASSIGN_DICE') {
+    return immediateDelta + assignedActionPlanScore(applied, actorId, scoringPlayerId) * 0.85;
+  }
+  return immediateDelta;
+}
+
+function assignedActionPlanScore(state: GameState, actorId: string, scoringPlayerId: string): number {
+  const actor = state.players.find(p => p.playerId === actorId);
+  if (!actor || !actor.actionSlots.some(slot => slot !== null && !slot.resolved)) return 0;
+
+  const staged: GameState = {
+    ...state,
+    currentPhase: 'ACTIONS',
+    turnOrder: [actorId, ...state.turnOrder.filter(pid => pid !== actorId)],
+    pendingDecisions: [{
+      playerId: actorId,
+      decisionType: 'RESOLVE_ACTION',
+      timeoutAt: Date.now() + 60_000,
+      options: null as unknown,
+    }],
+  };
+  let current = staged;
+  const before = heuristicScore(staged, scoringPlayerId);
+
+  for (let step = 0; step < 4; step++) {
+    const currentActor = current.players.find(p => p.playerId === actorId);
+    if (!currentActor || !nextAction(currentActor)) break;
+
+    const candidates = enumerateActionResolution(current, currentActor);
+    const usable = candidates.length > 0
+      ? candidates
+      : fallbackCandidates(current, actorId, 'RESOLVE_ACTION');
+    let best: { state: GameState; score: number } | null = null;
+
+    for (const actionCandidate of usable.slice(0, 8)) {
+      const applied = applyMessage(current, actorId, actionCandidate.message);
+      if (!applied) continue;
+      const score = heuristicScore(applied, scoringPlayerId) + actionCandidate.quickScore * 0.05;
+      if (!best || score > best.score) {
+        best = { state: applied, score };
+      }
+    }
+
+    if (!best) break;
+    current = best.state;
+  }
+
+  return Math.max(0, heuristicScore(current, scoringPlayerId) - before);
 }
 
 function applyMessage(state: GameState, actorId: string, message: ClientMessage): GameState | null {
@@ -1071,6 +1688,49 @@ function buildMove(
   };
 }
 
+function buildAutoDisplayMove(
+  state: GameState,
+  targetPlayerId: string,
+  display: GameState['pendingDecisions'][number],
+): LiveSolverMove | null {
+  const options = display.options;
+  if (!options || typeof options !== 'object') return null;
+  const actionType = (options as { actionType?: ActionType; midAction?: boolean }).actionType;
+  const isMidAction = (options as { midAction?: boolean }).midAction;
+  if (!isMidAction || !actionType) return null;
+
+  const logEntry = [...state.gameLog].reverse().find(entry =>
+    entry.playerId === targetPlayerId
+    && entry.roundNumber === state.roundNumber
+    && entry.phase === 'ACTIONS'
+    && (entry.details as { actionType?: ActionType }).actionType === actionType);
+  if (!logEntry) return null;
+
+  const actor = state.players.find(p => p.playerId === targetPlayerId);
+  return {
+    round: state.roundNumber,
+    phase: 'ACTIONS',
+    playerId: targetPlayerId,
+    playerName: actor?.playerName ?? targetPlayerId,
+    decisionType: 'RESOLVE_ACTION',
+    instruction: `Resolve ${ACTION_LABELS[actionType]}`,
+    detail: actionType === 'PHILOSOPHY'
+      ? 'Gain 1 scroll.'
+      : `Gain ${actor?.cultureTrack ?? 0} VP.`,
+    message: null,
+    estimatedSeconds: 1,
+  };
+}
+
+function hasEquivalentMove(moves: LiveSolverMove[], move: LiveSolverMove): boolean {
+  return moves.some(existing =>
+    existing.round === move.round
+    && existing.phase === move.phase
+    && existing.playerId === move.playerId
+    && existing.decisionType === move.decisionType
+    && existing.instruction === move.instruction);
+}
+
 function groupMovesByRound(moves: LiveSolverMove[]): LiveSolverRoundPlan[] {
   const map = new Map<number, LiveSolverMove[]>();
   for (const move of moves) {
@@ -1094,10 +1754,10 @@ function heuristicScore(state: GameState, targetPlayerId: string): number {
 
   const target = state.players.find(p => p.playerId === targetPlayerId);
   if (!target) return -Infinity;
-  const targetScore = roughPlayerScore(target);
+  const targetScore = roughPlayerScore(target, state);
   const opponentScore = Math.max(0, ...state.players
     .filter(p => p.playerId !== targetPlayerId)
-    .map(roughPlayerScore));
+    .map(player => roughPlayerScore(player, state)));
   const phaseProgress = Math.max(0, PHASE_ORDER.indexOf(state.currentPhase));
   return (targetScore - opponentScore) * 3 + targetScore + state.roundNumber * 0.05 + phaseProgress * 0.01;
 }
@@ -1113,25 +1773,38 @@ function solvedStateScore(state: GameState, targetPlayerId: string): number {
   return margin * 1000 + (target?.projectedTotal ?? 0);
 }
 
-function roughPlayerScore(player: PlayerState): number {
+function roughPlayerScore(player: PlayerState, state?: GameState): number {
+  const remainingRounds = state ? Math.max(0, 10 - state.roundNumber) : 5;
   const majors = player.knowledgeTokens.filter(t => t.tokenType === 'MAJOR').length;
+  const expectedMajorUpside = Math.min(
+    4,
+    Math.max(0, player.militaryTrack - 1) * 0.35
+      + player.troopTrack * 0.06
+      + (state ? state.centralBoardTokens.filter(t => !t.explored && t.tokenType === 'MAJOR').length * 0.04 : 0),
+  );
   const currentFinalish =
     player.victoryPoints
     + calculateDevEndGameScore(player)
     + player.gloryTrack * majors
     + player.playedCards.reduce((sum, card) => sum + roughEndGameCardScore(card, player), 0);
+  const playedEngineValue = player.playedCards.reduce(
+    (sum, card) => sum + roughPlayedCardUtility(card, player, state, remainingRounds),
+    0,
+  );
   return currentFinalish
+    + playedEngineValue
     + player.coins * 0.25
     + player.philosophyTokens * 0.8
     + player.citizenTrack * 0.18
     + player.economyTrack * 1.4
     + player.cultureTrack * 1.6
     + player.militaryTrack * 1.25
-    + player.taxTrack * 1.2
-    + player.gloryTrack * 0.7
+    + player.taxTrack * (0.45 + remainingRounds * 0.22)
+    + player.gloryTrack * (0.8 + expectedMajorUpside * 0.65)
     + player.troopTrack * 0.45
-    + player.knowledgeTokens.reduce((sum, token) => sum + tokenValue(token) * 0.22, 0)
-    + player.handCards.reduce((sum, card) => sum + cardValue(card, player) * 0.12, 0);
+    + player.knowledgeTokens.reduce((sum, token) => sum + tokenValue(token) * (token.tokenType === 'MAJOR' ? 0.42 : 0.24), 0)
+    + player.handCards.reduce((sum, card) => sum + handCardPotential(card, player) * 0.04, 0)
+    - Math.max(0, player.handCards.length - 4) * 0.45;
 }
 
 function roughEndGameCardScore(card: PoliticsCard, player: PlayerState): number {
@@ -1141,6 +1814,16 @@ function roughEndGameCardScore(card: PoliticsCard, player: PlayerState): number 
   } catch {
     return 0;
   }
+}
+
+function roughPlayedCardUtility(
+  card: PoliticsCard,
+  player: PlayerState,
+  state: GameState | undefined,
+  remainingRounds: number,
+): number {
+  if (card.type !== 'ONGOING') return 0;
+  return politicsCardPlayerValue(card, player, state, remainingRounds) * 0.75;
 }
 
 function projectScores(state: GameState, targetPlayerId: string): Projection {
@@ -1193,6 +1876,114 @@ function stateSignature(state: GameState): string {
     deck: state.politicsDeck.slice(0, 4).map(c => c.id),
     tokens: state.centralBoardTokens.filter(t => !t.explored).slice(0, 6).map(t => t.id),
   });
+}
+
+function exactStateSignature(state: GameState): string {
+  return JSON.stringify({
+    phase: state.currentPhase,
+    round: state.roundNumber,
+    startPlayerId: state.startPlayerId,
+    turnOrder: state.turnOrder,
+    currentEvent: state.currentEvent?.id ?? null,
+    eventDeck: state.eventDeck.map(card => card.id),
+    predeterminedDice: state.predeterminedDice,
+    pending: state.pendingDecisions.map(decision => ({
+      playerId: decision.playerId,
+      decisionType: decision.decisionType,
+      options: decision.options ?? null,
+    })),
+    players: state.players.map(player => ({
+      playerId: player.playerId,
+      playerName: player.playerName,
+      cityId: player.cityId,
+      isConnected: player.isConnected,
+      hasFlagged: player.hasFlagged,
+      developmentLevel: player.developmentLevel,
+      coins: player.coins,
+      victoryPoints: player.victoryPoints,
+      economyTrack: player.economyTrack,
+      cultureTrack: player.cultureTrack,
+      militaryTrack: player.militaryTrack,
+      taxTrack: player.taxTrack,
+      gloryTrack: player.gloryTrack,
+      troopTrack: player.troopTrack,
+      citizenTrack: player.citizenTrack,
+      philosophyTokens: player.philosophyTokens,
+      diceRoll: player.diceRoll,
+      actionSlots: player.actionSlots.map(slot => slot
+        ? {
+            actionType: slot.actionType,
+            assignedDie: slot.assignedDie,
+            citizenCost: slot.citizenCost,
+            resolved: slot.resolved,
+          }
+        : null),
+      handCards: player.handCards.map(card => card.id),
+      playedCards: player.playedCards.map(card => card.id),
+      knowledgeTokens: exactKnowledgeSignature(player.knowledgeTokens),
+    })),
+    politicsDeck: state.politicsDeck.map(card => card.id),
+    centralBoardTokens: state.centralBoardTokens.map(token => ({
+      id: token.id,
+      color: token.color,
+      tokenType: token.tokenType,
+      militaryRequirement: token.militaryRequirement ?? null,
+      skullValue: token.skullValue ?? null,
+      bonusVP: token.bonusVP ?? null,
+      bonusCoins: token.bonusCoins ?? null,
+      isPersepolis: token.isPersepolis ?? false,
+      explored: token.explored ?? false,
+    })),
+    availableAchievements: state.availableAchievements.map(achievement => achievement.id),
+    claimedAchievements: Array.from(state.claimedAchievements.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([playerId, achievements]) => [playerId, achievements.map(achievement => achievement.id)]),
+    draftMode: state.draftMode,
+    draftState: state.draftState ? {
+      cityDraft: state.draftState.cityDraft ? {
+        pickOrder: state.draftState.cityDraft.pickOrder,
+        currentPickerIndex: state.draftState.cityDraft.currentPickerIndex,
+        offeredCities: state.draftState.cityDraft.offeredCities,
+        remainingPool: state.draftState.cityDraft.remainingPool.map(city => city.id),
+        selections: state.draftState.cityDraft.selections,
+      } : null,
+      politicsDraft: state.draftState.politicsDraft ? {
+        packs: Object.fromEntries(Object.entries(state.draftState.politicsDraft.packs)
+          .map(([playerId, cards]) => [playerId, cards.map(card => card.id)])),
+        draftRound: state.draftState.politicsDraft.draftRound,
+        selectedCards: Object.fromEntries(Object.entries(state.draftState.politicsDraft.selectedCards)
+          .map(([playerId, cards]) => [playerId, cards.map(card => card.id)])),
+        waitingFor: state.draftState.politicsDraft.waitingFor,
+        passOrder: state.draftState.politicsDraft.passOrder,
+      } : null,
+      pickBanDraft: state.draftState.pickBanDraft ? {
+        phase: state.draftState.pickBanDraft.phase,
+        currentTurnIndex: state.draftState.pickBanDraft.currentTurnIndex,
+        turnOrder: state.draftState.pickBanDraft.turnOrder,
+        allCards: state.draftState.pickBanDraft.allCards.map(card => card.id),
+        bansPerPlayer: state.draftState.pickBanDraft.bansPerPlayer,
+        picksPerPlayer: state.draftState.pickBanDraft.picksPerPlayer,
+        bannedCards: Object.fromEntries(Object.entries(state.draftState.pickBanDraft.bannedCards)
+          .map(([playerId, cards]) => [playerId, cards.map(card => card.id)])),
+        pickedCards: Object.fromEntries(Object.entries(state.draftState.pickBanDraft.pickedCards)
+          .map(([playerId, cards]) => [playerId, cards.map(card => card.id)])),
+      } : null,
+    } : null,
+  });
+}
+
+function exactKnowledgeSignature(tokens: KnowledgeToken[]): string[] {
+  return tokens
+    .map(token => [
+      token.color,
+      token.tokenType,
+      token.militaryRequirement ?? '',
+      token.skullValue ?? '',
+      token.bonusVP ?? '',
+      token.bonusCoins ?? '',
+      token.isPersepolis ? 'P' : '',
+    ].join(':'))
+    .sort();
 }
 
 function cloneGameState(state: GameState): GameState {
@@ -1265,15 +2056,31 @@ function actionLikelyUseful(state: GameState, actor: PlayerState, action: Action
   return true;
 }
 
-function actionPriority(actor: PlayerState, action: ActionType): number {
+function actionPriority(state: GameState, actor: PlayerState, action: ActionType): number {
   switch (action) {
-    case 'PHILOSOPHY': return actor.philosophyTokens < 3 ? 4 : 2;
-    case 'LEGISLATION': return actor.handCards.length < 3 ? 9 : 5;
-    case 'CULTURE': return 3 + actor.cultureTrack;
-    case 'TRADE': return 5 + actor.economyTrack;
-    case 'MILITARY': return 5 + actor.militaryTrack + actor.troopTrack * 0.15;
-    case 'POLITICS': return 8 + actor.handCards.reduce((best, card) => Math.max(best, cardValue(card, actor)), 0) * 0.25;
-    case 'DEVELOPMENT': return 10 + actor.developmentLevel * 3;
+    case 'PHILOSOPHY':
+      return 2.5 + scrollDemand(actor) * 0.8;
+    case 'LEGISLATION': {
+      const drawValue = state.politicsDeck
+        .slice(0, 2)
+        .reduce((best, card) => Math.max(best, handCardPotential(card, actor)), 0);
+      const handPenalty = Math.max(0, actor.handCards.length - 2) * 2.4;
+      return 4 + Math.max(0, drawValue * 0.16 - handPenalty);
+    }
+    case 'CULTURE':
+      return 2 + actor.cultureTrack + actionTriggerValue(state, actor, 'CULTURE');
+    case 'TRADE':
+      return 4 + actor.economyTrack + tradeKnowledgeValue(actor);
+    case 'MILITARY':
+      return 4 + actor.militaryTrack + bestExplorationValue(state, actor) * 0.45;
+    case 'POLITICS': {
+      const bestPlayable = enumeratePoliticsCards(state, actor, 'Politics')[0];
+      return bestPlayable ? 8 + bestPlayable.quickScore * 0.42 : 1 + actor.handCards.length * 0.4;
+    }
+    case 'DEVELOPMENT': {
+      const bestDevelopment = enumerateDevelopment(state, actor)[0];
+      return bestDevelopment ? 9 + bestDevelopment.quickScore * 0.35 : 1;
+    }
   }
 }
 
@@ -1399,6 +2206,62 @@ function safeEndGameScore(card: PoliticsCard, player: PlayerState): number {
   } catch {
     return staticEndGameCardValue(card.id);
   }
+}
+
+function handCardPotential(card: PoliticsCard, player: PlayerState): number {
+  const pairs = knowledgeShortfall(player, card.knowledgeRequirement);
+  const playableNow = player.coins >= card.cost && pairs * 2 <= player.philosophyTokens;
+  const playFriction = card.cost * 0.8 + pairs * 2.5 + (playableNow ? 0 : 8);
+  return Math.max(0, cardValue(card, player) - playFriction);
+}
+
+function scrollDemand(player: PlayerState): number {
+  const cardDemand = player.handCards.reduce((sum, card) => {
+    const pairs = knowledgeShortfall(player, card.knowledgeRequirement);
+    return sum + Math.max(0, pairs * 2 - player.philosophyTokens) / 2;
+  }, 0);
+  return Math.min(6, cardDemand + (player.philosophyTokens < 2 ? 2 - player.philosophyTokens : 0));
+}
+
+function tradeKnowledgeValue(player: PlayerState): number {
+  const demand = knowledgeColorDemand(player);
+  const canUseMinorSoon = player.coins + player.economyTrack + 1 >= (hasCard(player, 'corinthian-columns') ? 3 : 5);
+  return canUseMinorSoon ? Math.min(8, 2 + demand * 0.35) : 0;
+}
+
+function bestExplorationValue(state: GameState, actor: PlayerState): number {
+  const troopAfterGain = actor.troopTrack + actor.militaryTrack;
+  return state.centralBoardTokens
+    .filter(token => !token.explored && canExploreToken(actor, token, troopAfterGain))
+    .reduce((best, token) => Math.max(best, tokenValue(token)), 0);
+}
+
+function actionTriggerValue(state: GameState, actor: PlayerState, action: ActionType): number {
+  let value = 0;
+  if (action === 'CULTURE') {
+    if (hasCard(actor, 'stoa-poikile')) value += 1.6;
+    if (hasCard(actor, 'persians')) value += 1.4;
+    if (hasDevUnlocked(actor, 'olympia-dev-2')) value += 1.6;
+  }
+  if (action === 'TRADE') {
+    if (hasCard(actor, 'diolkos')) value += 2.2;
+    if (hasCard(actor, 'foreign-supplies')) value += 1.2;
+    if (hasCard(actor, 'lighthouse')) value += 3;
+    if (hasDevUnlocked(actor, 'miletus-dev-3')) value += 3;
+  }
+  if (action === 'POLITICS') {
+    if (hasCard(actor, 'extraordinary-collection')) value += 1.8;
+    if (hasDevUnlocked(actor, 'athens-dev-2')) value += 4;
+    if (hasDevUnlocked(actor, 'athens-dev-3')) value += 1.1;
+  }
+  if (action === 'DEVELOPMENT') {
+    if (hasCard(actor, 'oracle')) value += 4;
+  }
+  if (action === 'MILITARY') {
+    if (hasDevUnlocked(actor, 'sparta-dev-2')) value += 1.2;
+    value += bestExplorationValue(state, actor) * 0.15;
+  }
+  return value;
 }
 
 function withCardInPlay(player: PlayerState, card: PoliticsCard): PlayerState {
@@ -1554,6 +2417,11 @@ function progressTrackPlans(
   return plans;
 }
 
+function remainingProgressSteps(player: PlayerState): number {
+  return (['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[])
+    .reduce((sum, track) => sum + Math.max(0, 7 - player[trackField(track)]), 0);
+}
+
 function progressValue(player: PlayerState, track: ProgressTrackType): number {
   const next = player[trackField(track)] + 1;
   const milestone =
@@ -1635,6 +2503,10 @@ function errorResult(requestId: string, playerId: string, start: number, message
     completedLines: 0,
     computeMs: Date.now() - start,
     horizon: 'PARTIAL',
+    proofStatus: 'UNPROVEN',
+    proofNodes: 0,
+    proofReason: message,
+    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
   };
 }
 
@@ -1647,6 +2519,7 @@ function unavailableResult(requestId: string, playerId: string, start: number, m
 
 export const __liveSolverInternals = {
   enumerateCandidates,
+  enumerateExactCandidates,
   applyMessage,
   chooseBestActivation,
 };

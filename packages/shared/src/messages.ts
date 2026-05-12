@@ -157,6 +157,8 @@ export interface LiveSolverRequestOptions {
   opponentBranches?: number;
   completionWidth?: number;
   maxDecisionPlies?: number;
+  exactTimeBudgetMs?: number;
+  exactNodeLimit?: number;
 }
 
 export interface LiveSolverScoreProjection {
@@ -197,4 +199,8 @@ export interface LiveSolverResult {
   completedLines: number;
   computeMs: number;
   horizon: 'FULL_GAME' | 'PARTIAL';
+  proofStatus: 'PROVEN_OPTIMAL' | 'UNPROVEN';
+  proofNodes: number;
+  proofReason: string;
+  opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD';
 }
