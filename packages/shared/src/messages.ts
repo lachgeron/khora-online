@@ -4,7 +4,7 @@
 
 import type { ActionType, DecisionType, DraftMode, GamePhase, KnowledgeColor, ProgressTrackType } from './enums';
 import type { KnowledgeToken } from './effects';
-import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard } from './models';
+import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard, PredeterminedDiceSchedule } from './models';
 import type {
   ActionChoices,
   DiceAssignment,
@@ -148,6 +148,56 @@ export interface PrivatePlayerState {
   draftPack: PoliticsCard[] | null;       // Current pack of cards during DRAFT_POLITICS
   draftedCards: PoliticsCard[] | null;    // Cards already drafted during DRAFT_POLITICS
   legislationDraw: PoliticsCard[] | null; // Top 2 cards peeked for legislation action choice
+  liveSolverSnapshot: LiveSolverSnapshot | null; // Full debug snapshot used by the local live solver.
+}
+
+export interface LiveSolverPlayerSnapshot {
+  playerId: string;
+  playerName: string;
+  cityId: string;
+  coins: number;
+  economyTrack: number;
+  cultureTrack: number;
+  militaryTrack: number;
+  taxTrack: number;
+  gloryTrack: number;
+  troopTrack: number;
+  citizenTrack: number;
+  philosophyTokens: number;
+  knowledgeTokens: KnowledgeToken[];
+  handCardIds: string[];
+  playedCardIds: string[];
+  developmentLevel: number;
+  diceRoll: number[] | null;
+  diceRollHistory: number[];
+  actionSlots: ActionSlotTuple;
+  victoryPoints: number;
+  isConnected: boolean;
+  hasFlagged: boolean;
+  timeBankMs: number;
+}
+
+export interface LiveSolverSnapshot {
+  gameId: string;
+  roundNumber: number;
+  currentPhase: GamePhase;
+  players: LiveSolverPlayerSnapshot[];
+  predeterminedDice: PredeterminedDiceSchedule;
+  eventDeckIds: string[];
+  currentEventId: string | null;
+  politicsDeckIds: string[];
+  centralBoardTokens: KnowledgeToken[];
+  availableAchievementIds: string[];
+  claimedAchievementIds: Record<string, string[]>;
+  startPlayerId: string;
+  turnOrder: string[];
+  gameLog: GameLogEntry[];
+  pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number; options: unknown; usingTimeBank?: boolean }[];
+  disconnectedPlayerIds: string[];
+  draftMode: DraftMode;
+  finalScores: FinalScoreBoard | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface LiveSolverRequestOptions {

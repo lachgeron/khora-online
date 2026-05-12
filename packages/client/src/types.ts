@@ -31,10 +31,12 @@ export type {
   PrivatePlayerState,
   ClientMessage,
   ServerMessage,
+  LiveSolverRequestOptions,
   LiveSolverMove,
   LiveSolverResult,
   LiveSolverRoundPlan,
   LiveSolverScoreProjection,
+  LiveSolverSnapshot,
   // Types
   DiceAssignment,
   TrackAdvancement,

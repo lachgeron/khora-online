@@ -73,7 +73,7 @@ export const App: React.FC = () => {
   const [recordStats, setRecordStats] = useState(true);
   const [draftMode, setDraftMode] = useState<DraftMode>('STANDARD');
 
-  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents, liveSolverResult } =
+  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
     useGameSocket(gameId, currentPlayerId);
 
   const { adminPanel, deactivateAdmin } = useAdminMode();
@@ -81,8 +81,7 @@ export const App: React.FC = () => {
     connected,
     currentPlayerId,
     gameState,
-    result: liveSolverResult,
-    sendMessage,
+    privateState,
   });
 
   useLobbyPolling(
@@ -598,7 +597,7 @@ export const App: React.FC = () => {
       {liveSolver.enabled && (
         <LiveSolverPanel
           pending={liveSolver.pending}
-          result={liveSolverResult}
+          result={liveSolver.result}
           onRefresh={liveSolver.requestNow}
           onClose={liveSolver.toggle}
         />

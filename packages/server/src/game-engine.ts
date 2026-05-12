@@ -40,6 +40,7 @@ import { calculateFinalScores } from './scoring-engine';
 import { applyDevelopmentEffect } from './city-abilities';
 import { getAllCityCards } from './game-data';
 import { appendLogEntry } from './game-log';
+import { buildLiveSolverSnapshot } from './live-solver-snapshot';
 
 /**
  * Determines the next phase given the current phase and round number.
@@ -489,6 +490,7 @@ export class GameEngine {
           draftPack,
           draftedCards,
           legislationDraw: null,
+          liveSolverSnapshot: buildLiveSolverSnapshot(state),
         }
       : {
           coins: 0,
@@ -502,6 +504,7 @@ export class GameEngine {
           draftPack: null,
           draftedCards: null,
           legislationDraw: null,
+          liveSolverSnapshot: null,
         };
 
     return { public: publicState, private: privateState };

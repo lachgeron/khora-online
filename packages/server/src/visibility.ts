@@ -14,6 +14,7 @@ import type {
 } from '@khora/shared';
 import { ACTION_NUMBERS } from '@khora/shared';
 import { getAllCityCards } from './game-data';
+import { buildLiveSolverSnapshot } from './live-solver-snapshot';
 
 /**
  * Extracts public fields from a PlayerState.
@@ -67,6 +68,7 @@ export function buildPrivatePlayerState(player: PlayerState): PrivatePlayerState
     draftPack: null,
     draftedCards: null,
     legislationDraw: null,
+    liveSolverSnapshot: null,
   };
 }
 
@@ -188,6 +190,7 @@ export function getStateForPlayer(
         draftPack,
         draftedCards,
         legislationDraw,
+        liveSolverSnapshot: buildLiveSolverSnapshot(state),
       }
     : {
         coins: 0,
@@ -201,6 +204,7 @@ export function getStateForPlayer(
         draftPack: null,
         draftedCards: null,
         legislationDraw: null,
+        liveSolverSnapshot: null,
       };
 
   return { public: publicState, private: privateState };

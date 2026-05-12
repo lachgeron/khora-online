@@ -3,6 +3,7 @@ import type { ActionType, DecisionType, GameState, KnowledgeColor, KnowledgeToke
 import { ALL_CITIES, ALL_POLITICS_CARDS } from './game-data';
 import { GameServer } from './integration';
 import { __liveSolverInternals, runLiveSolver } from './live-solver';
+import { buildLiveSolverSnapshot, gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
 
 const COLORS: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
 
@@ -345,5 +346,15 @@ describe('live solver rule-content coverage', () => {
     expect(result.horizon).toBe('FULL_GAME');
     expect(result.completedLines).toBeGreaterThan(1);
     expect(result.searchedNodes).toBeGreaterThan(500);
+  });
+
+  it('rehydrates a browser live-solver snapshot with executable rule functions', () => {
+    const state = baseState();
+    const serialized = JSON.parse(JSON.stringify(buildLiveSolverSnapshot(state)));
+    const rehydrated = gameStateFromLiveSolverSnapshot(serialized);
+
+    expect(rehydrated.players[0].handCards.length).toBe(state.players[0].handCards.length);
+    expect(rehydrated.availableAchievements[0].condition.evaluate({ ...rehydrated.players[0], victoryPoints: 10 })).toBe(true);
+    expect(typeof ALL_POLITICS_CARDS.find(card => card.id === 'bank')?.endGameScoring?.calculate).toBe('function');
   });
 });

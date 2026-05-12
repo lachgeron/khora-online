@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ClientMessage, LiveSolverResult, PublicGameState } from '../types';
+import type { LiveSolverRequestOptions, LiveSolverResult, PrivatePlayerState, PublicGameState } from '../types';
 import { useLiveSolverKeybind } from './useLiveSolverKeybind';
 
 interface LiveSolverMode {
@@ -7,50 +7,73 @@ interface LiveSolverMode {
   toggle: () => void;
   requestNow: () => void;
   pending: boolean;
+  result: LiveSolverResult | null;
 }
 
 interface UseLiveSolverModeArgs {
   connected: boolean;
   currentPlayerId: string;
   gameState: PublicGameState | null;
-  result: LiveSolverResult | null;
-  sendMessage: (message: ClientMessage) => void;
+  privateState: PrivatePlayerState | null;
 }
 
 export function useLiveSolverMode({
   connected,
   currentPlayerId,
   gameState,
-  result,
-  sendMessage,
+  privateState,
 }: UseLiveSolverModeArgs): LiveSolverMode {
   const [enabled, setEnabled] = useState(false);
+  const [result, setResult] = useState<LiveSolverResult | null>(null);
   const [lastRequestId, setLastRequestId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPositionKeyRef = useRef<string | null>(null);
+  const latestRequestIdRef = useRef<string | null>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   const toggle = useCallback(() => setEnabled(v => !v), []);
   useLiveSolverKeybind(toggle);
 
   const requestNow = useCallback(() => {
-    if (!connected || !gameState || !currentPlayerId) return;
+    const snapshot = privateState?.liveSolverSnapshot ?? null;
+    if (!connected || !gameState || !currentPlayerId || !snapshot) return;
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setLastRequestId(requestId);
-    sendMessage({
-      type: 'LIVE_SOLVER_REQUEST',
+    latestRequestIdRef.current = requestId;
+
+    workerRef.current?.terminate();
+    const worker = new Worker(new URL('./liveSolver.worker.ts', import.meta.url), { type: 'module' });
+    workerRef.current = worker;
+    worker.onmessage = (event: MessageEvent<{ requestId: string; result: LiveSolverResult }>) => {
+      if (event.data.requestId !== latestRequestIdRef.current) return;
+      setResult(event.data.result);
+      worker.terminate();
+      if (workerRef.current === worker) workerRef.current = null;
+    };
+    worker.onerror = (event) => {
+      if (latestRequestIdRef.current !== requestId) return;
+      setResult(errorResult(requestId, currentPlayerId, event.message || 'Live solver worker failed.'));
+      worker.terminate();
+      if (workerRef.current === worker) workerRef.current = null;
+    };
+
+    const options: LiveSolverRequestOptions = {
+      timeBudgetMs: 8000,
+      beamWidth: 128,
+      targetBranches: 32,
+      opponentBranches: 1,
+      completionWidth: 36,
+      maxDecisionPlies: 900,
+      exactTimeBudgetMs: 5000,
+      exactNodeLimit: 500000,
+    };
+    worker.postMessage({
       requestId,
-      options: {
-        timeBudgetMs: 8000,
-        beamWidth: 128,
-        targetBranches: 32,
-        opponentBranches: 1,
-        completionWidth: 36,
-        maxDecisionPlies: 900,
-        exactTimeBudgetMs: 5000,
-        exactNodeLimit: 500000,
-      },
+      playerId: currentPlayerId,
+      snapshot,
+      options,
     });
-  }, [connected, currentPlayerId, gameState, sendMessage]);
+  }, [connected, currentPlayerId, gameState, privateState]);
 
   const positionKey = useMemo(() => {
     if (!gameState) return '';
@@ -73,8 +96,9 @@ export function useLiveSolverMode({
       event: gameState.currentEvent?.id ?? null,
       achievements: gameState.availableAchievements.map(a => a.id),
       board: gameState.centralBoardTokens.filter(t => !t.explored).map(t => t.id),
+      solverUpdatedAt: privateState?.liveSolverSnapshot?.updatedAt ?? null,
     });
-  }, [gameState]);
+  }, [gameState, privateState]);
 
   useEffect(() => {
     if (!enabled || !connected || !gameState || !currentPlayerId) return;
@@ -95,6 +119,33 @@ export function useLiveSolverMode({
     };
   }, [connected, currentPlayerId, enabled, gameState, positionKey, requestNow]);
 
+  useEffect(() => () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+  }, []);
+
   const pending = enabled && lastRequestId !== null && result?.requestId !== lastRequestId;
-  return { enabled, toggle, requestNow, pending };
+  return { enabled, toggle, requestNow, pending, result };
+}
+
+function errorResult(requestId: string, playerId: string, message: string): LiveSolverResult {
+  return {
+    requestId,
+    playerId,
+    generatedAt: Date.now(),
+    status: 'ERROR',
+    message,
+    currentMove: null,
+    rounds: [],
+    projections: [],
+    projectedMargin: null,
+    searchedNodes: 0,
+    completedLines: 0,
+    computeMs: 0,
+    horizon: 'PARTIAL',
+    proofStatus: 'UNPROVEN',
+    proofNodes: 0,
+    proofReason: message,
+    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+  };
 }

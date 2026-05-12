@@ -4,6 +4,7 @@
  */
 
 import type { PoliticsCard, EventCard, CityCard } from '@khora/shared';
+import type { AchievementToken } from '@khora/shared';
 
 // ─── POLITICS CARDS ──────────────────────────────────────────────────────────
 
@@ -321,6 +322,56 @@ export const ALL_CITIES: CityCard[] = [
     ],
   },
 ];
+
+export function getAllAchievements(): AchievementToken[] {
+  return [
+    {
+      id: 'ach-10vp',
+      name: '10 Victory Points',
+      condition: {
+        type: 'CUSTOM' as const,
+        evaluate: (player: { victoryPoints: number }) => player.victoryPoints >= 10,
+        description: 'Have at least 10 VP',
+      },
+    },
+    {
+      id: 'ach-12citizens',
+      name: '12 Citizens',
+      condition: {
+        type: 'CUSTOM' as const,
+        evaluate: (player: { citizenTrack: number }) => player.citizenTrack >= 12,
+        description: 'Have at least 12 citizens',
+      },
+    },
+    {
+      id: 'ach-4economy',
+      name: '4 Economy',
+      condition: {
+        type: 'CUSTOM' as const,
+        evaluate: (player: { economyTrack: number }) => player.economyTrack >= 4,
+        description: 'Economy track at 4 or higher',
+      },
+    },
+    {
+      id: 'ach-3cards',
+      name: '3 Politics Cards Played',
+      condition: {
+        type: 'CUSTOM' as const,
+        evaluate: (player: { playedCards: unknown[] }) => player.playedCards.length >= 3,
+        description: 'Have at least 3 politics cards in play',
+      },
+    },
+    {
+      id: 'ach-6troops',
+      name: '6 Troops',
+      condition: {
+        type: 'CUSTOM' as const,
+        evaluate: (player: { troopTrack: number }) => player.troopTrack >= 6,
+        description: 'Have at least 6 troops',
+      },
+    },
+  ];
+}
 
 // ─── HELPER: Build event deck ────────────────────────────────────────────────
 
