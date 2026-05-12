@@ -20,13 +20,16 @@ import { ACTION_NUMBERS } from '@khora/shared';
 import { GameEngine } from './game-engine';
 import { getAllCityCards } from './game-data';
 import { calculateFinalScores } from './scoring-engine';
-import { calculateDevEndGameScore, hasDevUnlocked } from './city-dev-handlers';
+import { activateDev, calculateDevEndGameScore, getActivatableDevs, hasDevUnlocked } from './city-dev-handlers';
+import { advanceTrack } from './resources';
 
 interface SearchOptions {
   timeBudgetMs: number;
   beamWidth: number;
   targetBranches: number;
   opponentBranches: number;
+  completionWidth: number;
+  maxDecisionPlies: number;
 }
 
 interface Candidate {
@@ -49,11 +52,15 @@ interface Projection {
 }
 
 const DEFAULT_OPTIONS: SearchOptions = {
-  timeBudgetMs: 1400,
-  beamWidth: 42,
-  targetBranches: 14,
-  opponentBranches: 3,
+  timeBudgetMs: 3600,
+  beamWidth: 72,
+  targetBranches: 18,
+  opponentBranches: 1,
+  completionWidth: 18,
+  maxDecisionPlies: 900,
 };
+
+const COMPLETION_GRACE_MS = 1600;
 
 const PHASE_ORDER: GamePhase[] = [
   'OMEN',
@@ -108,10 +115,17 @@ export function runLiveSolver(
   }];
   let best: SearchNode = beam[0];
   let searchedNodes = 0;
-  let completedLines = 0;
-  let horizon: LiveSolverResult['horizon'] = 'PARTIAL';
+  const completedNodes: SearchNode[] = [];
+  const completedSignatures = new Set<string>();
 
-  for (let step = 0; step < 240; step++) {
+  const recordCompleted = (node: SearchNode) => {
+    const key = stateSignature(node.state);
+    if (completedSignatures.has(key)) return;
+    completedSignatures.add(key);
+    completedNodes.push(scoreNode(node, playerId));
+  };
+
+  for (let step = 0; step < opts.maxDecisionPlies; step++) {
     if (Date.now() - start >= opts.timeBudgetMs) break;
 
     const nextBeam: SearchNode[] = [];
@@ -124,7 +138,7 @@ export function runLiveSolver(
       searchedNodes += normalized.searched;
 
       if (normalized.node.state.currentPhase === 'GAME_OVER') {
-        completedLines++;
+        recordCompleted(normalized.node);
         nextBeam.push(normalized.node);
         continue;
       }
@@ -138,7 +152,8 @@ export function runLiveSolver(
         continue;
       }
 
-      const candidates = enumerateCandidates(normalized.node.state, decision.playerId, decision.decisionType, playerId)
+      const scoringPlayerId = decision.playerId === playerId ? playerId : decision.playerId;
+      const candidates = enumerateCandidates(normalized.node.state, decision.playerId, decision.decisionType, scoringPlayerId)
         .slice(0, decision.playerId === playerId ? opts.targetBranches : opts.opponentBranches);
 
       const usableCandidates = candidates.length > 0
@@ -167,12 +182,47 @@ export function runLiveSolver(
     beam = diversify(nextBeam, opts.beamWidth);
     if (beam[0] && beam[0].score >= best.score) best = beam[0];
     if (allComplete) {
-      horizon = 'FULL_GAME';
       break;
     }
   }
 
-  const finalBest = normalizeNode(best, playerId).node;
+  const completionDeadline = start + opts.timeBudgetMs + COMPLETION_GRACE_MS;
+  const completionSeeds = diversify(
+    [...completedNodes, ...beam, best]
+      .sort((a, b) => b.score - a.score),
+    opts.completionWidth,
+  );
+
+  for (const seed of completionSeeds) {
+    const normalized = normalizeNode(seed, playerId);
+    searchedNodes += normalized.searched;
+    if (normalized.node.state.currentPhase === 'GAME_OVER') {
+      recordCompleted(normalized.node);
+      continue;
+    }
+
+    const forceFirstFullLine = completedNodes.length === 0;
+    if (!forceFirstFullLine && Date.now() > completionDeadline) break;
+
+    const rollout = completeLineToGameOver(
+      normalized.node,
+      playerId,
+      opts,
+      completionDeadline,
+      forceFirstFullLine,
+    );
+    searchedNodes += rollout.searched;
+    if (rollout.completed) {
+      recordCompleted(rollout.node);
+    } else if (rollout.node.score > best.score) {
+      best = rollout.node;
+    }
+  }
+
+  const finalBest = completedNodes.length > 0
+    ? completedNodes.sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
+    : normalizeNode(best, playerId).node;
+  const horizon: LiveSolverResult['horizon'] = finalBest.state.currentPhase === 'GAME_OVER' ? 'FULL_GAME' : 'PARTIAL';
   const projection = projectScores(finalBest.state, playerId);
   const currentMove = finalBest.moves[0] ?? null;
 
@@ -182,14 +232,14 @@ export function runLiveSolver(
     generatedAt: Date.now(),
     status: 'READY',
     message: horizon === 'FULL_GAME'
-      ? 'Full-game line searched to final scoring.'
-      : 'Partial line returned because the timer budget was reached.',
+      ? 'Full-game rollout simulated to final scoring.'
+      : 'Partial line returned because no complete rollout finished before the search cap.',
     currentMove,
     rounds: groupMovesByRound(finalBest.moves),
     projections: projection.scores,
     projectedMargin: projection.margin,
     searchedNodes,
-    completedLines,
+    completedLines: completedNodes.length,
     computeMs: Date.now() - start,
     horizon,
   };
@@ -197,10 +247,12 @@ export function runLiveSolver(
 
 function sanitizeOptions(options: Partial<SearchOptions>): SearchOptions {
   return {
-    timeBudgetMs: clampNumber(options.timeBudgetMs, 250, 5000, DEFAULT_OPTIONS.timeBudgetMs),
-    beamWidth: clampNumber(options.beamWidth, 8, 120, DEFAULT_OPTIONS.beamWidth),
+    timeBudgetMs: clampNumber(options.timeBudgetMs, 500, 8000, DEFAULT_OPTIONS.timeBudgetMs),
+    beamWidth: clampNumber(options.beamWidth, 8, 160, DEFAULT_OPTIONS.beamWidth),
     targetBranches: clampNumber(options.targetBranches, 4, 40, DEFAULT_OPTIONS.targetBranches),
-    opponentBranches: clampNumber(options.opponentBranches, 1, 10, DEFAULT_OPTIONS.opponentBranches),
+    opponentBranches: clampNumber(options.opponentBranches, 1, 6, DEFAULT_OPTIONS.opponentBranches),
+    completionWidth: clampNumber(options.completionWidth, 1, 40, DEFAULT_OPTIONS.completionWidth),
+    maxDecisionPlies: clampNumber(options.maxDecisionPlies, 120, 1500, DEFAULT_OPTIONS.maxDecisionPlies),
   };
 }
 
@@ -212,13 +264,29 @@ function clampNumber(value: number | undefined, min: number, max: number, fallba
 function normalizeNode(node: SearchNode, playerId: string): { node: SearchNode; searched: number } {
   let current = node;
   let searched = 0;
-  for (let i = 0; i < 40; i++) {
-    const display = current.state.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
-    if (!display) break;
-    const state = autoResolve(current.state, display.playerId);
-    searched++;
-    current = scoreNode({ ...current, state }, playerId);
+  for (let i = 0; i < 80; i++) {
     if (current.state.currentPhase === 'GAME_OVER') break;
+
+    const display = current.state.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
+    if (display) {
+      const state = autoResolve(current.state, display.playerId);
+      searched++;
+      current = scoreNode({ ...current, state }, playerId);
+      continue;
+    }
+
+    const activation = chooseBestActivation(current.state);
+    if (!activation) break;
+    const state = applyMessage(current.state, activation.playerId, activation.candidate.message);
+    if (!state) break;
+    searched++;
+    const moves = activation.playerId === playerId
+      ? [
+          ...current.moves,
+          buildMove(current.state, activation.playerId, 'ACTIVATE_DEV', activation.candidate),
+        ]
+      : current.moves;
+    current = scoreNode({ state, moves, score: 0 }, playerId);
   }
   return { node: current, searched };
 }
@@ -229,11 +297,146 @@ function pickDecision(state: GameState, targetPlayerId: string): GameState['pend
   return real.find(d => d.playerId === targetPlayerId) ?? real[0];
 }
 
+function chooseBestActivation(state: GameState): { playerId: string; candidate: Candidate; scoreDelta: number } | null {
+  let best: { playerId: string; candidate: Candidate; scoreDelta: number } | null = null;
+
+  for (const player of state.players) {
+    if (!player.isConnected || player.hasFlagged) continue;
+    for (const devId of getActivatableDevs(player)) {
+      const candidate = activationCandidate(devId);
+      const applied = applyMessage(state, player.playerId, candidate.message);
+      if (!applied) continue;
+      const scoreDelta = heuristicScore(applied, player.playerId) - heuristicScore(state, player.playerId);
+      if (scoreDelta <= 0.05) continue;
+      if (!best || scoreDelta > best.scoreDelta) {
+        best = { playerId: player.playerId, candidate, scoreDelta };
+      }
+    }
+  }
+
+  return best;
+}
+
+function activationCandidate(devId: string): Candidate {
+  if (devId === 'thebes-dev-2') {
+    return {
+      message: { type: 'ACTIVATE_DEV', devId },
+      instruction: 'Activate Thebes: spend 1 Glory',
+      detail: 'Lose 1 Glory to gain 2 drachma and 4 VP.',
+      estimatedSeconds: 3,
+      quickScore: 4.5,
+    };
+  }
+
+  return {
+    message: { type: 'ACTIVATE_DEV', devId },
+    instruction: `Activate ${devId}`,
+    detail: 'Use an unlocked city development ability.',
+    estimatedSeconds: 3,
+    quickScore: 0,
+  };
+}
+
+function completeLineToGameOver(
+  node: SearchNode,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  deadlineMs: number,
+  forceCompletion: boolean,
+): { node: SearchNode; completed: boolean; searched: number } {
+  let current = node;
+  let searched = 0;
+
+  for (let step = 0; step < opts.maxDecisionPlies; step++) {
+    if (!forceCompletion && Date.now() > deadlineMs) break;
+
+    const normalized = normalizeNode(current, targetPlayerId);
+    searched += normalized.searched;
+    current = normalized.node;
+
+    if (current.state.currentPhase === 'GAME_OVER') {
+      return { node: current, completed: true, searched };
+    }
+
+    const decision = pickDecision(current.state, targetPlayerId);
+    if (!decision) {
+      const before = stateSignature(current.state);
+      const advanced = advancePhase(current.state);
+      searched++;
+      current = scoreNode({ ...current, state: advanced }, targetPlayerId);
+      if (stateSignature(current.state) === before) break;
+      continue;
+    }
+
+    const scoringPlayerId = decision.playerId === targetPlayerId ? targetPlayerId : decision.playerId;
+    const rankedCandidates = enumerateCandidates(
+      current.state,
+      decision.playerId,
+      decision.decisionType,
+      scoringPlayerId,
+    );
+    const usableCandidates = rankedCandidates.length > 0
+      ? rankedCandidates
+      : fallbackCandidates(current.state, decision.playerId, decision.decisionType);
+
+    const choice = chooseRolloutCandidate(
+      current.state,
+      decision.playerId,
+      usableCandidates,
+      scoringPlayerId,
+      decision.playerId === targetPlayerId ? Math.min(opts.targetBranches, 6) : opts.opponentBranches,
+    );
+
+    if (!choice) {
+      const before = stateSignature(current.state);
+      const auto = autoResolve(current.state, decision.playerId);
+      searched++;
+      current = scoreNode({ ...current, state: auto }, targetPlayerId);
+      if (stateSignature(current.state) === before) break;
+      continue;
+    }
+
+    searched += choice.searched;
+    const moves = decision.playerId === targetPlayerId
+      ? [
+          ...current.moves,
+          buildMove(current.state, decision.playerId, decision.decisionType, choice.candidate),
+        ]
+      : current.moves;
+    current = scoreNode({ state: choice.state, moves, score: 0 }, targetPlayerId);
+  }
+
+  return { node: current, completed: current.state.currentPhase === 'GAME_OVER', searched };
+}
+
+function chooseRolloutCandidate(
+  state: GameState,
+  actorId: string,
+  candidates: Candidate[],
+  scoringPlayerId: string,
+  limit: number,
+): { candidate: Candidate; state: GameState; searched: number } | null {
+  let best: { candidate: Candidate; state: GameState; score: number; searched: number } | null = null;
+  let searched = 0;
+
+  for (const candidate of candidates.slice(0, Math.max(1, limit))) {
+    const applied = applyMessage(state, actorId, candidate.message);
+    searched++;
+    if (!applied) continue;
+    const score = heuristicScore(applied, scoringPlayerId) + candidate.quickScore * 0.08;
+    if (!best || score > best.score) {
+      best = { candidate, state: applied, score, searched };
+    }
+  }
+
+  return best ? { candidate: best.candidate, state: best.state, searched } : null;
+}
+
 function enumerateCandidates(
   state: GameState,
   actorId: string,
   decisionType: DecisionType,
-  targetPlayerId: string,
+  scoringPlayerId: string,
 ): Candidate[] {
   const actor = state.players.find(p => p.playerId === actorId);
   if (!actor) return [];
@@ -295,7 +498,7 @@ function enumerateCandidates(
   const scored = candidates
     .map(candidate => ({
       candidate,
-      score: candidate.quickScore + candidateOutcomeScore(state, actorId, candidate, targetPlayerId),
+      score: candidate.quickScore + candidateOutcomeScore(state, actorId, candidate, scoringPlayerId),
     }))
     .sort((a, b) => b.score - a.score)
     .map(x => x.candidate);
@@ -394,7 +597,7 @@ function enumerateActionResolution(state: GameState, actor: PlayerState): Candid
     case 'MILITARY':
       return enumerateMilitary(state, actor);
     case 'LEGISLATION':
-      return enumerateLegislation(state);
+      return enumerateLegislation(state, actor);
     case 'POLITICS':
       return enumeratePoliticsCards(state, actor, 'Politics');
     case 'DEVELOPMENT':
@@ -485,49 +688,79 @@ function enumerateMilitary(state: GameState, actor: PlayerState): Candidate[] {
   return candidates;
 }
 
-function enumerateLegislation(state: GameState): Candidate[] {
+function enumerateLegislation(state: GameState, actor: PlayerState): Candidate[] {
   return state.politicsDeck.slice(0, 2).map(card => ({
     message: { type: 'RESOLVE_ACTION', actionType: 'LEGISLATION', choices: { targetCardId: card.id } },
     instruction: `Legislation: keep ${card.name}`,
     detail: 'Gain 3 citizens and keep this card from the draw.',
     estimatedSeconds: 6,
-    quickScore: cardValue(card),
+    quickScore: cardValue(card, actor, state),
   }));
 }
 
 function enumeratePoliticsCards(state: GameState, actor: PlayerState, source: string): Candidate[] {
   return actor.handCards
-    .map(card => politicsCandidate(state, actor, card, source))
-    .filter((candidate): candidate is Candidate => candidate !== null)
-    .sort((a, b) => b.quickScore - a.quickScore)
-    .slice(0, 8);
+    .flatMap(card => politicsCandidates(state, actor, card, source))
+    .sort((a, b) => b.quickScore - a.quickScore);
 }
 
-function politicsCandidate(state: GameState, actor: PlayerState, card: PoliticsCard, source: string): Candidate | null {
-  if (actor.coins < card.cost) return null;
+function politicsCandidates(state: GameState, actor: PlayerState, card: PoliticsCard, source: string): Candidate[] {
+  if (actor.coins < card.cost) return [];
   const pairs = knowledgeShortfall(actor, card.knowledgeRequirement);
-  if (pairs * 2 > actor.philosophyTokens) return null;
+  if (pairs * 2 > actor.philosophyTokens) return [];
 
   const choices: ActionChoices = {
     targetCardId: card.id,
     philosophyPairsToUse: pairs > 0 ? pairs : undefined,
   };
   if (card.id === 'scholarly-welcome') {
-    choices.scholarlyWelcomeColor = rankedKnowledgeColors(actor)[0];
+    return rankedKnowledgeColors(actor).map(color => politicsCandidateFromChoices(state, actor, card, source, {
+      ...choices,
+      scholarlyWelcomeColor: color,
+    }));
   }
   if (card.id === 'ostracism' && actor.playedCards.length > 0) {
-    choices.ostracismReturnCardId = [...actor.playedCards].sort((a, b) => cardValue(b) - cardValue(a))[0].id;
+    const returnable = actor.playedCards
+      .filter(played => played.id !== 'ostracism')
+      .sort((a, b) => cardValue(b, actor, state) - cardValue(a, actor, state));
+    if (returnable.length > 0) {
+      return returnable.map(played => politicsCandidateFromChoices(state, actor, card, source, {
+        ...choices,
+        ostracismReturnCardId: played.id,
+      }));
+    }
   }
+
+  return [politicsCandidateFromChoices(state, actor, card, source, choices)];
+}
+
+function politicsCandidateFromChoices(
+  state: GameState,
+  actor: PlayerState,
+  card: PoliticsCard,
+  source: string,
+  choices: ActionChoices,
+): Candidate {
+  const pairs = choices.philosophyPairsToUse ?? 0;
+  const choiceDetail =
+    card.id === 'scholarly-welcome' && choices.scholarlyWelcomeColor
+      ? `take ${formatColor(choices.scholarlyWelcomeColor)} minor`
+      : card.id === 'ostracism' && choices.ostracismReturnCardId
+        ? `return ${cardName(state, actor, choices.ostracismReturnCardId)}`
+        : null;
 
   return {
     message: { type: 'RESOLVE_ACTION', actionType: 'POLITICS', choices },
-    instruction: `${source}: play ${card.name}`,
+    instruction: choiceDetail
+      ? `${source}: play ${card.name} (${choiceDetail})`
+      : `${source}: play ${card.name}`,
     detail: [
       card.cost > 0 ? `Pay ${card.cost} drachma` : 'Free card',
       pairs > 0 ? `spend ${pairs * 2} scrolls for missing knowledge` : 'requirements met',
-    ].join('; '),
+      choiceDetail,
+    ].filter((part): part is string => Boolean(part)).join('; '),
     estimatedSeconds: 10,
-    quickScore: cardValue(card) - card.cost - pairs * 2,
+    quickScore: cardValue(card, actor, state) - card.cost - pairs * 2,
   };
 }
 
@@ -560,12 +793,19 @@ function enumerateDevelopment(state: GameState, actor: PlayerState): Candidate[]
   }
   if (dev.id === 'sparta-dev-3') {
     const tokens = state.centralBoardTokens
-      .filter(t => !t.explored)
+      .filter(t => !t.explored && canExploreToken(actor, t, actor.troopTrack + actor.militaryTrack))
       .sort((a, b) => tokenValue(b) - tokenValue(a))
-      .slice(0, 3);
+      .slice(0, 6);
     choicesList.splice(0, choicesList.length, baseChoices);
-    if (tokens[0]) choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [tokens[0].id] });
-    if (tokens[0] && tokens[1]) choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [tokens[0].id, tokens[1].id] });
+    for (const token of tokens) {
+      choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [token.id] });
+    }
+    for (let i = 0; i < Math.min(4, tokens.length); i++) {
+      for (let j = 0; j < Math.min(4, tokens.length); j++) {
+        if (i === j) continue;
+        choicesList.push({ ...baseChoices, spartaMilitaryTokenIds: [tokens[i].id, tokens[j].id] });
+      }
+    }
   }
 
   return choicesList.map(choices => ({
@@ -593,46 +833,31 @@ function enumerateProgress(_state: GameState, actor: PlayerState): Candidate[] {
   for (const primary of ['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[]) {
     const afterPrimary = virtualAdvanceProgress(actor, primary);
     if (!afterPrimary) continue;
-    candidates.push({
-      message: { type: 'PROGRESS_TRACK', advancement: { track: primary } },
-      instruction: `Advance ${formatTrack(primary)}`,
-      detail: `Pay ${progressCost(actor, primary)} drachma.`,
-      estimatedSeconds: 5,
-      quickScore: progressValue(actor, primary),
-    });
 
-    if (actor.philosophyTokens > 0) {
-      for (const extra of ['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[]) {
-        const afterExtra = virtualAdvanceProgress(afterPrimary, extra);
-        if (!afterExtra) continue;
+    const bonusPlans = progressTrackPlans(afterPrimary, bonusCount, false);
+    for (const bonusPlan of bonusPlans) {
+      const afterBonus = bonusPlan.player;
+      const extraPlans = progressTrackPlans(afterBonus, Math.min(actor.philosophyTokens, 3), true);
+      for (const extraPlan of extraPlans) {
+        const bonusTracks = bonusPlan.tracks.map(track => ({ track }));
+        const extraTracks = extraPlan.tracks.map(track => ({ track }));
+        const allTracks = [primary, ...bonusPlan.tracks, ...extraPlan.tracks];
+        const scrolls = extraPlan.tracks.length;
         candidates.push({
           message: {
             type: 'PROGRESS_TRACK',
             advancement: { track: primary },
-            extraTracks: [{ track: extra }],
+            bonusTracks: bonusTracks.length > 0 ? bonusTracks : undefined,
+            extraTracks: extraTracks.length > 0 ? extraTracks : undefined,
           },
-          instruction: `Advance ${formatTrack(primary)}, then ${formatTrack(extra)} with a scroll`,
-          detail: `Spend 1 scroll and pay both drachma costs.`,
-          estimatedSeconds: 8,
-          quickScore: progressValue(actor, primary) + progressValue(afterPrimary, extra) - 1,
-        });
-      }
-    }
-
-    if (bonusCount > 0) {
-      for (const bonus of ['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[]) {
-        const afterBonus = virtualAdvanceProgress(afterPrimary, bonus);
-        if (!afterBonus) continue;
-        candidates.push({
-          message: {
-            type: 'PROGRESS_TRACK',
-            advancement: { track: primary },
-            bonusTracks: [{ track: bonus }],
-          },
-          instruction: `Advance ${formatTrack(primary)} plus bonus ${formatTrack(bonus)}`,
-          detail: 'Uses Reformists or Corinth development bonus progress.',
-          estimatedSeconds: 8,
-          quickScore: progressValue(actor, primary) + progressValue(afterPrimary, bonus),
+          instruction: `Advance ${joinNatural(allTracks.map(formatTrack))}`,
+          detail: [
+            `Pay ${progressCost(actor, primary) + bonusPlan.coinCost + extraPlan.coinCost} drachma total.`,
+            bonusTracks.length > 0 ? `Use ${bonusTracks.length} bonus progress.` : null,
+            scrolls > 0 ? `Spend ${scrolls} scroll${scrolls === 1 ? '' : 's'} for extra progress.` : null,
+          ].filter((part): part is string => Boolean(part)).join(' '),
+          estimatedSeconds: 5 + (allTracks.length - 1) * 3,
+          quickScore: progressValue(actor, primary) + bonusPlan.value + extraPlan.value - scrolls,
         });
       }
     }
@@ -675,6 +900,7 @@ function enumerateCityChoices(state: GameState, actorId: string): Candidate[] {
 }
 
 function enumerateDraftChoices(state: GameState, actorId: string, type: 'DRAFT_CARD' | 'PICK_BAN_CARD'): Candidate[] {
+  const actor = state.players.find(p => p.playerId === actorId);
   if (type === 'DRAFT_CARD') {
     const pack = state.draftState?.politicsDraft?.packs[actorId] ?? [];
     return pack.map(card => ({
@@ -682,7 +908,7 @@ function enumerateDraftChoices(state: GameState, actorId: string, type: 'DRAFT_C
       instruction: `Draft ${card.name}`,
       detail: card.description,
       estimatedSeconds: 5,
-      quickScore: cardValue(card),
+      quickScore: cardValue(card, actor, state),
     }));
   }
   const draft = state.draftState?.pickBanDraft;
@@ -699,7 +925,7 @@ function enumerateDraftChoices(state: GameState, actorId: string, type: 'DRAFT_C
       instruction: `${action === 'BAN' ? 'Ban' : 'Pick'} ${card.name}`,
       detail: card.description,
       estimatedSeconds: 5,
-      quickScore: action === 'BAN' ? cardValue(card) * 0.8 : cardValue(card),
+      quickScore: action === 'BAN' ? cardValue(card, actor, state) * 0.8 : cardValue(card, actor, state),
     }));
 }
 
@@ -716,33 +942,44 @@ function enumerateOracleChoices(actor: PlayerState): Candidate[] {
 }
 
 function enumerateEventProgress(actor: PlayerState, tracks: ProgressTrackType[], source: string): Candidate[] {
-  return tracks
+  const candidates: Candidate[] = [{
+    message: { type: 'SKIP_PHASE' },
+    instruction: `${source}: skip progress`,
+    detail: 'No discounted progress is worth or affordable right now.',
+    estimatedSeconds: 2,
+    quickScore: -1,
+  }];
+
+  candidates.push(...tracks
     .filter(track => actor[trackField(track)] < 7)
-    .map(track => ({
+    .filter(track => actor.coins >= discountedProgressCost(actor, track, 2))
+    .map((track): Candidate => ({
       message: { type: 'EVENT_PROGRESS_TRACK', track },
       instruction: `${source}: advance ${formatTrack(track)}`,
-      detail: 'Uses the event progress discount.',
+      detail: `Pay ${discountedProgressCost(actor, track, 2)} drachma after the event discount.`,
       estimatedSeconds: 5,
-      quickScore: progressValue(actor, track),
-    }));
+      quickScore: eventProgressValue(actor, track, 2),
+    })));
+
+  return candidates;
 }
 
 function enumerateDiscardChoices(actor: PlayerState): Candidate[] {
   const count = Math.min(2, actor.handCards.length);
   if (count <= 0) return [{ message: { type: 'SKIP_PHASE' }, instruction: 'Skip discard', detail: 'No cards to discard.', estimatedSeconds: 1, quickScore: 0 }];
-  const discard = [...actor.handCards].sort((a, b) => cardValue(a) - cardValue(b)).slice(0, count);
+  const discard = [...actor.handCards].sort((a, b) => cardValue(a, actor) - cardValue(b, actor)).slice(0, count);
   return [{
     message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
     instruction: `Discard ${joinNatural(discard.map(c => c.name))}`,
     detail: 'Lowest projected card value in hand.',
     estimatedSeconds: 8,
-    quickScore: -discard.reduce((sum, card) => sum + cardValue(card), 0),
+    quickScore: -discard.reduce((sum, card) => sum + cardValue(card, actor), 0),
   }];
 }
 
 function enumerateConquestActions(state: GameState, actor: PlayerState): Candidate[] {
   const candidates: Candidate[] = [
-    ...enumerateLegislation(state),
+    ...enumerateLegislation(state, actor),
     ...enumerateTrade(actor),
     ...enumeratePoliticsCards(state, actor, 'Conquest politics'),
     ...enumerateDevelopment(state, actor),
@@ -765,19 +1002,20 @@ function enumerateConquestActions(state: GameState, actor: PlayerState): Candida
     candidate.message.type !== 'RESOLVE_ACTION' || candidate.message.actionType !== 'MILITARY');
 }
 
-function candidateOutcomeScore(state: GameState, actorId: string, candidate: Candidate, targetPlayerId: string): number {
+function candidateOutcomeScore(state: GameState, actorId: string, candidate: Candidate, scoringPlayerId: string): number {
   const applied = applyMessage(state, actorId, candidate.message);
   if (!applied) return -10000;
-  const actor = state.players.find(p => p.playerId === actorId);
-  const targetWeight = actorId === targetPlayerId ? 1 : -0.2;
-  const before = actor ? roughPlayerScore(actor) : 0;
-  const after = applied.players.find(p => p.playerId === actorId);
-  const delta = after ? roughPlayerScore(after) - before : 0;
-  return delta * targetWeight;
+  return heuristicScore(applied, scoringPlayerId) - heuristicScore(state, scoringPlayerId);
 }
 
 function applyMessage(state: GameState, actorId: string, message: ClientMessage): GameState | null {
   try {
+    if (message.type === 'ACTIVATE_DEV') {
+      const before = stateSignature(state);
+      const updated = activateDev(cloneGameState(state), actorId, message.devId);
+      return stateSignature(updated) === before ? null : updated;
+    }
+
     const engine = new GameEngine(state.draftMode);
     const machine = engine.getStateMachine();
     machine.currentPhase = state.currentPhase;
@@ -813,7 +1051,12 @@ function advancePhase(state: GameState): GameState {
   }
 }
 
-function buildMove(state: GameState, actorId: string, decisionType: DecisionType, candidate: Candidate): LiveSolverMove {
+function buildMove(
+  state: GameState,
+  actorId: string,
+  decisionType: LiveSolverMove['decisionType'],
+  candidate: Candidate,
+): LiveSolverMove {
   const actor = state.players.find(p => p.playerId === actorId);
   return {
     round: state.roundNumber,
@@ -845,14 +1088,29 @@ function scoreNode(node: SearchNode, targetPlayerId: string): SearchNode {
 }
 
 function heuristicScore(state: GameState, targetPlayerId: string): number {
+  if (state.currentPhase === 'GAME_OVER') {
+    return solvedStateScore(state, targetPlayerId);
+  }
+
   const target = state.players.find(p => p.playerId === targetPlayerId);
   if (!target) return -Infinity;
   const targetScore = roughPlayerScore(target);
   const opponentScore = Math.max(0, ...state.players
     .filter(p => p.playerId !== targetPlayerId)
     .map(roughPlayerScore));
-  const phaseProgress = PHASE_ORDER.indexOf(state.currentPhase);
+  const phaseProgress = Math.max(0, PHASE_ORDER.indexOf(state.currentPhase));
   return (targetScore - opponentScore) * 3 + targetScore + state.roundNumber * 0.05 + phaseProgress * 0.01;
+}
+
+function solvedNodeScore(node: SearchNode, targetPlayerId: string): number {
+  return solvedStateScore(node.state, targetPlayerId);
+}
+
+function solvedStateScore(state: GameState, targetPlayerId: string): number {
+  const projection = projectScores(state, targetPlayerId);
+  const target = projection.scores.find(score => score.playerId === targetPlayerId);
+  const margin = projection.margin ?? -999;
+  return margin * 1000 + (target?.projectedTotal ?? 0);
 }
 
 function roughPlayerScore(player: PlayerState): number {
@@ -871,7 +1129,9 @@ function roughPlayerScore(player: PlayerState): number {
     + player.militaryTrack * 1.25
     + player.taxTrack * 1.2
     + player.gloryTrack * 0.7
-    + player.handCards.reduce((sum, card) => sum + cardValue(card) * 0.12, 0);
+    + player.troopTrack * 0.45
+    + player.knowledgeTokens.reduce((sum, token) => sum + tokenValue(token) * 0.22, 0)
+    + player.handCards.reduce((sum, card) => sum + cardValue(card, player) * 0.12, 0);
 }
 
 function roughEndGameCardScore(card: PoliticsCard, player: PlayerState): number {
@@ -922,8 +1182,10 @@ function stateSignature(state: GameState): string {
     round: state.roundNumber,
     pending: state.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}`),
     players: state.players.map(p => [
-      p.playerId, p.coins, p.victoryPoints, p.economyTrack, p.cultureTrack, p.militaryTrack,
+      p.playerId, p.cityId, p.developmentLevel, p.coins, p.victoryPoints, p.economyTrack, p.cultureTrack, p.militaryTrack,
       p.taxTrack, p.gloryTrack, p.troopTrack, p.citizenTrack, p.philosophyTokens,
+      p.diceRoll?.join(',') ?? '',
+      p.actionSlots.map(s => s ? `${s.actionType}:${s.assignedDie}:${s.resolved ? 1 : 0}` : '-').join(','),
       p.handCards.map(c => c.id).join(','),
       p.playedCards.map(c => c.id).join(','),
       p.knowledgeTokens.map(t => t.id).join(','),
@@ -998,8 +1260,8 @@ function nextAction(player: PlayerState): ActionType | null {
 
 function actionLikelyUseful(state: GameState, actor: PlayerState, action: ActionType): boolean {
   if (action === 'LEGISLATION') return state.politicsDeck.length > 0;
-  if (action === 'POLITICS') return actor.handCards.some(card => politicsCandidate(state, actor, card, 'Politics') !== null);
-  if (action === 'DEVELOPMENT') return enumerateDevelopment(state, actor).length > 0;
+  if (action === 'POLITICS') return actor.handCards.length > 0;
+  if (action === 'DEVELOPMENT') return actor.developmentLevel < 4;
   return true;
 }
 
@@ -1010,32 +1272,176 @@ function actionPriority(actor: PlayerState, action: ActionType): number {
     case 'CULTURE': return 3 + actor.cultureTrack;
     case 'TRADE': return 5 + actor.economyTrack;
     case 'MILITARY': return 5 + actor.militaryTrack + actor.troopTrack * 0.15;
-    case 'POLITICS': return 8 + actor.handCards.reduce((best, card) => Math.max(best, cardValue(card)), 0) * 0.25;
+    case 'POLITICS': return 8 + actor.handCards.reduce((best, card) => Math.max(best, cardValue(card, actor)), 0) * 0.25;
     case 'DEVELOPMENT': return 10 + actor.developmentLevel * 3;
   }
 }
 
-function cardValue(card: PoliticsCard): number {
-  const marquee: Record<string, number> = {
-    'central-government': 34,
-    diversification: 32,
-    'gold-reserve': 30,
-    'hall-of-statues': 28,
-    'public-market': 26,
-    taxation: 24,
-    'corinthian-columns': 22,
-    'constructing-the-mint': 22,
-    reformists: 22,
-    gradualism: 20,
-    'old-guard': 20,
-    'greek-fire': 18,
-    council: 18,
-    'scholarly-welcome': 18,
+function cardValue(card: PoliticsCard, player?: PlayerState, state?: GameState): number {
+  const requirementFlex =
+    card.knowledgeRequirement.green + card.knowledgeRequirement.blue + card.knowledgeRequirement.red;
+  const tempoBase = card.type === 'END_GAME' ? 7 : card.type === 'ONGOING' ? 9 : 5;
+  const remainingRounds = state ? Math.max(1, 10 - state.roundNumber) : 5;
+  const costPenalty = card.cost * 0.45;
+
+  if (card.type === 'END_GAME' && card.endGameScoring) {
+    const scoringPlayer = player ? withCardInPlay(player, card) : null;
+    const projected = scoringPlayer ? safeEndGameScore(card, scoringPlayer) : staticEndGameCardValue(card.id);
+    return tempoBase + projected + requirementFlex * 0.8 - costPenalty;
+  }
+
+  const playerValue = player ? politicsCardPlayerValue(card, player, state, remainingRounds) : staticPoliticsCardValue(card.id);
+  return tempoBase + playerValue + requirementFlex * 0.6 - costPenalty;
+}
+
+function politicsCardPlayerValue(
+  card: PoliticsCard,
+  player: PlayerState,
+  state: GameState | undefined,
+  remainingRounds: number,
+): number {
+  switch (card.id) {
+    case 'stoa-poikile': return Math.min(remainingRounds, 4) * 1.2;
+    case 'amnesty-for-socrates': return Math.min(remainingRounds, 4) * 0.9;
+    case 'persians': return Math.min(remainingRounds, 4) * 1.1;
+    case 'extraordinary-collection': return Math.min(player.handCards.length, remainingRounds) * 1.2;
+    case 'diolkos': return Math.min(remainingRounds, 4) * 1.7;
+    case 'corinthian-columns': return Math.max(3, knowledgeColorDemand(player) * 1.4);
+    case 'foreign-supplies': return Math.min(remainingRounds, 4) * 1.1;
+    case 'gradualism': return Math.min(remainingRounds, 5) * 1.5;
+    case 'old-guard': return hasProgressPlan(player) ? 3 : Math.min(remainingRounds, 4) * 3.2;
+    case 'oracle': return Math.min(4 - player.developmentLevel, 3) * 3.5;
+    case 'power': return state && state.players.some(p => p.playerId !== player.playerId && p.cultureTrack < player.cultureTrack) ? 4 : remainingRounds * 2.2;
+    case 'public-market': return state && state.players.some(p => p.playerId !== player.playerId && p.economyTrack > player.economyTrack) ? 4 : remainingRounds * 1.8;
+    case 'reformists': return Math.min(remainingRounds, 5) * 2.4;
+    case 'founding-the-lyceum': return Math.min(remainingRounds, 5) * 1.1;
+    case 'stadion': return remainingRounds * 0.9;
+    case 'lighthouse': return Math.min(remainingRounds, 4) * 2.4;
+    case 'helepole': return state ? Math.min(6, state.centralBoardTokens.filter(t => !t.explored && (t.skullValue ?? 0) > 0).length * 1.4) : 4;
+    case 'constructing-the-mint': return Math.max(4, (7 - player.economyTrack) * 1.7);
+    case 'ostracism': return 3 + player.playedCards.reduce((best, played) => Math.max(best, cardValue(played, player, state) * 0.25), 0);
+    case 'rivalry': return state && state.players.filter(p => p.playerId !== player.playerId && p.isConnected).every(p => p.militaryTrack > player.militaryTrack)
+      ? trackDeltaValue(player, 'MILITARY', 1)
+      : 1;
+    case 'peripteros': return trackDeltaValue(player, 'CULTURE', 1);
+    case 'quarry': return taxGloryDeltaValue(player.taxTrack, 1);
+    case 'contribution': return player.knowledgeTokens.filter(t => t.tokenType === 'MINOR').length * 0.7;
+    case 'colossus-of-rhodes': return 10;
+    case 'silver-mining': return taxGloryDeltaValue(player.taxTrack, 2);
+    case 'scholarly-welcome': return 5 + Math.max(...rankedKnowledgeColors(player).map(color => knowledgeColorNeed(player, color)));
+    case 'tunnel-of-eupalinos': return 6;
+    case 'gifts-from-the-west': return 2.4;
+    case 'council': return state
+      ? state.politicsDeck.slice(0, 2).reduce((sum, deckCard) => sum + cardValue(deckCard, player) * 0.22, 6)
+      : 9;
+    case 'mercenary-recruitment': return player.economyTrack * 0.65;
+    case 'archives': return 3.2;
+    case 'greek-fire': return 2.8;
+    default: return staticPoliticsCardValue(card.id);
+  }
+}
+
+function staticPoliticsCardValue(cardId: string): number {
+  const values: Record<string, number> = {
+    'stoa-poikile': 9,
+    'amnesty-for-socrates': 8,
+    persians: 8,
+    'extraordinary-collection': 10,
+    diolkos: 10,
+    'corinthian-columns': 12,
+    'foreign-supplies': 8,
+    gradualism: 12,
+    'old-guard': 10,
+    oracle: 11,
+    power: 11,
+    'public-market': 11,
+    reformists: 14,
+    'founding-the-lyceum': 8,
+    stadion: 8,
+    lighthouse: 10,
+    helepole: 9,
+    'constructing-the-mint': 13,
+    ostracism: 8,
+    rivalry: 5,
+    peripteros: 8,
+    quarry: 7,
+    contribution: 5,
+    'colossus-of-rhodes': 14,
+    'silver-mining': 10,
+    'scholarly-welcome': 12,
+    'tunnel-of-eupalinos': 10,
+    'gifts-from-the-west': 5,
+    council: 12,
+    'mercenary-recruitment': 7,
+    archives: 8,
+    'greek-fire': 8,
   };
-  return (marquee[card.id] ?? 10)
-    + (card.type === 'END_GAME' ? 9 : card.type === 'ONGOING' ? 7 : 4)
-    - card.cost * 0.4
-    + card.knowledgeRequirement.green + card.knowledgeRequirement.blue + card.knowledgeRequirement.red;
+  return values[cardId] ?? 6;
+}
+
+function staticEndGameCardValue(cardId: string): number {
+  const values: Record<string, number> = {
+    bank: 7,
+    austerity: 9,
+    proskenion: 8,
+    diversification: 13,
+    'central-government': 15,
+    'gold-reserve': 13,
+    'heavy-taxes': 10,
+    'hall-of-statues': 12,
+  };
+  return values[cardId] ?? 8;
+}
+
+function safeEndGameScore(card: PoliticsCard, player: PlayerState): number {
+  try {
+    return card.endGameScoring?.calculate(player) ?? 0;
+  } catch {
+    return staticEndGameCardValue(card.id);
+  }
+}
+
+function withCardInPlay(player: PlayerState, card: PoliticsCard): PlayerState {
+  if (player.playedCards.some(played => played.id === card.id)) return player;
+  return {
+    ...player,
+    handCards: player.handCards.filter(handCard => handCard.id !== card.id),
+    playedCards: [...player.playedCards, card],
+  };
+}
+
+function trackDeltaValue(player: PlayerState, track: ProgressTrackType, amount: number): number {
+  const after = advanceTrack(player, track, amount);
+  return (after.victoryPoints - player.victoryPoints)
+    + (after.coins - player.coins) * 0.25
+    + (after.citizenTrack - player.citizenTrack) * 0.18
+    + (after.taxTrack - player.taxTrack) * 1.2
+    + (after.gloryTrack - player.gloryTrack) * 1.7
+    + (after.economyTrack - player.economyTrack) * 1.4
+    + (after.cultureTrack - player.cultureTrack) * 1.6
+    + (after.militaryTrack - player.militaryTrack) * 1.25;
+}
+
+function taxGloryDeltaValue(current: number, amount: number): number {
+  const cappedGain = Math.max(0, Math.min(10, current + amount) - current);
+  return cappedGain * 1.2;
+}
+
+function knowledgeColorDemand(player: PlayerState): number {
+  return (['GREEN', 'BLUE', 'RED'] as KnowledgeColor[])
+    .reduce((sum, color) => sum + knowledgeColorNeed(player, color), 0);
+}
+
+function hasProgressPlan(player: PlayerState): boolean {
+  return (['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[])
+    .some(track => virtualAdvanceProgress(player, track) !== null);
+}
+
+function cardName(state: GameState, actor: PlayerState, cardId: string): string {
+  return actor.playedCards.find(card => card.id === cardId)?.name
+    ?? actor.handCards.find(card => card.id === cardId)?.name
+    ?? state.politicsDeck.find(card => card.id === cardId)?.name
+    ?? cardId;
 }
 
 function tokenValue(token: KnowledgeToken): number {
@@ -1048,8 +1454,7 @@ function tokenValue(token: KnowledgeToken): number {
 
 function canExploreToken(actor: PlayerState, token: KnowledgeToken, troopAfterGain: number): boolean {
   const requirement = token.militaryRequirement ?? 0;
-  const skull = Math.max(0, (token.skullValue ?? 0) - (hasCard(actor, 'helepole') || hasDevUnlocked(actor, 'sparta-dev-1') ? 1 : 0));
-  return troopAfterGain >= requirement && troopAfterGain >= skull;
+  return troopAfterGain >= requirement;
 }
 
 function knowledgeShortfall(player: PlayerState, requirement: KnowledgeRequirement): number {
@@ -1087,15 +1492,66 @@ function progressCost(player: PlayerState, track: ProgressTrackType): number {
   return cost;
 }
 
+function discountedProgressCost(player: PlayerState, track: ProgressTrackType, discount: number): number {
+  return Math.max(0, progressCost(player, track) - discount);
+}
+
 function virtualAdvanceProgress(player: PlayerState, track: ProgressTrackType): PlayerState | null {
   if (player[trackField(track)] >= 7) return null;
   const cost = progressCost(player, track);
   if (player.coins < cost) return null;
-  return {
+  return advanceTrack({
     ...player,
     coins: player.coins - cost,
-    [trackField(track)]: player[trackField(track)] + 1,
+  }, track, 1);
+}
+
+function progressTrackPlans(
+  player: PlayerState,
+  maxAdvancements: number,
+  spendScrolls: boolean,
+): Array<{ tracks: ProgressTrackType[]; player: PlayerState; coinCost: number; value: number }> {
+  const plans: Array<{ tracks: ProgressTrackType[]; player: PlayerState; coinCost: number; value: number }> = [{
+    tracks: [],
+    player,
+    coinCost: 0,
+    value: 0,
+  }];
+
+  const walk = (
+    current: PlayerState,
+    remaining: number,
+    tracks: ProgressTrackType[],
+    coinCost: number,
+    value: number,
+  ) => {
+    if (remaining <= 0) return;
+
+    for (const track of ['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[]) {
+      if (current[trackField(track)] >= 7) continue;
+      const cost = progressCost(current, track);
+      const scrollCost = spendScrolls ? 1 : 0;
+      if (current.coins < cost || current.philosophyTokens < scrollCost) continue;
+
+      const after = advanceTrack({
+        ...current,
+        coins: current.coins - cost,
+        philosophyTokens: current.philosophyTokens - scrollCost,
+      }, track, 1);
+      const nextTracks = [...tracks, track];
+      const nextValue = value + progressValue(current, track);
+      plans.push({
+        tracks: nextTracks,
+        player: after,
+        coinCost: coinCost + cost,
+        value: nextValue,
+      });
+      walk(after, remaining - 1, nextTracks, coinCost + cost, nextValue);
+    }
   };
+
+  walk(player, maxAdvancements, [], 0, 0);
+  return plans;
 }
 
 function progressValue(player: PlayerState, track: ProgressTrackType): number {
@@ -1106,6 +1562,16 @@ function progressValue(player: PlayerState, track: ProgressTrackType): number {
     track === 'MILITARY' && [2, 4, 6, 7].includes(next) ? 4 :
     0;
   return 4 + milestone - progressCost(player, track) * 0.5;
+}
+
+function eventProgressValue(player: PlayerState, track: ProgressTrackType, discount: number): number {
+  const next = player[trackField(track)] + 1;
+  const milestone =
+    track === 'ECONOMY' && (next === 4 || next === 7) ? (next === 4 ? 5 : 10) :
+    track === 'CULTURE' && [3, 5, 6, 7].includes(next) ? 4 :
+    track === 'MILITARY' && [2, 4, 6, 7].includes(next) ? 4 :
+    0;
+  return 4 + milestone - discountedProgressCost(player, track, discount) * 0.5;
 }
 
 function hasCard(player: PlayerState, cardId: string): boolean {
@@ -1178,3 +1644,9 @@ function unavailableResult(requestId: string, playerId: string, start: number, m
     status: 'UNAVAILABLE',
   };
 }
+
+export const __liveSolverInternals = {
+  enumerateCandidates,
+  applyMessage,
+  chooseBestActivation,
+};

@@ -155,6 +155,8 @@ export interface LiveSolverRequestOptions {
   beamWidth?: number;
   targetBranches?: number;
   opponentBranches?: number;
+  completionWidth?: number;
+  maxDecisionPlies?: number;
 }
 
 export interface LiveSolverScoreProjection {
@@ -169,7 +171,7 @@ export interface LiveSolverMove {
   phase: GamePhase;
   playerId: string;
   playerName: string;
-  decisionType: DecisionType;
+  decisionType: DecisionType | 'ACTIVATE_DEV';
   instruction: string;
   detail: string;
   message: ClientMessage | null;
