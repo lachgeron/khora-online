@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveSolverRequestOptions, LiveSolverResult, PrivatePlayerState, PublicGameState } from '../types';
 import { useLiveSolverKeybind } from './useLiveSolverKeybind';
 
@@ -27,10 +27,9 @@ export function useLiveSolverMode({
   const [result, setResult] = useState<LiveSolverResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [lastRequestId, setLastRequestId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastPositionKeyRef = useRef<string | null>(null);
   const latestRequestIdRef = useRef<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const searchAnchorRef = useRef<string | null>(null);
 
   const toggle = useCallback(() => setEnabled(v => !v), []);
   useLiveSolverKeybind(toggle);
@@ -83,49 +82,21 @@ export function useLiveSolverMode({
     });
   }, [connected, currentPlayerId, gameState, privateState]);
 
-  const positionKey = useMemo(() => {
+  const searchAnchor = (() => {
     if (!gameState) return '';
-    const myDecision = gameState.pendingDecisions.find(d =>
-      d.playerId === currentPlayerId && d.decisionType !== 'PHASE_DISPLAY');
     return JSON.stringify({
-      round: gameState.roundNumber,
-      myDecision: myDecision?.decisionType ?? null,
-      players: gameState.players.map(p => ({
-        id: p.playerId,
-        vp: p.victoryPoints,
-        coins: p.coins,
-        scrolls: p.philosophyTokens,
-        tracks: [p.economyTrack, p.cultureTrack, p.militaryTrack, p.taxTrack, p.gloryTrack, p.troopTrack, p.citizenTrack],
-        hand: p.handCardCount,
-        played: p.playedCardCount,
-        tokens: p.knowledgeTokens.map(t => t.id).join(','),
-        slots: p.actionSlots.map(s => `${s.actionType}:${s.resolved ? 1 : 0}`).join(','),
-        flagged: p.hasFlagged,
-      })),
-      event: gameState.currentEvent?.id ?? null,
-      achievements: gameState.availableAchievements.map(a => a.id),
-      board: gameState.centralBoardTokens.filter(t => !t.explored).map(t => t.id),
+      playerId: currentPlayerId,
+      players: gameState.players.map(p => p.playerId).join(','),
     });
-  }, [currentPlayerId, gameState]);
+  })();
 
   useEffect(() => {
     if (!enabled || !connected || !gameState || !currentPlayerId) return;
-    if (positionKey === lastPositionKeyRef.current) return;
-    lastPositionKeyRef.current = positionKey;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      requestNow();
-    }, 180);
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
-    };
-  }, [connected, currentPlayerId, enabled, gameState, positionKey, requestNow]);
+    if (!privateState?.liveSolverSnapshot) return;
+    if (searchAnchor === searchAnchorRef.current) return;
+    searchAnchorRef.current = searchAnchor;
+    requestNow();
+  }, [connected, currentPlayerId, enabled, gameState, privateState, requestNow, searchAnchor]);
 
   useEffect(() => () => {
     workerRef.current?.terminate();
@@ -136,7 +107,7 @@ export function useLiveSolverMode({
     if (enabled) return;
     workerRef.current?.terminate();
     workerRef.current = null;
-    lastPositionKeyRef.current = null;
+    searchAnchorRef.current = null;
     setSearching(false);
   }, [enabled]);
 
