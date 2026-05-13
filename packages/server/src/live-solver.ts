@@ -91,6 +91,17 @@ const DEFAULT_OPTIONS: SearchOptions = {
 
 const COMPLETION_GRACE_MS = 1600;
 const EXACT_PROOF_REASON = 'Optimality proved by exhaustive minimax search with safe pruning.';
+const LIGHTWEIGHT_OPPONENT_REASON = 'Opponent continuations use lightweight achievement/event reachability instead of full VP-line branching.';
+const COMPETITIVE_TROOP_EVENTS = new Set([
+  'origin-of-academy',
+  'conscripting-troops',
+  'eleusinian-mysteries',
+  'military-victory',
+  'prosperity',
+  'savior-of-greece',
+  'thirty-tyrants',
+]);
+let activeAchievementHorizonRound = 9;
 
 const PHASE_ORDER: GamePhase[] = [
   'OMEN',
@@ -137,6 +148,7 @@ export function runLiveSolver(
   if (state.currentPhase === 'GAME_OVER') {
     return unavailableResult(requestId, playerId, start, 'Game is already over.');
   }
+  activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
 
   let beam: SearchNode[] = [{
     state: cloneGameState(state),
@@ -286,7 +298,7 @@ export function runLiveSolver(
     proofStatus: 'UNPROVEN',
     proofNodes: exact.nodes,
     proofReason: exact.reason,
-    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+    opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
   };
 }
 
@@ -459,7 +471,9 @@ function exactMinimax(
   }
 
   const actorIsTarget = decision.playerId === ctx.targetPlayerId;
-  const candidates = enumerateExactCandidates(current.state, decision.playerId, decision.decisionType);
+  const candidates = actorIsTarget
+    ? enumerateExactCandidates(current.state, decision.playerId, decision.decisionType)
+    : enumerateLightweightOpponentCandidates(current.state, decision.playerId, decision.decisionType);
   if (candidates.length === 0) {
     const before = exactStateSignature(current.state);
     const auto = autoResolve(current.state, decision.playerId);
@@ -474,7 +488,31 @@ function exactMinimax(
     return exactMinimax({ ...current, state: auto }, ctx, alpha, beta);
   }
 
-  const ordered = orderExactCandidates(current.state, decision.playerId, candidates, ctx.targetPlayerId, actorIsTarget);
+  const ordered = actorIsTarget
+    ? orderExactCandidates(current.state, decision.playerId, candidates, ctx.targetPlayerId, true)
+    : orderOpponentCandidates(current.state, decision.playerId, candidates, ctx.targetPlayerId);
+
+  if (!actorIsTarget) {
+    const candidate = ordered[0];
+    const applied = candidate ? applyMessage(current.state, decision.playerId, candidate.message) : null;
+    if (!applied) {
+      return {
+        score: heuristicScore(current.state, ctx.targetPlayerId),
+        node: scoreNode(current, ctx.targetPlayerId),
+        proven: false,
+        reason: `No lightweight opponent candidate could be applied for ${decision.decisionType}.`,
+      };
+    }
+
+    const child = scoreNode({ state: applied, moves: current.moves, score: 0 }, ctx.targetPlayerId);
+    const result = exactMinimax(child, ctx, alpha, beta);
+    return {
+      ...result,
+      proven: false,
+      reason: result.reason === EXACT_PROOF_REASON ? LIGHTWEIGHT_OPPONENT_REASON : result.reason,
+    };
+  }
+
   let bestScore = actorIsTarget ? -Infinity : Infinity;
   let bestNode: SearchNode | null = null;
   let allChildrenProven = true;
@@ -813,6 +851,30 @@ function orderExactCandidates(
   });
 }
 
+function enumerateLightweightOpponentCandidates(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+): Candidate[] {
+  const candidates = enumerateCandidates(state, actorId, decisionType, actorId);
+  return candidates.length > 0 ? candidates : fallbackCandidates(state, actorId, decisionType);
+}
+
+function orderOpponentCandidates(
+  state: GameState,
+  actorId: string,
+  candidates: Candidate[],
+  targetPlayerId: string,
+): Candidate[] {
+  return candidates
+    .map(candidate => ({
+      candidate,
+      score: opponentCandidateScore(state, actorId, candidate, targetPlayerId),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(entry => entry.candidate);
+}
+
 function exactCacheKey(state: GameState, targetPlayerId: string): string {
   return `${targetPlayerId}|${exactStateSignature(state)}`;
 }
@@ -960,9 +1022,10 @@ function chooseRolloutCandidate(
     const applied = applyMessage(state, actorId, candidate.message);
     searched++;
     if (!applied) continue;
-    const score = heuristicScore(applied, targetPlayerId)
-      + (actorIsTarget ? candidate.quickScore * 0.08 : -candidate.quickScore * 0.02);
-    if (!best || (actorIsTarget ? score > best.score : score < best.score)) {
+    const score = actorIsTarget
+      ? heuristicScore(applied, targetPlayerId) + candidate.quickScore * 0.08
+      : opponentCandidateScore(state, actorId, candidate, targetPlayerId);
+    if (!best || score > best.score) {
       best = { candidate, state: applied, score, searched };
     }
   }
@@ -1051,8 +1114,10 @@ function orderSearchCandidates(
   targetPlayerId: string,
   actorIsTarget: boolean,
 ): Candidate[] {
-  const candidates = enumerateCandidates(state, actorId, decisionType, targetPlayerId);
-  return orderExactCandidates(state, actorId, candidates, targetPlayerId, actorIsTarget);
+  const candidates = enumerateCandidates(state, actorId, decisionType, actorIsTarget ? targetPlayerId : actorId);
+  return actorIsTarget
+    ? orderExactCandidates(state, actorId, candidates, targetPlayerId, true)
+    : orderOpponentCandidates(state, actorId, candidates, targetPlayerId);
 }
 
 function fallbackCandidates(state: GameState, actorId: string, decisionType: DecisionType): Candidate[] {
@@ -1576,10 +1641,123 @@ function candidateOutcomeScore(state: GameState, actorId: string, candidate: Can
   const applied = applyMessage(state, actorId, candidate.message);
   if (!applied) return -10000;
   const immediateDelta = heuristicScore(applied, scoringPlayerId) - heuristicScore(state, scoringPlayerId);
+  const raceDelta = targetAchievementRaceDelta(state, applied, scoringPlayerId);
+  const eventDelta = eventCompetitionOutlookScore(applied, scoringPlayerId) - eventCompetitionOutlookScore(state, scoringPlayerId);
   if (candidate.message.type === 'ASSIGN_DICE') {
-    return immediateDelta + assignedActionPlanScore(applied, actorId, scoringPlayerId) * 0.85;
+    return immediateDelta
+      + assignedActionPlanScore(applied, actorId, scoringPlayerId) * 0.85
+      + diceAssignmentPressure(state, actorId, candidate, scoringPlayerId) * 4
+      + raceDelta * 4
+      + eventDelta * 3;
   }
-  return immediateDelta;
+  return immediateDelta + raceDelta * 4 + eventDelta * 3;
+}
+
+function opponentCandidateScore(state: GameState, actorId: string, candidate: Candidate, targetPlayerId: string): number {
+  const applied = applyMessage(state, actorId, candidate.message);
+  if (!applied) return -10000;
+
+  const beforeActor = state.players.find(p => p.playerId === actorId);
+  const afterActor = applied.players.find(p => p.playerId === actorId);
+  const selfDelta = beforeActor && afterActor
+    ? roughPlayerScore(afterActor, applied) - roughPlayerScore(beforeActor, state)
+    : 0;
+  const actorRaceDelta = achievementRaceOutlookScore(applied, actorId) - achievementRaceOutlookScore(state, actorId);
+  const targetRaceDelta = achievementRaceOutlookScore(applied, targetPlayerId) - achievementRaceOutlookScore(state, targetPlayerId);
+  const actorEventDelta = eventCompetitionOutlookScore(applied, actorId) - eventCompetitionOutlookScore(state, actorId);
+  const targetEventDelta = eventCompetitionOutlookScore(applied, targetPlayerId) - eventCompetitionOutlookScore(state, targetPlayerId);
+
+  return candidate.quickScore * 0.1
+    + selfDelta * 0.25
+    + diceAssignmentPressure(state, actorId, candidate, actorId) * 6
+    + actorRaceDelta * 10
+    - targetRaceDelta * 2
+    + actorEventDelta * 9
+    - targetEventDelta * 3;
+}
+
+function diceAssignmentPressure(state: GameState, actorId: string, candidate: Candidate, focusPlayerId: string): number {
+  if (candidate.message.type !== 'ASSIGN_DICE') return 0;
+
+  const virtual = virtualStateAfterAssignedActions(state, actorId, candidate.message.assignments.map(assignment => assignment.actionType));
+  if (!virtual) return 0;
+
+  return (achievementRaceOutlookScore(virtual, focusPlayerId) - achievementRaceOutlookScore(state, focusPlayerId))
+    + (eventCompetitionOutlookScore(virtual, focusPlayerId) - eventCompetitionOutlookScore(state, focusPlayerId));
+}
+
+function virtualStateAfterAssignedActions(state: GameState, actorId: string, actions: ActionType[]): GameState | null {
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!actor) return null;
+
+  let virtual = { ...actor };
+  for (const action of actions) {
+    switch (action) {
+      case 'PHILOSOPHY':
+        virtual = {
+          ...virtual,
+          philosophyTokens: virtual.philosophyTokens + (hasCard(virtual, 'founding-the-lyceum') ? 2 : 1),
+        };
+        break;
+      case 'LEGISLATION':
+        virtual = { ...virtual, citizenTrack: Math.min(15, virtual.citizenTrack + 3) };
+        break;
+      case 'CULTURE':
+        virtual = {
+          ...virtual,
+          victoryPoints: virtual.victoryPoints + virtual.cultureTrack,
+          coins: virtual.coins + (hasCard(virtual, 'stoa-poikile') ? 2 : 0),
+          troopTrack: virtual.troopTrack
+            + (hasCard(virtual, 'persians') ? 2 : 0)
+            + (hasDevUnlocked(virtual, 'olympia-dev-2') ? 1 : 0),
+          philosophyTokens: virtual.philosophyTokens + (hasDevUnlocked(virtual, 'olympia-dev-2') ? 1 : 0),
+        };
+        break;
+      case 'TRADE':
+        virtual = {
+          ...virtual,
+          coins: virtual.coins + virtual.economyTrack + 1 + (hasCard(virtual, 'diolkos') ? 1 : 0),
+          troopTrack: virtual.troopTrack
+            + (hasCard(virtual, 'diolkos') ? 1 : 0)
+            + (hasCard(virtual, 'foreign-supplies') ? 2 : 0),
+          victoryPoints: virtual.victoryPoints
+            + (hasCard(virtual, 'diolkos') ? 1 : 0)
+            + (hasCard(virtual, 'lighthouse') ? 3 : 0)
+            + (hasDevUnlocked(virtual, 'miletus-dev-3') ? 3 : 0),
+        };
+        break;
+      case 'MILITARY':
+        virtual = { ...virtual, troopTrack: virtual.troopTrack + virtual.militaryTrack };
+        break;
+      case 'POLITICS': {
+        const playable = virtual.handCards.find(card => canPlayPoliticsCard(virtual, card));
+        if (playable) {
+          virtual = {
+            ...virtual,
+            handCards: virtual.handCards.filter(card => card.id !== playable.id),
+            playedCards: [...virtual.playedCards, playable],
+            coins: virtual.coins - playable.cost + (hasDevUnlocked(virtual, 'athens-dev-2') ? 2 : 0),
+            victoryPoints: virtual.victoryPoints + (hasDevUnlocked(virtual, 'athens-dev-2') ? 3 : 0),
+            troopTrack: virtual.troopTrack + (hasDevUnlocked(virtual, 'athens-dev-3') ? 2 : 0),
+          };
+        }
+        break;
+      }
+      case 'DEVELOPMENT':
+        if (virtual.cityId === 'argos' && virtual.developmentLevel === 1) {
+          virtual = { ...virtual, citizenTrack: Math.min(15, virtual.citizenTrack + 5) };
+        }
+        if (virtual.cityId === 'miletus' && virtual.developmentLevel === 0) {
+          virtual = { ...virtual, economyTrack: Math.min(7, virtual.economyTrack + 1) };
+        }
+        break;
+    }
+  }
+
+  return {
+    ...state,
+    players: state.players.map(player => player.playerId === actorId ? virtual : player),
+  };
 }
 
 function assignedActionPlanScore(state: GameState, actorId: string, scoringPlayerId: string): number {
@@ -1845,6 +2023,165 @@ function projectScores(state: GameState, targetPlayerId: string): Projection {
     scores,
     margin: target && bestOpponent ? target.projectedTotal - bestOpponent.projectedTotal : null,
   };
+}
+
+function targetAchievementRaceDelta(before: GameState, after: GameState, targetPlayerId: string): number {
+  return achievementRaceOutlookScore(after, targetPlayerId) - achievementRaceOutlookScore(before, targetPlayerId);
+}
+
+function achievementRaceOutlookScore(state: GameState, playerId: string): number {
+  const player = state.players.find(p => p.playerId === playerId);
+  if (!player) return 0;
+
+  let score = 0;
+  for (const achievement of state.availableAchievements) {
+    const playerRound = earliestAchievementReachRound(state, player, achievement.id);
+    const opponentRound = Math.min(
+      Infinity,
+      ...state.players
+        .filter(p => p.playerId !== playerId && p.isConnected && !p.hasFlagged)
+        .map(p => earliestAchievementReachRound(state, p, achievement.id) ?? Infinity),
+    );
+
+    if (playerRound !== null && playerRound <= opponentRound) {
+      score += playerRound === state.roundNumber ? 1.4 : 0.45;
+    } else if (opponentRound !== Infinity) {
+      score -= opponentRound === state.roundNumber ? 2.2 : 0.9;
+    }
+  }
+  return score;
+}
+
+function earliestAchievementReachRound(state: GameState, player: PlayerState, achievementId: string): number | null {
+  if (state.roundNumber > activeAchievementHorizonRound) return null;
+  if (achievementReached(player, achievementId)) return state.roundNumber;
+  if (state.roundNumber >= activeAchievementHorizonRound || state.roundNumber >= 9) return null;
+  return canReachAchievementByNextRound(state, player, achievementId) ? state.roundNumber + 1 : null;
+}
+
+function achievementReached(player: PlayerState, achievementId: string): boolean {
+  switch (achievementId) {
+    case 'ach-10vp': return player.victoryPoints >= 10;
+    case 'ach-12citizens': return player.citizenTrack >= 12;
+    case 'ach-4economy': return player.economyTrack >= 4;
+    case 'ach-3cards': return player.playedCards.length >= 3;
+    case 'ach-6troops': return player.troopTrack >= 6;
+    default: return false;
+  }
+}
+
+function canReachAchievementByNextRound(state: GameState, player: PlayerState, achievementId: string): boolean {
+  switch (achievementId) {
+    case 'ach-10vp':
+      return player.victoryPoints + oneRoundVpPotential(state, player) >= 10;
+    case 'ach-12citizens':
+      return player.citizenTrack + oneRoundCitizenPotential(state, player) >= 12;
+    case 'ach-4economy':
+      return player.economyTrack + oneRoundEconomyProgressPotential(player) >= 4;
+    case 'ach-3cards':
+      return player.playedCards.length + oneRoundPoliticsPlayPotential(player) >= 3;
+    case 'ach-6troops':
+      return player.troopTrack + oneRoundTroopPotential(player) >= 6;
+    default:
+      return false;
+  }
+}
+
+function oneRoundVpPotential(state: GameState, player: PlayerState): number {
+  const culture = player.cultureTrack;
+  const playableImmediate = player.handCards
+    .filter(card => canPlayPoliticsCard(player, card))
+    .reduce((best, card) => {
+      if (card.id === 'colossus-of-rhodes') return Math.max(best, 10);
+      if (card.id === 'tunnel-of-eupalinos') return Math.max(best, 6);
+      if (card.id === 'lighthouse') return Math.max(best, 3);
+      return best;
+    }, 0);
+  const eventSwing = COMPETITIVE_TROOP_EVENTS.has(state.currentEvent?.id ?? '') ? Math.max(0, eventCompetitionOutlookScore(state, player.playerId)) : 0;
+  return culture + playableImmediate + eventSwing;
+}
+
+function oneRoundCitizenPotential(state: GameState, player: PlayerState): number {
+  let potential = 3; // Legislation is the common reachable citizen burst.
+  if (player.cityId === 'argos' && player.developmentLevel === 1) potential = Math.max(potential, 5);
+  if (state.currentEvent?.id === 'conscripting-troops' && eventCompetitionOutlookScore(state, player.playerId) > 0) {
+    potential += 3;
+  }
+  return potential;
+}
+
+function oneRoundEconomyProgressPotential(player: PlayerState): number {
+  let potential = player.coins >= progressCost(player, 'ECONOMY') ? 1 : 0;
+  if (player.philosophyTokens > 0 && player.coins >= progressCost(player, 'ECONOMY')) potential += 1;
+  if (hasCard(player, 'reformists') || hasDevUnlocked(player, 'corinth-dev-3')) potential += 1;
+  if (player.cityId === 'miletus' && player.developmentLevel <= 1) potential += 1;
+  return Math.min(3, potential);
+}
+
+function oneRoundPoliticsPlayPotential(player: PlayerState): number {
+  const playable = player.handCards.filter(card => canPlayPoliticsCard(player, card)).length;
+  return Math.min(1, playable);
+}
+
+function oneRoundTroopPotential(player: PlayerState): number {
+  let potential = player.militaryTrack;
+  if (hasCard(player, 'persians')) potential += 2;
+  if (hasCard(player, 'diolkos')) potential += 1;
+  if (hasCard(player, 'foreign-supplies')) potential += 2;
+  if (hasCard(player, 'stadion')) potential += 2;
+  if (hasDevUnlocked(player, 'olympia-dev-2')) potential += 1;
+  if (player.cityId === 'argos' && player.developmentLevel <= 2) potential += 2;
+  for (const card of player.handCards) {
+    if (!canPlayPoliticsCard(player, card)) continue;
+    if (card.id === 'greek-fire') potential += 4;
+    if (card.id === 'mercenary-recruitment') potential += player.economyTrack;
+  }
+  return potential;
+}
+
+function eventCompetitionOutlookScore(state: GameState, playerId: string): number {
+  const eventId = state.currentEvent?.id;
+  if (!eventId || !COMPETITIVE_TROOP_EVENTS.has(eventId)) return 0;
+
+  const contenders = state.players.filter(p => p.isConnected && !p.hasFlagged);
+  const player = contenders.find(p => p.playerId === playerId);
+  if (!player || contenders.length === 0) return 0;
+
+  const highest = Math.max(...contenders.map(p => p.troopTrack));
+  const lowest = Math.min(...contenders.map(p => p.troopTrack));
+  const isHighest = player.troopTrack === highest;
+  const isLowest = player.troopTrack === lowest;
+
+  switch (eventId) {
+    case 'origin-of-academy':
+      return (isHighest ? 1.2 : 0) - (isLowest ? Math.min(5, player.philosophyTokens) * 0.8 : 0);
+    case 'conscripting-troops':
+      return (isHighest ? 2.2 : 0) - (isLowest ? 2.2 : 0);
+    case 'eleusinian-mysteries':
+      return (isHighest ? 4 : 0) - (isLowest ? 4 : 0);
+    case 'military-victory':
+      return isHighest ? bestDiscountedEventProgressValue(player) : 0;
+    case 'prosperity':
+      return isHighest ? (enumeratePoliticsCards(state, player, 'Prosperity politics')[0]?.quickScore ?? 0) * 0.35 : 0;
+    case 'savior-of-greece':
+      return (isHighest ? 0.7 : 0) - (isLowest ? 0.7 : 0);
+    case 'thirty-tyrants':
+      return (isHighest ? state.politicsDeck.slice(0, 2).reduce((sum, card) => sum + handCardPotential(card, player) * 0.08, 1.5) : 0)
+        - (isLowest ? player.handCards.slice(-2).reduce((sum, card) => sum + Math.max(1, handCardPotential(card, player) * 0.12), 0) : 0);
+    default:
+      return 0;
+  }
+}
+
+function bestDiscountedEventProgressValue(player: PlayerState): number {
+  return (['ECONOMY', 'CULTURE', 'MILITARY'] as ProgressTrackType[])
+    .filter(track => player[trackField(track)] < 7)
+    .filter(track => player.coins >= discountedProgressCost(player, track, 2))
+    .reduce((best, track) => Math.max(best, eventProgressValue(player, track, 2)), 0);
+}
+
+function canPlayPoliticsCard(player: PlayerState, card: PoliticsCard): boolean {
+  return player.coins >= card.cost && knowledgeShortfall(player, card.knowledgeRequirement) * 2 <= player.philosophyTokens;
 }
 
 function diversify(nodes: SearchNode[], limit: number): SearchNode[] {
@@ -2507,7 +2844,7 @@ function errorResult(requestId: string, playerId: string, start: number, message
     proofStatus: 'UNPROVEN',
     proofNodes: 0,
     proofReason: message,
-    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+    opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
   };
 }
 
@@ -2536,7 +2873,7 @@ function provenExactResult(
     proofStatus: 'PROVEN_OPTIMAL',
     proofNodes: exact.nodes,
     proofReason: exact.reason,
-    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+    opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
   };
 }
 
@@ -2550,6 +2887,10 @@ function unavailableResult(requestId: string, playerId: string, start: number, m
 export const __liveSolverInternals = {
   enumerateCandidates,
   enumerateExactCandidates,
+  orderSearchCandidates,
+  opponentCandidateScore,
+  achievementRaceOutlookScore,
+  eventCompetitionOutlookScore,
   applyMessage,
   chooseBestActivation,
 };

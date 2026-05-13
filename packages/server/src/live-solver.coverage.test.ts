@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionType, DecisionType, GameState, KnowledgeColor, KnowledgeToken, PlayerState, PoliticsCard } from '@khora/shared';
-import { ALL_CITIES, ALL_POLITICS_CARDS } from './game-data';
+import { ALL_CITIES, ALL_POLITICS_CARDS, RANDOM_EVENTS } from './game-data';
 import { GameServer } from './integration';
 import { __liveSolverInternals, runLiveSolver } from './live-solver';
 import { buildLiveSolverSnapshot, gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
@@ -305,6 +305,64 @@ describe('live solver rule-content coverage', () => {
     }));
 
     expect(exploredIds).toEqual(new Set(makeBoardTokens().map(token => token.id)));
+  });
+
+  it('uses achievement and event pressure when selecting lightweight opponent moves', () => {
+    const state = baseState();
+    const targetId = state.players[0].playerId;
+    const opponentId = state.players[1].playerId;
+    const event = RANDOM_EVENTS.find(card => card.id === 'eleusinian-mysteries')!;
+    const raceState: GameState = {
+      ...state,
+      currentPhase: 'DICE',
+      roundNumber: 3,
+      currentEvent: event,
+      players: state.players.map((player, index) => index === 0
+        ? { ...player, troopTrack: 5 }
+        : {
+            ...player,
+            troopTrack: 3,
+            militaryTrack: 3,
+            diceRoll: [4, 6],
+            citizenTrack: 12,
+            actionSlots: [null, null, null] as PlayerState['actionSlots'],
+          }),
+      pendingDecisions: [pending(opponentId, 'ASSIGN_DICE')],
+    };
+
+    const [topCandidate] = __liveSolverInternals.orderSearchCandidates(
+      raceState,
+      opponentId,
+      'ASSIGN_DICE',
+      targetId,
+      false,
+    );
+
+    expect(topCandidate?.message.type).toBe('ASSIGN_DICE');
+    if (topCandidate?.message.type !== 'ASSIGN_DICE') return;
+    expect(topCandidate.message.assignments.some(assignment => assignment.actionType === 'MILITARY')).toBe(true);
+  });
+
+  it('does not mark lines with lightweight opponent decisions as exact proofs', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const opponentId = state.players[1].playerId;
+    const terminalWithOpponentChoice: GameState = {
+      ...state,
+      currentPhase: 'ACHIEVEMENT',
+      roundNumber: 9,
+      pendingDecisions: [pending(opponentId, 'ACHIEVEMENT_TRACK_CHOICE')],
+    };
+
+    const result = runLiveSolver(terminalWithOpponentChoice, playerId, 'lightweight-opponent-proof-test', {
+      exactTimeBudgetMs: 1000,
+      exactNodeLimit: 1000,
+      timeBudgetMs: 1,
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.proofStatus).toBe('UNPROVEN');
+    expect(result.proofReason).toContain('lightweight achievement/event');
   });
 
   it('marks a fully searched near-terminal line as proven optimal', () => {

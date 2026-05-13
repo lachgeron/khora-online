@@ -146,6 +146,6 @@ function errorResult(requestId: string, playerId: string, message: string): Live
     proofStatus: 'UNPROVEN',
     proofNodes: 0,
     proofReason: message,
-    opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD',
+    opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
   };
 }

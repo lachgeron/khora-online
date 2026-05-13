@@ -99,7 +99,7 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
               </span>
             </div>
             <p className="text-[0.7rem] text-sand-600 mt-1">
-              {result.proofNodes.toLocaleString()} exact nodes · adversarial field
+              {result.proofNodes.toLocaleString()} exact nodes · {opponentModelLabel(result.opponentModel)}
             </p>
             <p className="text-xs text-sand-700 mt-1">{result.proofReason}</p>
           </div>
@@ -157,4 +157,10 @@ function phaseLabel(phase: string): string {
     .split('_')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function opponentModelLabel(model: LiveSolverResult['opponentModel']): string {
+  return model === 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD'
+    ? 'achievement/event field'
+    : 'adversarial field';
 }

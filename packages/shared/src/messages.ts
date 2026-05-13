@@ -252,5 +252,5 @@ export interface LiveSolverResult {
   proofStatus: 'PROVEN_OPTIMAL' | 'UNPROVEN';
   proofNodes: number;
   proofReason: string;
-  opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD';
+  opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD' | 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD';
 }
