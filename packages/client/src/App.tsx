@@ -39,6 +39,7 @@ type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
 const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 const TIME_BANK_DANGER_SECONDS = 10;
+const HOME_SCREEN_SUSPENDED = true;
 
 interface TimeBankDangerOverlayProps {
   active: boolean;
@@ -60,6 +61,17 @@ const TimeBankDangerOverlay: React.FC<TimeBankDangerOverlayProps> = ({ active, r
     </div>
   );
 };
+
+const SuspendedHomeScreen: React.FC = () => (
+  <div className="flex items-center justify-center min-h-screen px-6">
+    <div className="max-w-3xl text-center">
+      <p className="font-display text-xs uppercase tracking-[0.22em] text-crimson mb-5">KHORA</p>
+      <h1 className="font-display text-4xl sm:text-6xl font-bold text-sand-900 leading-tight">
+        KHORA Suspended until Peter acknowledges the official scoreboard
+      </h1>
+    </div>
+  </div>
+);
 
 export const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('NAME');
@@ -220,7 +232,7 @@ export const App: React.FC = () => {
       <TimeBankDangerOverlay active={showTimeBankDanger} remainingSeconds={timeBankRemainingSeconds} />
 
       {screen === 'NAME' && (
-        <div className="flex items-center justify-center min-h-screen">
+        HOME_SCREEN_SUSPENDED ? <SuspendedHomeScreen /> : <div className="flex items-center justify-center min-h-screen">
           <div className="max-w-sm w-full text-center px-6">
             <h1 className="font-display text-4xl font-bold text-sand-800 mb-1">Khora</h1>
             <p className="text-sand-500 italic mb-10">Rise of an Empire</p>
