@@ -32,6 +32,8 @@ interface SearchOptions {
   maxDecisionPlies: number;
   exactTimeBudgetMs: number;
   exactNodeLimit: number;
+  progressIntervalMs: number;
+  skipExactSearch: boolean;
 }
 
 interface Candidate {
@@ -87,6 +89,8 @@ const DEFAULT_OPTIONS: SearchOptions = {
   maxDecisionPlies: 900,
   exactTimeBudgetMs: 5000,
   exactNodeLimit: 500000,
+  progressIntervalMs: 1200,
+  skipExactSearch: false,
 };
 
 const COMPLETION_GRACE_MS = 1600;
@@ -134,6 +138,7 @@ export function runLiveSolver(
   playerId: string,
   requestId: string,
   options: Partial<SearchOptions> = {},
+  onProgress?: (result: LiveSolverResult) => void,
 ): LiveSolverResult {
   const start = Date.now();
   const opts = sanitizeOptions(options);
@@ -159,12 +164,40 @@ export function runLiveSolver(
   let searchedNodes = 0;
   const completedNodes: SearchNode[] = [];
   const completedSignatures = new Set<string>();
+  let lastProgressAt = 0;
 
   const recordCompleted = (node: SearchNode) => {
     const key = stateSignature(node.state);
     if (completedSignatures.has(key)) return;
     completedSignatures.add(key);
     completedNodes.push(scoreNode(node, playerId));
+    emitProgress(true, 'Best full-game line found so far. Search is still running.');
+  };
+
+  const bestKnownNode = () => completedNodes.length > 0
+    ? completedNodes
+        .slice()
+        .sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
+    : normalizeNode(best, playerId).node;
+
+  const emitProgress = (force = false, message = 'Best line found so far. Search is still running.') => {
+    if (!onProgress) return;
+    const now = Date.now();
+    if (!force && now - lastProgressAt < opts.progressIntervalMs) return;
+    lastProgressAt = now;
+    onProgress(buildUnprovenResult({
+      requestId,
+      playerId,
+      start,
+      node: bestKnownNode(),
+      searchedNodes,
+      completedLines: completedNodes.length,
+      proofNodes: 0,
+      proofReason: opts.skipExactSearch
+        ? 'Progressive line search is still running; exact proof is deferred.'
+        : 'Progressive line search is still running.',
+      message,
+    }));
   };
 
   for (let step = 0; step < opts.maxDecisionPlies; step++) {
@@ -228,6 +261,7 @@ export function runLiveSolver(
     nextBeam.sort((a, b) => b.score - a.score);
     beam = diversify(nextBeam, opts.beamWidth);
     if (beam[0] && beam[0].score >= best.score) best = beam[0];
+    emitProgress();
     if (allComplete) {
       break;
     }
@@ -264,14 +298,27 @@ export function runLiveSolver(
     } else if (rollout.node.score > best.score) {
       best = rollout.node;
     }
+    emitProgress();
   }
 
   const finalBest = completedNodes.length > 0
     ? completedNodes.sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
     : normalizeNode(best, playerId).node;
   const horizon: LiveSolverResult['horizon'] = finalBest.state.currentPhase === 'GAME_OVER' ? 'FULL_GAME' : 'PARTIAL';
+  emitProgress(true, horizon === 'FULL_GAME'
+    ? 'Best full-game line found so far. Search is still running.'
+    : 'Best partial line found so far. Search is still running.');
 
-  const exact = runExactProofSearch(state, playerId, opts, Date.now());
+  const exact = opts.skipExactSearch
+    ? {
+        score: heuristicScore(state, playerId),
+        node: scoreNode({ state: cloneGameState(state), moves: [], score: 0 }, playerId),
+        proven: false,
+        reason: 'Progressive line search is still running; exact proof is deferred.',
+        nodes: 0,
+        cacheHits: 0,
+      }
+    : runExactProofSearch(state, playerId, opts, Date.now());
   if (exact.proven) {
     return provenExactResult(requestId, playerId, start, exact);
   }
@@ -302,16 +349,62 @@ export function runLiveSolver(
   };
 }
 
+function buildUnprovenResult({
+  requestId,
+  playerId,
+  start,
+  node,
+  searchedNodes,
+  completedLines,
+  proofNodes,
+  proofReason,
+  message,
+}: {
+  requestId: string;
+  playerId: string;
+  start: number;
+  node: SearchNode;
+  searchedNodes: number;
+  completedLines: number;
+  proofNodes: number;
+  proofReason: string;
+  message: string;
+}): LiveSolverResult {
+  const horizon: LiveSolverResult['horizon'] = node.state.currentPhase === 'GAME_OVER' ? 'FULL_GAME' : 'PARTIAL';
+  const projection = projectScores(node.state, playerId);
+  return {
+    requestId,
+    playerId,
+    generatedAt: Date.now(),
+    status: 'READY',
+    message,
+    currentMove: node.moves[0] ?? null,
+    rounds: groupMovesByRound(node.moves),
+    projections: projection.scores,
+    projectedMargin: projection.margin,
+    searchedNodes,
+    completedLines,
+    computeMs: Date.now() - start,
+    horizon,
+    proofStatus: 'UNPROVEN',
+    proofNodes,
+    proofReason,
+    opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
+  };
+}
+
 function sanitizeOptions(options: Partial<SearchOptions>): SearchOptions {
   return {
-    timeBudgetMs: clampNumber(options.timeBudgetMs, 500, 8000, DEFAULT_OPTIONS.timeBudgetMs),
-    beamWidth: clampNumber(options.beamWidth, 8, 160, DEFAULT_OPTIONS.beamWidth),
-    targetBranches: clampNumber(options.targetBranches, 4, 40, DEFAULT_OPTIONS.targetBranches),
+    timeBudgetMs: clampNumber(options.timeBudgetMs, 500, 600000, DEFAULT_OPTIONS.timeBudgetMs),
+    beamWidth: clampNumber(options.beamWidth, 8, 1024, DEFAULT_OPTIONS.beamWidth),
+    targetBranches: clampNumber(options.targetBranches, 4, 160, DEFAULT_OPTIONS.targetBranches),
     opponentBranches: clampNumber(options.opponentBranches, 1, 6, DEFAULT_OPTIONS.opponentBranches),
-    completionWidth: clampNumber(options.completionWidth, 1, 40, DEFAULT_OPTIONS.completionWidth),
-    maxDecisionPlies: clampNumber(options.maxDecisionPlies, 120, 1500, DEFAULT_OPTIONS.maxDecisionPlies),
+    completionWidth: clampNumber(options.completionWidth, 1, 320, DEFAULT_OPTIONS.completionWidth),
+    maxDecisionPlies: clampNumber(options.maxDecisionPlies, 120, 6000, DEFAULT_OPTIONS.maxDecisionPlies),
     exactTimeBudgetMs: clampNumber(options.exactTimeBudgetMs, 0, 60000, DEFAULT_OPTIONS.exactTimeBudgetMs),
     exactNodeLimit: clampNumber(options.exactNodeLimit, 0, 5_000_000, DEFAULT_OPTIONS.exactNodeLimit),
+    progressIntervalMs: clampNumber(options.progressIntervalMs, 250, 10000, DEFAULT_OPTIONS.progressIntervalMs),
+    skipExactSearch: options.skipExactSearch === true,
   };
 }
 

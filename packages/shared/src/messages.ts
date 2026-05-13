@@ -209,6 +209,8 @@ export interface LiveSolverRequestOptions {
   maxDecisionPlies?: number;
   exactTimeBudgetMs?: number;
   exactNodeLimit?: number;
+  progressIntervalMs?: number;
+  skipExactSearch?: boolean;
 }
 
 export interface LiveSolverScoreProjection {

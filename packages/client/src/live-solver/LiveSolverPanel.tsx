@@ -31,7 +31,13 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
               </span>
             </div>
             <p className="text-[0.7rem] text-sand-500 mt-0.5">
-              {pending ? 'Searching...' : result ? `${result.computeMs}ms · ${result.searchedNodes.toLocaleString()} nodes · ${proofLabel}` : 'Ready'}
+              {pending && result
+                ? `Searching... best so far · ${result.computeMs}ms · ${result.searchedNodes.toLocaleString()} nodes`
+                : pending
+                  ? 'Searching...'
+                  : result
+                    ? `${result.computeMs}ms · ${result.searchedNodes.toLocaleString()} nodes · ${proofLabel}`
+                    : 'Ready'}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -109,7 +115,7 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <p className="text-[0.65rem] uppercase tracking-wider text-sand-500 font-bold mb-2">Path</p>
         {!result || result.rounds.length === 0 ? (
-          <p className="text-xs text-sand-500 italic">The line will appear after the search completes.</p>
+          <p className="text-xs text-sand-500 italic">The best line found so far will appear as soon as the search has one.</p>
         ) : (
           <div className="space-y-4">
             {result.rounds.map(round => (
@@ -135,6 +141,7 @@ export const LiveSolverPanel: React.FC<LiveSolverPanelProps> = ({
           {result.horizon === 'FULL_GAME' ? 'searched to final scoring' : 'partial horizon'}
           {' · '}
           {result.completedLines} completed line{result.completedLines === 1 ? '' : 's'}
+          {pending ? ' · still searching' : ''}
         </div>
       )}
     </aside>

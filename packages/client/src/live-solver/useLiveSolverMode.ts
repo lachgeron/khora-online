@@ -25,6 +25,7 @@ export function useLiveSolverMode({
 }: UseLiveSolverModeArgs): LiveSolverMode {
   const [enabled, setEnabled] = useState(false);
   const [result, setResult] = useState<LiveSolverResult | null>(null);
+  const [searching, setSearching] = useState(false);
   const [lastRequestId, setLastRequestId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPositionKeyRef = useRef<string | null>(null);
@@ -39,33 +40,40 @@ export function useLiveSolverMode({
     if (!connected || !gameState || !currentPlayerId || !snapshot) return;
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setLastRequestId(requestId);
+    setSearching(true);
     latestRequestIdRef.current = requestId;
 
     workerRef.current?.terminate();
     const worker = new Worker(new URL('./liveSolver.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current = worker;
-    worker.onmessage = (event: MessageEvent<{ requestId: string; result: LiveSolverResult }>) => {
+    worker.onmessage = (event: MessageEvent<{ requestId: string; result: LiveSolverResult; done?: boolean }>) => {
       if (event.data.requestId !== latestRequestIdRef.current) return;
       setResult(event.data.result);
-      worker.terminate();
-      if (workerRef.current === worker) workerRef.current = null;
+      if (event.data.done) {
+        worker.terminate();
+        if (workerRef.current === worker) workerRef.current = null;
+        setSearching(false);
+      }
     };
     worker.onerror = (event) => {
       if (latestRequestIdRef.current !== requestId) return;
       setResult(errorResult(requestId, currentPlayerId, event.message || 'Live solver worker failed.'));
       worker.terminate();
       if (workerRef.current === worker) workerRef.current = null;
+      setSearching(false);
     };
 
     const options: LiveSolverRequestOptions = {
-      timeBudgetMs: 8000,
-      beamWidth: 128,
-      targetBranches: 32,
+      timeBudgetMs: 300000,
+      beamWidth: 1024,
+      targetBranches: 160,
       opponentBranches: 1,
-      completionWidth: 36,
-      maxDecisionPlies: 900,
-      exactTimeBudgetMs: 5000,
-      exactNodeLimit: 500000,
+      completionWidth: 320,
+      maxDecisionPlies: 6000,
+      exactTimeBudgetMs: 0,
+      exactNodeLimit: 0,
+      progressIntervalMs: 1000,
+      skipExactSearch: true,
     };
     worker.postMessage({
       requestId,
@@ -124,7 +132,15 @@ export function useLiveSolverMode({
     workerRef.current = null;
   }, []);
 
-  const pending = enabled && lastRequestId !== null && result?.requestId !== lastRequestId;
+  useEffect(() => {
+    if (enabled) return;
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    lastPositionKeyRef.current = null;
+    setSearching(false);
+  }, [enabled]);
+
+  const pending = enabled && (searching || (lastRequestId !== null && result?.requestId !== lastRequestId));
   return { enabled, toggle, requestNow, pending, result };
 }
 
