@@ -85,10 +85,11 @@ export function useLiveSolverMode({
 
   const positionKey = useMemo(() => {
     if (!gameState) return '';
+    const myDecision = gameState.pendingDecisions.find(d =>
+      d.playerId === currentPlayerId && d.decisionType !== 'PHASE_DISPLAY');
     return JSON.stringify({
       round: gameState.roundNumber,
-      phase: gameState.currentPhase,
-      pending: gameState.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}:${d.timeoutAt}:${d.usingTimeBank ? 1 : 0}`),
+      myDecision: myDecision?.decisionType ?? null,
       players: gameState.players.map(p => ({
         id: p.playerId,
         vp: p.victoryPoints,
@@ -104,9 +105,8 @@ export function useLiveSolverMode({
       event: gameState.currentEvent?.id ?? null,
       achievements: gameState.availableAchievements.map(a => a.id),
       board: gameState.centralBoardTokens.filter(t => !t.explored).map(t => t.id),
-      solverUpdatedAt: privateState?.liveSolverSnapshot?.updatedAt ?? null,
     });
-  }, [gameState, privateState]);
+  }, [currentPlayerId, gameState]);
 
   useEffect(() => {
     if (!enabled || !connected || !gameState || !currentPlayerId) return;
