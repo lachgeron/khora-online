@@ -24,7 +24,7 @@ export const ALL_POLITICS_CARDS: PoliticsCard[] = [
     endGameScoring: { type: 'CUSTOM', calculate: (p) => 3 * Math.min(p.economyTrack, p.cultureTrack, p.militaryTrack), description: 'Gain VP equal to 3× your lowest Economy, Culture, Military track' } },
   { id: 'central-government', name: 'Central Government', description: 'At the end of the game, gain 2 VP for each card you have in play (including this one)', cost: 4, knowledgeRequirement: { green: 2, blue: 0, red: 0 }, type: 'END_GAME',
     effect: { type: 'GAIN_VP', amount: 0 },
-    endGameScoring: { type: 'PER_CARD', calculate: (p) => (p.playedCards.length + 1) * 2, description: 'Gain 2 VP for each card in play (including this one)' } },
+    endGameScoring: { type: 'PER_CARD', calculate: (p) => p.playedCards.length * 2, description: 'Gain 2 VP for each card in play (including this one)' } },
   { id: 'gold-reserve', name: 'Gold Reserve', description: 'At the end of the game, gain VP equal to double your economy level', cost: 8, knowledgeRequirement: { green: 0, blue: 0, red: 3 }, type: 'END_GAME',
     effect: { type: 'GAIN_VP', amount: 0 },
     endGameScoring: { type: 'PER_TRACK_LEVEL', calculate: (p) => p.economyTrack * 2, description: 'Gain VP equal to double your economy level' } },

@@ -9,7 +9,7 @@
  * - Players lock in their choices and can undo before the phase completes.
  */
 
-import type { ClientMessage, GameState, PlayerState, Result, GameError, ProgressTrackType } from '@khora/shared';
+import type { ClientMessage, GameState, PlayerState, Result, GameError, ProgressSubmission, ProgressTrackType } from '@khora/shared';
 import type { PhaseManager } from './omen-phase';
 import { advanceTrack, addVP, subtractCoins, subtractPhilosophyTokens } from '../resources';
 import { hasCardInPlay } from '../card-handlers';
@@ -30,12 +30,7 @@ const PROGRESS_COST_MAP: Record<string, Record<number, number>> = {
 const MAX_PROGRESS_LEVEL = 7;
 
 export class ProgressPhaseManager implements PhaseManager {
-  /** Stores pre-progress player snapshots so undo can restore them. */
-  private snapshots = new Map<string, PlayerState>();
-
   onEnter(state: GameState): GameState {
-    this.snapshots.clear();
-
     const now = Date.now();
     const pendingDecisions = state.turnOrder
       .filter(pid => {
@@ -49,7 +44,7 @@ export class ProgressPhaseManager implements PhaseManager {
         options: null as unknown,
       }));
 
-    return { ...state, pendingDecisions };
+    return { ...state, pendingDecisions, progressSubmissions: {} };
   }
 
   handleDecision(
@@ -58,19 +53,10 @@ export class ProgressPhaseManager implements PhaseManager {
     decision: ClientMessage,
   ): Result<GameState, GameError> {
     if (decision.type === 'SKIP_PHASE') {
-      let updatedState = state;
-      // Old Guard: +4 VP if player has the card and skips progress
-      const player = state.players.find(p => p.playerId === playerId);
-      if (player && hasCardInPlay(player, 'old-guard')) {
-        const playerIdx = state.players.findIndex(p => p.playerId === playerId);
-        const updatedPlayers = [...updatedState.players];
-        updatedPlayers[playerIdx] = addVP(updatedPlayers[playerIdx], 4);
-        updatedState = { ...updatedState, players: updatedPlayers };
-        updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Old Guard: +4 VP for skipping progress', details: { vp: 4 } });
+      if (!this.hasPendingProgressDecision(state, playerId)) {
+        return { ok: false, error: { code: 'NOT_YOUR_TURN', message: 'No pending progress decision' } };
       }
-      const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
-      this.snapshots.delete(playerId);
-      return { ok: true, value: this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions }) };
+      return { ok: true, value: this.commitProgressSubmission(state, playerId, { skipped: true }) };
     }
 
     if (decision.type === 'UNDO_PROGRESS') {
@@ -94,84 +80,26 @@ export class ProgressPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'PLAYER_NOT_FOUND', message: 'Player not found' } };
     }
 
-    let player = state.players[playerIndex];
+    const player = state.players[playerIndex];
     const { advancement, extraTracks, bonusTracks } = decision;
 
-    // Save snapshot before any changes
-    this.snapshots.set(playerId, player);
-
-    // Primary advancement (free, just pay drachmas)
-    if (advancement) {
-      const result = this.advanceOneTrack(player, advancement.track);
-      if (!result.ok) { this.snapshots.delete(playerId); return result; }
-      player = result.value;
+    if (!advancement) {
+      return { ok: false, error: { code: 'INVALID_DECISION', message: 'No progress track selected' } };
     }
 
-    // Reformists / Corinth dev 3 bonus advancements (pay drachmas — no philosophy token)
-    if (bonusTracks && bonusTracks.length > 0) {
-      const hasReformists = hasCardInPlay(player, 'reformists');
-      const hasCorinthDev3 = hasDevUnlocked(player, 'corinth-dev-3');
-      const maxBonus = (hasReformists ? 1 : 0) + (hasCorinthDev3 ? 1 : 0);
-      if (bonusTracks.length > maxBonus) {
-        this.snapshots.delete(playerId);
-        return { ok: false, error: { code: 'INVALID_DECISION', message: 'No card granting bonus track advancements' } };
-      }
-      for (const bonus of bonusTracks) {
-        const result = this.advanceOneTrack(player, bonus.track);
-        if (!result.ok) { this.snapshots.delete(playerId); return result; }
-        player = result.value;
-      }
-    }
+    const submission: ProgressSubmission = { advancement, extraTracks, bonusTracks };
+    const validation = this.applySubmissionToPlayer(player, submission);
+    if (!validation.ok) return validation;
 
-    // Extra advancements (each costs 1 philosophy token + drachmas)
-    if (extraTracks && extraTracks.length > 0) {
-      for (const extra of extraTracks) {
-        const philResult = subtractPhilosophyTokens(player, 1);
-        if (!philResult.ok) {
-          this.snapshots.delete(playerId);
-          return { ok: false, error: { code: 'INSUFFICIENT_RESOURCES', message: 'Need 1 philosophy token per extra advancement' } };
-        }
-        player = philResult.value;
-
-        const result = this.advanceOneTrack(player, extra.track);
-        if (!result.ok) { this.snapshots.delete(playerId); return result; }
-        player = result.value;
-      }
-    }
-
-    const updatedPlayers = [...state.players];
-    updatedPlayers[playerIndex] = player;
-
-    const updatedDecisions = state.pendingDecisions.filter(d => d.playerId !== playerId);
-
-    let updatedState: GameState = { ...state, players: updatedPlayers, pendingDecisions: updatedDecisions };
-
-    // Log track advancements with detailed changes
-    const playerBefore = state.players[playerIndex];
-    if (advancement) {
-      updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${advancement.track}`, details: { track: advancement.track } });
-    }
-    if (bonusTracks && bonusTracks.length > 0) {
-      for (const bonus of bonusTracks) {
-        updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${bonus.track} (Reformists)`, details: { track: bonus.track } });
-      }
-    }
-    if (extraTracks && extraTracks.length > 0) {
-      for (const extra of extraTracks) {
-        updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${extra.track} (philosophy token)`, details: { track: extra.track } });
-      }
-    }
-    updatedState = logPlayerDiff(updatedState, playerBefore, player, { roundNumber: state.roundNumber, phase: 'PROGRESS', source: 'Progress' });
-
-    return { ok: true, value: this.finishOrDisplay(updatedState) };
+    return { ok: true, value: this.commitProgressSubmission(state, playerId, submission) };
   }
 
   private handleUndo(
     state: GameState,
     playerId: string,
   ): Result<GameState, GameError> {
-    const snapshot = this.snapshots.get(playerId);
-    if (!snapshot) {
+    const submissions = state.progressSubmissions ?? {};
+    if (!submissions[playerId]) {
       return { ok: false, error: { code: 'INVALID_DECISION', message: 'No progress to undo' } };
     }
 
@@ -185,11 +113,6 @@ export class ProgressPhaseManager implements PhaseManager {
       return { ok: false, error: { code: 'PLAYER_NOT_FOUND', message: 'Player not found' } };
     }
 
-    // Restore the snapshot
-    const updatedPlayers = [...state.players];
-    updatedPlayers[playerIndex] = snapshot;
-    this.snapshots.delete(playerId);
-
     // Re-add pending decision
     const now = Date.now();
     const updatedDecisions = [
@@ -202,7 +125,102 @@ export class ProgressPhaseManager implements PhaseManager {
       },
     ];
 
-    return { ok: true, value: { ...state, players: updatedPlayers, pendingDecisions: updatedDecisions } };
+    const remainingSubmissions = { ...submissions };
+    delete remainingSubmissions[playerId];
+
+    return {
+      ok: true,
+      value: {
+        ...state,
+        pendingDecisions: updatedDecisions,
+        progressSubmissions: remainingSubmissions,
+      },
+    };
+  }
+
+  private hasPendingProgressDecision(state: GameState, playerId: string): boolean {
+    return state.pendingDecisions.some(
+      d => d.playerId === playerId && d.decisionType === 'PROGRESS_TRACK',
+    );
+  }
+
+  private commitProgressSubmission(
+    state: GameState,
+    playerId: string,
+    submission: ProgressSubmission,
+  ): GameState {
+    const updatedDecisions = state.pendingDecisions.filter(d => d.playerId !== playerId);
+    const progressSubmissions = {
+      ...(state.progressSubmissions ?? {}),
+      [playerId]: this.cloneSubmission(submission),
+    };
+
+    return this.finishOrDisplay({
+      ...state,
+      pendingDecisions: updatedDecisions,
+      progressSubmissions,
+    });
+  }
+
+  private cloneSubmission(submission: ProgressSubmission): ProgressSubmission {
+    return {
+      ...submission,
+      advancement: submission.advancement ? { ...submission.advancement } : undefined,
+      extraTracks: submission.extraTracks?.map(track => ({ ...track })),
+      bonusTracks: submission.bonusTracks?.map(track => ({ ...track })),
+    };
+  }
+
+  private applySubmissionToPlayer(
+    player: PlayerState,
+    submission: ProgressSubmission,
+  ): Result<PlayerState, GameError> {
+    let updatedPlayer = player;
+
+    if (submission.skipped) {
+      return { ok: true, value: updatedPlayer };
+    }
+
+    if (!submission.advancement) {
+      return { ok: false, error: { code: 'INVALID_DECISION', message: 'No progress track selected' } };
+    }
+
+    // Primary advancement (pay drachmas)
+    const primaryResult = this.advanceOneTrack(updatedPlayer, submission.advancement.track);
+    if (!primaryResult.ok) return primaryResult;
+    updatedPlayer = primaryResult.value;
+
+    // Reformists / Corinth dev 3 bonus advancements (pay drachmas — no philosophy token)
+    if (submission.bonusTracks && submission.bonusTracks.length > 0) {
+      const hasReformists = hasCardInPlay(updatedPlayer, 'reformists');
+      const hasCorinthDev3 = hasDevUnlocked(updatedPlayer, 'corinth-dev-3');
+      const maxBonus = (hasReformists ? 1 : 0) + (hasCorinthDev3 ? 1 : 0);
+      if (submission.bonusTracks.length > maxBonus) {
+        return { ok: false, error: { code: 'INVALID_DECISION', message: 'No card granting bonus track advancements' } };
+      }
+      for (const bonus of submission.bonusTracks) {
+        const result = this.advanceOneTrack(updatedPlayer, bonus.track);
+        if (!result.ok) return result;
+        updatedPlayer = result.value;
+      }
+    }
+
+    // Extra advancements (each costs 1 philosophy token + drachmas)
+    if (submission.extraTracks && submission.extraTracks.length > 0) {
+      for (const extra of submission.extraTracks) {
+        const philResult = subtractPhilosophyTokens(updatedPlayer, 1);
+        if (!philResult.ok) {
+          return { ok: false, error: { code: 'INSUFFICIENT_RESOURCES', message: 'Need 1 philosophy token per extra advancement' } };
+        }
+        updatedPlayer = philResult.value;
+
+        const result = this.advanceOneTrack(updatedPlayer, extra.track);
+        if (!result.ok) return result;
+        updatedPlayer = result.value;
+      }
+    }
+
+    return { ok: true, value: updatedPlayer };
   }
 
   private advanceOneTrack(
@@ -259,8 +277,9 @@ export class ProgressPhaseManager implements PhaseManager {
   private finishOrDisplay(state: GameState): GameState {
     const remaining = state.pendingDecisions.filter(d => d.decisionType !== 'PHASE_DISPLAY');
     if (remaining.length === 0 && !state.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
+      const revealedState = this.applySubmittedProgress(state);
       return {
-        ...state,
+        ...revealedState,
         pendingDecisions: [{
           playerId: '__display__',
           decisionType: 'PHASE_DISPLAY' as const,
@@ -272,24 +291,79 @@ export class ProgressPhaseManager implements PhaseManager {
     return state;
   }
 
+  /**
+   * Used when another system removes a progress pending decision, such as a
+   * player flagging on time. If that was the last unresolved choice, reveal the
+   * already locked choices and enter the display pause.
+   */
+  finishAfterExternalPendingChange(state: GameState): GameState {
+    return this.finishOrDisplay(state);
+  }
+
+  private applySubmittedProgress(state: GameState): GameState {
+    const submissions = state.progressSubmissions ?? {};
+    let updatedState: GameState = { ...state, progressSubmissions: {} };
+
+    const orderedPlayerIds = [
+      ...state.turnOrder,
+      ...Object.keys(submissions).filter(playerId => !state.turnOrder.includes(playerId)),
+    ];
+
+    for (const playerId of orderedPlayerIds) {
+      const submission = submissions[playerId];
+      if (!submission) continue;
+
+      const playerIndex = updatedState.players.findIndex(p => p.playerId === playerId);
+      if (playerIndex === -1) continue;
+
+      const playerBefore = updatedState.players[playerIndex];
+      if (playerBefore.hasFlagged) continue;
+
+      if (submission.skipped) {
+        if (hasCardInPlay(playerBefore, 'old-guard')) {
+          const updatedPlayers = [...updatedState.players];
+          updatedPlayers[playerIndex] = addVP(updatedPlayers[playerIndex], 4);
+          updatedState = { ...updatedState, players: updatedPlayers };
+          updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Old Guard: +4 VP for skipping progress', details: { vp: 4 } });
+        } else if (submission.auto) {
+          updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Skipped progress (auto)', details: { auto: true } });
+        }
+        continue;
+      }
+
+      const result = this.applySubmissionToPlayer(playerBefore, submission);
+      if (!result.ok) continue;
+
+      const updatedPlayers = [...updatedState.players];
+      updatedPlayers[playerIndex] = result.value;
+      updatedState = { ...updatedState, players: updatedPlayers };
+
+      if (submission.advancement) {
+        updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${submission.advancement.track}`, details: { track: submission.advancement.track } });
+      }
+      if (submission.bonusTracks && submission.bonusTracks.length > 0) {
+        for (const bonus of submission.bonusTracks) {
+          updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${bonus.track} (Reformists)`, details: { track: bonus.track } });
+        }
+      }
+      if (submission.extraTracks && submission.extraTracks.length > 0) {
+        for (const extra of submission.extraTracks) {
+          updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: `Advanced ${extra.track} (philosophy token)`, details: { track: extra.track } });
+        }
+      }
+      updatedState = logPlayerDiff(updatedState, playerBefore, result.value, { roundNumber: state.roundNumber, phase: 'PROGRESS', source: 'Progress' });
+    }
+
+    return updatedState;
+  }
+
   autoResolve(state: GameState, playerId: string): GameState {
     if (playerId === '__display__') {
       return { ...state, pendingDecisions: [] };
     }
-    let updatedState = state;
-    // Old Guard: +4 VP if player has the card (auto-resolve = skip = no progress)
-    const player = state.players.find(p => p.playerId === playerId);
-    if (player && hasCardInPlay(player, 'old-guard')) {
-      const playerIdx = state.players.findIndex(p => p.playerId === playerId);
-      const updatedPlayers = [...updatedState.players];
-      updatedPlayers[playerIdx] = addVP(updatedPlayers[playerIdx], 4);
-      updatedState = { ...updatedState, players: updatedPlayers };
-      updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Old Guard: +4 VP for skipping progress', details: { vp: 4 } });
-    } else {
-      updatedState = appendLogEntry(updatedState, { roundNumber: state.roundNumber, phase: 'PROGRESS', playerId, action: 'Skipped progress (auto)', details: { auto: true } });
+    if (!this.hasPendingProgressDecision(state, playerId)) {
+      return state;
     }
-    const updatedDecisions = updatedState.pendingDecisions.filter(d => d.playerId !== playerId);
-    this.snapshots.delete(playerId);
-    return this.finishOrDisplay({ ...updatedState, pendingDecisions: updatedDecisions });
+    return this.commitProgressSubmission(state, playerId, { skipped: true, auto: true });
   }
 }

@@ -2295,6 +2295,7 @@ function stateSignature(state: GameState): string {
     phase: state.currentPhase,
     round: state.roundNumber,
     pending: state.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}`),
+    progressSubmissions: progressSubmissionSignature(state),
     players: state.players.map(p => [
       p.playerId, p.cityId, p.developmentLevel, p.coins, p.victoryPoints, p.economyTrack, p.cultureTrack, p.militaryTrack,
       p.taxTrack, p.gloryTrack, p.troopTrack, p.citizenTrack, p.philosophyTokens,
@@ -2313,6 +2314,7 @@ function exactStateSignature(state: GameState): string {
   return JSON.stringify({
     phase: state.currentPhase,
     round: state.roundNumber,
+    progressSubmissions: progressSubmissionSignature(state),
     startPlayerId: state.startPlayerId,
     turnOrder: state.turnOrder,
     currentEvent: state.currentEvent?.id ?? null,
@@ -2403,6 +2405,21 @@ function exactStateSignature(state: GameState): string {
   });
 }
 
+function progressSubmissionSignature(state: GameState): Array<[string, string[], boolean, boolean]> {
+  return Object.entries(state.progressSubmissions ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([playerId, submission]): [string, string[], boolean, boolean] => [
+      playerId,
+      [
+        submission.advancement?.track,
+        ...(submission.bonusTracks?.map(track => `B:${track.track}`) ?? []),
+        ...(submission.extraTracks?.map(track => `E:${track.track}`) ?? []),
+      ].filter((track): track is string => Boolean(track)),
+      Boolean(submission.skipped),
+      Boolean(submission.auto),
+    ]);
+}
+
 function exactKnowledgeSignature(tokens: KnowledgeToken[]): string[] {
   return tokens
     .map(token => [
@@ -2431,6 +2448,7 @@ function cloneGameState(state: GameState): GameState {
     availableAchievements: [...state.availableAchievements],
     claimedAchievements: new Map(Array.from(state.claimedAchievements.entries()).map(([pid, achievements]) => [pid, [...achievements]])),
     pendingDecisions: state.pendingDecisions.map(d => ({ ...d })),
+    progressSubmissions: cloneProgressSubmissions(state.progressSubmissions),
     disconnectedPlayers: new Map(state.disconnectedPlayers),
     draftState: state.draftState ? {
       cityDraft: state.draftState.cityDraft ? {
@@ -2460,6 +2478,21 @@ function cloneGameState(state: GameState): GameState {
       rankings: state.finalScores.rankings.map(r => ({ ...r, breakdown: { ...r.breakdown, detailedSources: [...r.breakdown.detailedSources] } })),
     } : null,
   };
+}
+
+function cloneProgressSubmissions(
+  submissions: GameState['progressSubmissions'],
+): GameState['progressSubmissions'] {
+  if (!submissions) return undefined;
+  return Object.fromEntries(Object.entries(submissions).map(([playerId, submission]) => [
+    playerId,
+    {
+      ...submission,
+      advancement: submission.advancement ? { ...submission.advancement } : undefined,
+      bonusTracks: submission.bonusTracks?.map(track => ({ ...track })),
+      extraTracks: submission.extraTracks?.map(track => ({ ...track })),
+    },
+  ]));
 }
 
 function clonePlayer(player: PlayerState): PlayerState {

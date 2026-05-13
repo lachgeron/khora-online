@@ -74,6 +74,7 @@ export function makeTestGameState(overrides: Partial<GameState> = {}): GameState
     turnOrder: players.map((p) => p.playerId),
     gameLog: [],
     pendingDecisions: [],
+    progressSubmissions: {},
     disconnectedPlayers: new Map(),
     draftMode: 'STANDARD',
     draftState: null,

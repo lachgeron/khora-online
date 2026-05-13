@@ -176,6 +176,7 @@ export class GameEngine {
       turnOrder,
       gameLog: [],
       pendingDecisions: [],
+      progressSubmissions: {},
       disconnectedPlayers: new Map(),
       draftMode,
       draftState: {
@@ -279,6 +280,9 @@ export class GameEngine {
     });
 
     const manager = this.phaseManagers.get(newState.currentPhase);
+    if (manager instanceof ProgressPhaseManager) {
+      newState = manager.finishAfterExternalPendingChange(newState);
+    }
     if (manager?.isComplete(newState)) {
       newState = this.advancePhase(newState);
     }

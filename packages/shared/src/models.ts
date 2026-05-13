@@ -12,7 +12,7 @@ import type {
   KnowledgeToken,
   ScoringRule,
 } from './effects';
-import type { DisconnectionInfo, FinalScoreBoard, GameLogEntry, PendingDecision } from './types';
+import type { DisconnectionInfo, FinalScoreBoard, GameLogEntry, PendingDecision, ProgressSubmission } from './types';
 
 /** A single action slot where a player assigns a die to an action. */
 export interface ActionSlot {
@@ -178,6 +178,7 @@ export interface GameState {
   turnOrder: string[];           // Player order for current round
   gameLog: GameLogEntry[];
   pendingDecisions: PendingDecision[];
+  progressSubmissions?: Record<string, ProgressSubmission>;
   disconnectedPlayers: Map<string, DisconnectionInfo>;
   draftMode: DraftMode;          // Which draft mode to use for politics cards
   draftState: DraftState | null; // Active during CITY_SELECTION and DRAFT_POLITICS

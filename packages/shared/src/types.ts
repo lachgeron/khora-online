@@ -16,6 +16,15 @@ export interface TrackAdvancement {
   track: ProgressTrackType;
 }
 
+/** A submitted Progress phase choice, kept hidden until all players lock in. */
+export interface ProgressSubmission {
+  advancement?: TrackAdvancement;
+  extraTracks?: TrackAdvancement[];
+  bonusTracks?: TrackAdvancement[];
+  skipped?: boolean;
+  auto?: boolean;
+}
+
 /** Phase-specific choices made when resolving an action. */
 export interface ActionChoices {
   /** Card ID to keep (Legislation: pick 1 of 2 drawn) or play (Politics: from hand). */
