@@ -80,6 +80,28 @@ interface ExactSearchResult {
   cacheHits: number;
 }
 
+type StrategyProfileId =
+  | 'balanced'
+  | 'economy_tax'
+  | 'old_guard'
+  | 'military_glory'
+  | 'politics_engine'
+  | 'development_rush'
+  | 'cash_endgame'
+  | 'diversification';
+
+interface StrategyProfile {
+  id: StrategyProfileId;
+  actionBias: Partial<Record<ActionType, number>>;
+  progressBias: Partial<Record<ProgressTrackType, number>>;
+  cardBias: Record<string, number>;
+  skipProgressBias: number;
+  majorTokenBias: number;
+  minorTokenBias: number;
+  taxBias: number;
+  gloryBias: number;
+}
+
 const DEFAULT_OPTIONS: SearchOptions = {
   timeBudgetMs: 8000,
   beamWidth: 128,
@@ -133,6 +155,108 @@ const ACTION_LABELS: Record<ActionType, string> = {
   DEVELOPMENT: 'Development',
 };
 
+const STRATEGY_PROFILES: StrategyProfile[] = [
+  {
+    id: 'balanced',
+    actionBias: { TRADE: 1.2, MILITARY: 1.1, POLITICS: 1.1, DEVELOPMENT: 1, CULTURE: 0.8 },
+    progressBias: { ECONOMY: 1.2, CULTURE: 1.1, MILITARY: 1.1 },
+    cardBias: { diversification: 8, 'colossus-of-rhodes': 5, bank: 3, proskenion: 3 },
+    skipProgressBias: -1,
+    majorTokenBias: 1.4,
+    minorTokenBias: 0.8,
+    taxBias: 1.1,
+    gloryBias: 1.1,
+  },
+  {
+    id: 'economy_tax',
+    actionBias: { TRADE: 3.2, DEVELOPMENT: 1.4, POLITICS: 1.1, PHILOSOPHY: 0.9 },
+    progressBias: { ECONOMY: 4.4, CULTURE: 0.5, MILITARY: 0.2 },
+    cardBias: { bank: 9, 'gold-reserve': 8, 'heavy-taxes': 7, 'public-market': 5, 'constructing-the-mint': 8, gradualism: 5, 'silver-mining': 6 },
+    skipProgressBias: -3,
+    majorTokenBias: 0.6,
+    minorTokenBias: 0.9,
+    taxBias: 3.2,
+    gloryBias: 0.2,
+  },
+  {
+    id: 'old_guard',
+    actionBias: { POLITICS: 2.6, TRADE: 1.5, CULTURE: 1.1, MILITARY: 0.8, LEGISLATION: 0.6 },
+    progressBias: { ECONOMY: -1.4, CULTURE: -1.2, MILITARY: -1.2 },
+    cardBias: { 'old-guard': 16, bank: 5, diversification: 4, proskenion: 5, austerity: 3, 'hall-of-statues': 3 },
+    skipProgressBias: 9,
+    majorTokenBias: 1.1,
+    minorTokenBias: 0.9,
+    taxBias: 1.3,
+    gloryBias: 0.7,
+  },
+  {
+    id: 'military_glory',
+    actionBias: { MILITARY: 4.2, TRADE: 1.5, POLITICS: 1.1, CULTURE: 0.9, DEVELOPMENT: 1 },
+    progressBias: { MILITARY: 4.2, ECONOMY: 1.2, CULTURE: 0.4 },
+    cardBias: { 'greek-fire': 7, 'mercenary-recruitment': 7, helepole: 5, stadion: 4, 'hall-of-statues': 7, diversification: 3 },
+    skipProgressBias: -1,
+    majorTokenBias: 5,
+    minorTokenBias: 0.5,
+    taxBias: 0.5,
+    gloryBias: 4,
+  },
+  {
+    id: 'politics_engine',
+    actionBias: { POLITICS: 4, LEGISLATION: 2.4, TRADE: 1.8, PHILOSOPHY: 1.3, DEVELOPMENT: 1 },
+    progressBias: { ECONOMY: 1.3, CULTURE: 1, MILITARY: 0.5 },
+    cardBias: {
+      'extraordinary-collection': 9,
+      council: 8,
+      'corinthian-columns': 8,
+      reformists: 7,
+      oracle: 7,
+      'colossus-of-rhodes': 9,
+      'tunnel-of-eupalinos': 6,
+      'central-government': 8,
+    },
+    skipProgressBias: -0.5,
+    majorTokenBias: 1,
+    minorTokenBias: 1.2,
+    taxBias: 1,
+    gloryBias: 1,
+  },
+  {
+    id: 'development_rush',
+    actionBias: { DEVELOPMENT: 5, TRADE: 2.2, PHILOSOPHY: 1.7, MILITARY: 0.9, POLITICS: 0.8 },
+    progressBias: { ECONOMY: 1.3, CULTURE: 1.1, MILITARY: 1.1 },
+    cardBias: { oracle: 11, reformists: 5, gradualism: 5, diversification: 5, 'constructing-the-mint': 5 },
+    skipProgressBias: -2,
+    majorTokenBias: 1.2,
+    minorTokenBias: 1.4,
+    taxBias: 1.1,
+    gloryBias: 1.2,
+  },
+  {
+    id: 'cash_endgame',
+    actionBias: { TRADE: 4.2, POLITICS: 1.7, LEGISLATION: 1.2, CULTURE: 0.7, MILITARY: 0.5 },
+    progressBias: { ECONOMY: 2, CULTURE: 0.4, MILITARY: 0.2 },
+    cardBias: { bank: 16, austerity: 8, 'gold-reserve': 8, 'heavy-taxes': 5, 'gifts-from-the-west': 4, contribution: 4 },
+    skipProgressBias: 2,
+    majorTokenBias: 0.4,
+    minorTokenBias: 0.6,
+    taxBias: 1.6,
+    gloryBias: 0.3,
+  },
+  {
+    id: 'diversification',
+    actionBias: { TRADE: 2, MILITARY: 2, CULTURE: 1.6, DEVELOPMENT: 1.4, POLITICS: 1.3 },
+    progressBias: { ECONOMY: 2.5, CULTURE: 2.5, MILITARY: 2.5 },
+    cardBias: { diversification: 18, reformists: 7, gradualism: 6, 'constructing-the-mint': 6, 'gold-reserve': 4 },
+    skipProgressBias: -5,
+    majorTokenBias: 1.2,
+    minorTokenBias: 0.8,
+    taxBias: 1.1,
+    gloryBias: 1.1,
+  },
+];
+
+let activeHeuristicCache: Map<string, number> | null = null;
+
 export function runLiveSolver(
   state: GameState,
   playerId: string,
@@ -154,6 +278,7 @@ export function runLiveSolver(
     return unavailableResult(requestId, playerId, start, 'Game is already over.');
   }
   activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
+  activeHeuristicCache = new Map();
 
   let beam: SearchNode[] = [{
     state: cloneGameState(state),
@@ -200,6 +325,27 @@ export function runLiveSolver(
     }));
   };
 
+  const portfolioProfiles = rankStrategyProfiles(state, playerId);
+  const portfolioDeadline = start + Math.min(Math.max(1200, opts.timeBudgetMs * 0.28), 6000);
+  for (const profile of portfolioProfiles) {
+    if (Date.now() > portfolioDeadline && completedNodes.length > 0) break;
+    const rollout = completeLineToGameOver(
+      beam[0],
+      playerId,
+      opts,
+      portfolioDeadline,
+      completedNodes.length === 0,
+      profile,
+    );
+    searchedNodes += rollout.searched;
+    if (rollout.completed) {
+      recordCompleted(rollout.node);
+    } else if (rollout.node.score > best.score) {
+      best = rollout.node;
+    }
+    emitProgress();
+  }
+
   for (let step = 0; step < opts.maxDecisionPlies; step++) {
     if (Date.now() - start >= opts.timeBudgetMs) break;
 
@@ -240,7 +386,8 @@ export function runLiveSolver(
         ? candidates
         : fallbackCandidates(normalized.node.state, decision.playerId, decision.decisionType);
 
-      for (const candidate of usableCandidates) {
+      for (let candidateIndex = 0; candidateIndex < usableCandidates.length; candidateIndex++) {
+        const candidate = usableCandidates[candidateIndex];
         const applied = applyMessage(normalized.node.state, decision.playerId, candidate.message);
         searchedNodes++;
         if (!applied) continue;
@@ -252,14 +399,28 @@ export function runLiveSolver(
             ]
           : normalized.node.moves;
 
-        nextBeam.push(scoreNode({ state: applied, moves, score: 0 }, playerId));
+        const child = scoreNode({ state: applied, moves, score: 0 }, playerId);
+        nextBeam.push(child);
+
+        if (
+          actorIsTarget
+          && shouldMacroExpand(decision.decisionType)
+          && candidateIndex < 4
+          && Date.now() - start < opts.timeBudgetMs
+        ) {
+          for (const profile of portfolioProfiles.slice(0, 3)) {
+            const macro = completeMacroTurn(child, playerId, opts, start + opts.timeBudgetMs, profile);
+            searchedNodes += macro.searched;
+            nextBeam.push(macro.node);
+          }
+        }
       }
     }
 
     if (nextBeam.length === 0) break;
 
     nextBeam.sort((a, b) => b.score - a.score);
-    beam = diversify(nextBeam, opts.beamWidth);
+    beam = rankAndPruneNodes(nextBeam, opts.beamWidth, playerId);
     if (beam[0] && beam[0].score >= best.score) best = beam[0];
     emitProgress();
     if (allComplete) {
@@ -268,13 +429,15 @@ export function runLiveSolver(
   }
 
   const completionDeadline = start + opts.timeBudgetMs + COMPLETION_GRACE_MS;
-  const completionSeeds = diversify(
+  const completionSeeds = rankAndPruneNodes(
     [...completedNodes, ...beam, best]
       .sort((a, b) => b.score - a.score),
     opts.completionWidth,
+    playerId,
   );
 
-  for (const seed of completionSeeds) {
+  for (let seedIndex = 0; seedIndex < completionSeeds.length; seedIndex++) {
+    const seed = completionSeeds[seedIndex];
     const normalized = normalizeNode(seed, playerId);
     searchedNodes += normalized.searched;
     if (normalized.node.state.currentPhase === 'GAME_OVER') {
@@ -282,23 +445,30 @@ export function runLiveSolver(
       continue;
     }
 
-    const forceFirstFullLine = completedNodes.length === 0;
-    if (!forceFirstFullLine && Date.now() > completionDeadline) break;
+    const profilesForSeed: Array<StrategyProfile | undefined> = seedIndex < 8
+      ? [undefined, ...portfolioProfiles.slice(0, normalized.node.state.roundNumber >= 6 ? 4 : 2)]
+      : [undefined];
 
-    const rollout = completeLineToGameOver(
-      normalized.node,
-      playerId,
-      opts,
-      completionDeadline,
-      forceFirstFullLine,
-    );
-    searchedNodes += rollout.searched;
-    if (rollout.completed) {
-      recordCompleted(rollout.node);
-    } else if (rollout.node.score > best.score) {
-      best = rollout.node;
+    for (const profile of profilesForSeed) {
+      const forceFirstFullLine = completedNodes.length === 0;
+      if (!forceFirstFullLine && Date.now() > completionDeadline) break;
+
+      const rollout = completeLineToGameOver(
+        normalized.node,
+        playerId,
+        opts,
+        completionDeadline,
+        forceFirstFullLine,
+        profile,
+      );
+      searchedNodes += rollout.searched;
+      if (rollout.completed) {
+        recordCompleted(rollout.node);
+      } else if (rollout.node.score > best.score) {
+        best = rollout.node;
+      }
+      emitProgress();
     }
-    emitProgress();
   }
 
   const finalBest = completedNodes.length > 0
@@ -944,6 +1114,31 @@ function orderExactCandidates(
   });
 }
 
+function orderTargetCandidates(
+  state: GameState,
+  actorId: string,
+  candidates: Candidate[],
+  targetPlayerId: string,
+  profile?: StrategyProfile,
+): Candidate[] {
+  return candidates
+    .map(candidate => {
+      const applied = applyMessage(state, actorId, candidate.message);
+      return {
+        candidate,
+        score: applied
+          ? heuristicScore(applied, targetPlayerId)
+            + candidate.quickScore * 0.02
+            + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * 0.28
+            + strategyCandidateBonus(state, actorId, candidate, profile) * 2.5
+            + endgameSuffixBonus(applied, targetPlayerId)
+          : -Infinity,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(entry => entry.candidate);
+}
+
 function enumerateLightweightOpponentCandidates(
   state: GameState,
   actorId: string,
@@ -1026,12 +1221,82 @@ function activationCandidate(devId: string): Candidate {
   };
 }
 
+function shouldMacroExpand(decisionType: DecisionType): boolean {
+  return decisionType === 'ASSIGN_DICE'
+    || decisionType === 'RESOLVE_ACTION'
+    || decisionType === 'PROGRESS_TRACK';
+}
+
+function completeMacroTurn(
+  node: SearchNode,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  deadlineMs: number,
+  profile: StrategyProfile,
+): { node: SearchNode; searched: number } {
+  const startRound = node.state.roundNumber;
+  let current = node;
+  let searched = 0;
+
+  for (let step = 0; step < Math.min(120, opts.maxDecisionPlies); step++) {
+    if (Date.now() > deadlineMs) break;
+
+    const normalized = normalizeNode(current, targetPlayerId);
+    searched += normalized.searched;
+    current = normalized.node;
+
+    if (current.state.currentPhase === 'GAME_OVER' || current.state.roundNumber > startRound) break;
+
+    const decision = pickDecision(current.state, targetPlayerId);
+    if (!decision) {
+      const before = stateSignature(current.state);
+      const advanced = advancePhase(current.state);
+      searched++;
+      current = scoreNode({ ...current, state: advanced }, targetPlayerId);
+      if (stateSignature(current.state) === before) break;
+      continue;
+    }
+
+    const actorIsTarget = decision.playerId === targetPlayerId;
+    const candidates = orderSearchCandidates(
+      current.state,
+      decision.playerId,
+      decision.decisionType,
+      targetPlayerId,
+      actorIsTarget,
+      profile,
+    );
+    const choice = chooseRolloutCandidate(
+      current.state,
+      decision.playerId,
+      candidates.length > 0 ? candidates : fallbackCandidates(current.state, decision.playerId, decision.decisionType),
+      targetPlayerId,
+      actorIsTarget,
+      actorIsTarget ? Math.min(opts.targetBranches, 14) : opts.opponentBranches,
+      profile,
+    );
+
+    if (!choice) break;
+    searched += choice.searched;
+    const moves = actorIsTarget
+      ? [
+          ...current.moves,
+          buildMove(current.state, decision.playerId, decision.decisionType, choice.candidate),
+        ]
+      : current.moves;
+    current = scoreNode({ state: choice.state, moves, score: 0 }, targetPlayerId);
+  }
+
+  return { node: current, searched };
+}
+
 function completeLineToGameOver(
   node: SearchNode,
   targetPlayerId: string,
   opts: SearchOptions,
   deadlineMs: number,
   forceCompletion: boolean,
+  profile?: StrategyProfile,
 ): { node: SearchNode; completed: boolean; searched: number } {
   let current = node;
   let searched = 0;
@@ -1064,6 +1329,7 @@ function completeLineToGameOver(
       decision.decisionType,
       targetPlayerId,
       actorIsTarget,
+      profile,
     );
     const usableCandidates = rankedCandidates.length > 0
       ? rankedCandidates
@@ -1075,7 +1341,10 @@ function completeLineToGameOver(
       usableCandidates,
       targetPlayerId,
       actorIsTarget,
-      actorIsTarget ? Math.min(opts.targetBranches, 10) : opts.opponentBranches,
+      actorIsTarget
+        ? Math.min(opts.targetBranches, current.state.roundNumber >= 6 ? 24 : 10)
+        : opts.opponentBranches,
+      profile,
     );
 
     if (!choice) {
@@ -1107,6 +1376,7 @@ function chooseRolloutCandidate(
   targetPlayerId: string,
   actorIsTarget: boolean,
   limit: number,
+  profile?: StrategyProfile,
 ): { candidate: Candidate; state: GameState; searched: number } | null {
   let best: { candidate: Candidate; state: GameState; score: number; searched: number } | null = null;
   let searched = 0;
@@ -1116,7 +1386,10 @@ function chooseRolloutCandidate(
     searched++;
     if (!applied) continue;
     const score = actorIsTarget
-      ? heuristicScore(applied, targetPlayerId) + candidate.quickScore * 0.08
+      ? heuristicScore(applied, targetPlayerId)
+        + candidate.quickScore * 0.08
+        + strategyCandidateBonus(state, actorId, candidate, profile) * 3
+        + endgameSuffixBonus(applied, targetPlayerId)
       : opponentCandidateScore(state, actorId, candidate, targetPlayerId);
     if (!best || score > best.score) {
       best = { candidate, state: applied, score, searched };
@@ -1206,10 +1479,11 @@ function orderSearchCandidates(
   decisionType: DecisionType,
   targetPlayerId: string,
   actorIsTarget: boolean,
+  profile?: StrategyProfile,
 ): Candidate[] {
   const candidates = enumerateCandidates(state, actorId, decisionType, actorIsTarget ? targetPlayerId : actorId);
   return actorIsTarget
-    ? orderExactCandidates(state, actorId, candidates, targetPlayerId, true)
+    ? orderTargetCandidates(state, actorId, candidates, targetPlayerId, profile)
     : orderOpponentCandidates(state, actorId, candidates, targetPlayerId);
 }
 
@@ -1730,6 +2004,107 @@ function enumerateConquestActions(state: GameState, actor: PlayerState, exact = 
     candidate.message.type !== 'RESOLVE_ACTION' || candidate.message.actionType !== 'MILITARY');
 }
 
+function rankStrategyProfiles(state: GameState, targetPlayerId: string): StrategyProfile[] {
+  const player = state.players.find(p => p.playerId === targetPlayerId);
+  if (!player) return STRATEGY_PROFILES;
+  return [...STRATEGY_PROFILES]
+    .map(profile => ({
+      profile,
+      score: strategyFitScore(state, player, profile),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(entry => entry.profile);
+}
+
+function strategyFitScore(state: GameState, player: PlayerState, profile: StrategyProfile): number {
+  const handIds = new Set(player.handCards.map(card => card.id));
+  const playedIds = new Set(player.playedCards.map(card => card.id));
+  const cardScore = Object.entries(profile.cardBias).reduce((sum, [cardId, value]) =>
+    sum + (handIds.has(cardId) ? value : 0) + (playedIds.has(cardId) ? value * 1.4 : 0), 0);
+  const majorCount = player.knowledgeTokens.filter(token => token.tokenType === 'MAJOR').length;
+  const minorCount = player.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length;
+  const balance = Math.min(player.economyTrack, player.cultureTrack, player.militaryTrack);
+  const economyFit = profile.id === 'economy_tax' || profile.id === 'cash_endgame'
+    ? player.economyTrack * 2 + player.coins * 0.2 + player.taxTrack * 1.5
+    : 0;
+  const militaryFit = profile.id === 'military_glory'
+    ? player.militaryTrack * 2 + player.troopTrack * 0.6 + majorCount * 3 + state.centralBoardTokens.filter(t => !t.explored && t.tokenType === 'MAJOR').length * 0.4
+    : 0;
+  const devFit = profile.id === 'development_rush'
+    ? Math.max(0, 4 - player.developmentLevel) * 2 + player.philosophyTokens * 0.5
+    : 0;
+  const oldGuardFit = profile.id === 'old_guard' && playedIds.has('old-guard') ? 18 : 0;
+  const diversificationFit = profile.id === 'diversification'
+    ? balance * 2 + (handIds.has('diversification') || playedIds.has('diversification') ? 14 : 0)
+    : 0;
+
+  return cardScore
+    + economyFit
+    + militaryFit
+    + devFit
+    + oldGuardFit
+    + diversificationFit
+    + majorCount * profile.majorTokenBias
+    + minorCount * profile.minorTokenBias
+    + player.taxTrack * profile.taxBias
+    + player.gloryTrack * profile.gloryBias;
+}
+
+function strategyCandidateBonus(
+  state: GameState,
+  actorId: string,
+  candidate: Candidate,
+  profile?: StrategyProfile,
+): number {
+  if (!profile) return 0;
+  const actor = state.players.find(p => p.playerId === actorId);
+  if (!actor) return 0;
+
+  const message = candidate.message;
+  let bonus = 0;
+  if (message.type === 'ASSIGN_DICE') {
+    bonus += message.assignments.reduce((sum, assignment) =>
+      sum + (profile.actionBias[assignment.actionType] ?? 0), 0);
+  }
+  if (message.type === 'RESOLVE_ACTION') {
+    bonus += profile.actionBias[message.actionType] ?? 0;
+    const targetCardId = message.choices.targetCardId;
+    if (targetCardId) bonus += profile.cardBias[targetCardId] ?? 0;
+    const tokenId = message.choices.explorationTokenId;
+    const secondTokenId = message.choices.secondExplorationTokenId;
+    for (const id of [tokenId, secondTokenId]) {
+      if (!id) continue;
+      const token = state.centralBoardTokens.find(t => t.id === id);
+      if (token) {
+        bonus += token.tokenType === 'MAJOR' ? profile.majorTokenBias : profile.minorTokenBias;
+        bonus += (token.bonusVP ?? 0) * 0.6 + (token.bonusCoins ?? 0) * 0.2;
+      }
+    }
+  }
+  if (message.type === 'PROGRESS_TRACK') {
+    bonus += profile.progressBias[message.advancement.track] ?? 0;
+    bonus += message.bonusTracks?.reduce((sum, track) => sum + (profile.progressBias[track.track] ?? 0), 0) ?? 0;
+    bonus += message.extraTracks?.reduce((sum, track) => sum + (profile.progressBias[track.track] ?? 0), 0) ?? 0;
+  }
+  if (message.type === 'SKIP_PHASE' && state.currentPhase === 'PROGRESS') {
+    bonus += profile.skipProgressBias + (hasCard(actor, 'old-guard') ? 8 : 0);
+  }
+  if (message.type === 'CLAIM_ACHIEVEMENT') {
+    bonus += message.trackChoice === 'TAX' ? profile.taxBias * 2 : profile.gloryBias * 2;
+  }
+  if (message.type === 'EVENT_PROGRESS_TRACK') {
+    bonus += profile.progressBias[message.track] ?? 0;
+  }
+  return bonus;
+}
+
+function endgameSuffixBonus(state: GameState, targetPlayerId: string): number {
+  if (state.roundNumber < 6) return 0;
+  const target = state.players.find(p => p.playerId === targetPlayerId);
+  if (!target) return 0;
+  return endgameSynergyScore(target, state) * (state.roundNumber - 5) * 0.08;
+}
+
 function candidateOutcomeScore(state: GameState, actorId: string, candidate: Candidate, scoringPlayerId: string): number {
   const applied = applyMessage(state, actorId, candidate.message);
   if (!applied) return -10000;
@@ -2020,8 +2395,19 @@ function scoreNode(node: SearchNode, targetPlayerId: string): SearchNode {
 }
 
 function heuristicScore(state: GameState, targetPlayerId: string): number {
+  const cacheKey = activeHeuristicCache
+    ? `${targetPlayerId}|${state.currentPhase === 'GAME_OVER' ? exactStateSignature(state) : stateSignature(state)}`
+    : null;
+  if (cacheKey) {
+    const cached = activeHeuristicCache?.get(cacheKey);
+    if (cached !== undefined) return cached;
+  }
+
+  let score: number;
   if (state.currentPhase === 'GAME_OVER') {
-    return solvedStateScore(state, targetPlayerId);
+    score = solvedStateScore(state, targetPlayerId);
+    if (cacheKey) activeHeuristicCache?.set(cacheKey, score);
+    return score;
   }
 
   const target = state.players.find(p => p.playerId === targetPlayerId);
@@ -2031,7 +2417,9 @@ function heuristicScore(state: GameState, targetPlayerId: string): number {
     .filter(p => p.playerId !== targetPlayerId)
     .map(player => roughPlayerScore(player, state)));
   const phaseProgress = Math.max(0, PHASE_ORDER.indexOf(state.currentPhase));
-  return (targetScore - opponentScore) * 3 + targetScore + state.roundNumber * 0.05 + phaseProgress * 0.01;
+  score = (targetScore - opponentScore) * 3 + targetScore + endgameSynergyScore(target, state) + state.roundNumber * 0.05 + phaseProgress * 0.01;
+  if (cacheKey) activeHeuristicCache?.set(cacheKey, score);
+  return score;
 }
 
 function solvedNodeScore(node: SearchNode, targetPlayerId: string): number {
@@ -2076,7 +2464,37 @@ function roughPlayerScore(player: PlayerState, state?: GameState): number {
     + player.troopTrack * 0.45
     + player.knowledgeTokens.reduce((sum, token) => sum + tokenValue(token) * (token.tokenType === 'MAJOR' ? 0.42 : 0.24), 0)
     + player.handCards.reduce((sum, card) => sum + handCardPotential(card, player) * 0.04, 0)
+    + (state ? endgameSynergyScore(player, state) * 0.35 : 0)
     - Math.max(0, player.handCards.length - 4) * 0.45;
+}
+
+function endgameSynergyScore(player: PlayerState, state: GameState): number {
+  const majors = player.knowledgeTokens.filter(token => token.tokenType === 'MAJOR').length;
+  const minors = player.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length;
+  const lowestCoreTrack = Math.min(player.economyTrack, player.cultureTrack, player.militaryTrack);
+  const playedIds = new Set(player.playedCards.map(card => card.id));
+  const handIds = new Set(player.handCards.map(card => card.id));
+  const cardIds = new Set([...playedIds, ...handIds]);
+
+  let score = 0;
+  if (cardIds.has('old-guard')) {
+    score += (10 - state.roundNumber) * 1.2 + (hasProgressPlan(player) ? -1 : 3);
+  }
+  if (cardIds.has('diversification')) {
+    score += lowestCoreTrack * 2.5
+      + Math.max(0, 7 - Math.max(player.economyTrack, player.cultureTrack, player.militaryTrack)) * 0.4;
+  }
+  if (cardIds.has('bank')) score += Math.floor(player.coins / 2) * 1.4 + player.economyTrack * 0.5;
+  if (cardIds.has('gold-reserve')) score += player.economyTrack * 1.8;
+  if (cardIds.has('heavy-taxes')) score += player.taxTrack * 1.9;
+  if (cardIds.has('proskenion')) score += player.citizenTrack * 0.9;
+  if (cardIds.has('austerity')) score += Math.max(0, player.handCards.length - 1) * 1.6;
+  if (cardIds.has('hall-of-statues')) score += player.knowledgeTokens.length * 1.5;
+  if (cardIds.has('central-government')) score += (player.playedCards.length + 1) * 1.5;
+  score += player.gloryTrack * majors * 0.9;
+  score += majors * 1.1 + minors * 0.3;
+  score += calculateDevEndGameScore(player) * 0.6;
+  return score;
 }
 
 function roughEndGameCardScore(card: PoliticsCard, player: PlayerState): number {
@@ -2275,6 +2693,82 @@ function bestDiscountedEventProgressValue(player: PlayerState): number {
 
 function canPlayPoliticsCard(player: PlayerState, card: PoliticsCard): boolean {
   return player.coins >= card.cost && knowledgeShortfall(player, card.knowledgeRequirement) * 2 <= player.philosophyTokens;
+}
+
+function rankAndPruneNodes(nodes: SearchNode[], limit: number, targetPlayerId: string): SearchNode[] {
+  const bySignature = new Map<string, SearchNode>();
+  for (const node of nodes) {
+    const scored = scoreNode(node, targetPlayerId);
+    const key = stateSignature(scored.state);
+    const existing = bySignature.get(key);
+    if (!existing || scored.score > existing.score) bySignature.set(key, scored);
+  }
+
+  const sorted = Array.from(bySignature.values()).sort((a, b) => b.score - a.score);
+  const accepted: SearchNode[] = [];
+  const dominanceBuckets = new Map<string, SearchNode[]>();
+
+  for (const node of sorted) {
+    const key = dominanceKey(node.state, targetPlayerId);
+    const bucket = dominanceBuckets.get(key) ?? [];
+    if (bucket.some(existing => dominatesForTarget(existing.state, node.state, targetPlayerId))) continue;
+
+    dominanceBuckets.set(key, [...bucket, node].slice(0, 12));
+    accepted.push(node);
+    if (accepted.length >= limit * 2) break;
+  }
+
+  return diversify(accepted, limit);
+}
+
+function dominanceKey(state: GameState, targetPlayerId: string): string {
+  const target = state.players.find(player => player.playerId === targetPlayerId);
+  return JSON.stringify({
+    phase: state.currentPhase,
+    round: state.roundNumber,
+    pending: state.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}`),
+    target: target ? {
+      cityId: target.cityId,
+      developmentLevel: target.developmentLevel,
+      economyTrack: target.economyTrack,
+      cultureTrack: target.cultureTrack,
+      militaryTrack: target.militaryTrack,
+      handCards: target.handCards.map(card => card.id).sort(),
+      playedCards: target.playedCards.map(card => card.id).sort(),
+      knowledge: exactKnowledgeSignature(target.knowledgeTokens),
+      actionSlots: target.actionSlots.map(slot => slot ? `${slot.actionType}:${slot.resolved ? 1 : 0}` : '-'),
+    } : null,
+    event: state.currentEvent?.id ?? null,
+    achievements: state.availableAchievements.map(achievement => achievement.id),
+    deckTop: state.politicsDeck.slice(0, 3).map(card => card.id),
+    tokens: state.centralBoardTokens.filter(token => !token.explored).map(token => token.id).slice(0, 10),
+  });
+}
+
+function dominatesForTarget(a: GameState, b: GameState, targetPlayerId: string): boolean {
+  const left = a.players.find(player => player.playerId === targetPlayerId);
+  const right = b.players.find(player => player.playerId === targetPlayerId);
+  if (!left || !right) return false;
+  const leftValues = [
+    left.victoryPoints,
+    left.coins,
+    left.philosophyTokens,
+    left.taxTrack,
+    left.gloryTrack,
+    left.troopTrack,
+    left.citizenTrack,
+  ];
+  const rightValues = [
+    right.victoryPoints,
+    right.coins,
+    right.philosophyTokens,
+    right.taxTrack,
+    right.gloryTrack,
+    right.troopTrack,
+    right.citizenTrack,
+  ];
+  return leftValues.every((value, index) => value >= rightValues[index])
+    && leftValues.some((value, index) => value > rightValues[index]);
 }
 
 function diversify(nodes: SearchNode[], limit: number): SearchNode[] {
@@ -3017,6 +3511,8 @@ export const __liveSolverInternals = {
   opponentCandidateScore,
   achievementRaceOutlookScore,
   eventCompetitionOutlookScore,
+  rankStrategyProfiles,
+  strategyCandidateBonus,
   applyMessage,
   chooseBestActivation,
 };

@@ -406,6 +406,41 @@ describe('live solver rule-content coverage', () => {
     expect(result.searchedNodes).toBeGreaterThan(500);
   });
 
+  it('uses portfolio rollouts to produce a full-game line under a tiny principal budget', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+
+    const result = runLiveSolver(state, playerId, 'portfolio-fast-line-test', {
+      timeBudgetMs: 500,
+      beamWidth: 16,
+      targetBranches: 4,
+      opponentBranches: 1,
+      completionWidth: 4,
+      exactTimeBudgetMs: 0,
+      exactNodeLimit: 0,
+      skipExactSearch: true,
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.horizon).toBe('FULL_GAME');
+    expect(result.completedLines).toBeGreaterThan(0);
+  });
+
+  it('detects strong card-driven strategy profiles for portfolio ordering', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const oldGuard = ALL_POLITICS_CARDS.find(card => card.id === 'old-guard')!;
+    const testState: GameState = {
+      ...state,
+      players: state.players.map((player, index) => index === 0
+        ? { ...player, handCards: [oldGuard], playedCards: [oldGuard] }
+        : player),
+    };
+
+    const [topProfile] = __liveSolverInternals.rankStrategyProfiles(testState, playerId);
+    expect(topProfile?.id).toBe('old_guard');
+  });
+
   it('rehydrates a browser live-solver snapshot with executable rule functions', () => {
     const state = baseState();
     const serialized = JSON.parse(JSON.stringify(buildLiveSolverSnapshot(state)));

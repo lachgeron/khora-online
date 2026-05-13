@@ -39,7 +39,7 @@ type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
 const PLAYER_NAMES = ['Pete', 'Ian', 'LachG', 'LJC'] as const;
 const TIME_BANK_DANGER_SECONDS = 10;
-const HOME_SCREEN_SUSPENDED = false;
+const HOME_SCREEN_SUSPENDED = true;
 
 interface TimeBankDangerOverlayProps {
   active: boolean;
