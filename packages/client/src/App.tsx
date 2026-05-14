@@ -170,6 +170,14 @@ export const App: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!adminPanel || !connected) return;
+
+    sendMessage({
+      type: adminPanel === 'cards' ? 'ADMIN_REQUEST_DECK' : 'ADMIN_REQUEST_EVENTS',
+    });
+  }, [adminPanel, connected, sendMessage]);
+
   const handleBackToBrowse = () => {
     setLobbyId('');
     setLobbyPlayers([]);
