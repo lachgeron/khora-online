@@ -9,6 +9,7 @@ import type {
   KnowledgeRequirement,
   KnowledgeToken,
   LiveSolverMove,
+  LiveSolverReferenceLine,
   LiveSolverResult,
   LiveSolverRoundPlan,
   LiveSolverScoreProjection,
@@ -34,6 +35,8 @@ interface SearchOptions {
   exactNodeLimit: number;
   progressIntervalMs: number;
   skipExactSearch: boolean;
+  referenceLines: LiveSolverReferenceLine[];
+  referenceLineWeight: number;
 }
 
 interface Candidate {
@@ -80,6 +83,17 @@ interface ExactSearchResult {
   cacheHits: number;
 }
 
+interface ReferenceMovePrior {
+  score: number;
+  lineCount: number;
+  tags: Set<string>;
+}
+
+interface ReferenceSearchBook {
+  weight: number;
+  priors: Map<string, ReferenceMovePrior>;
+}
+
 type StrategyProfileId =
   | 'balanced'
   | 'economy_tax'
@@ -113,6 +127,8 @@ const DEFAULT_OPTIONS: SearchOptions = {
   exactNodeLimit: 500000,
   progressIntervalMs: 1200,
   skipExactSearch: false,
+  referenceLines: [],
+  referenceLineWeight: 18,
 };
 
 const COMPLETION_GRACE_MS = 1600;
@@ -128,6 +144,7 @@ const COMPETITIVE_TROOP_EVENTS = new Set([
   'thirty-tyrants',
 ]);
 let activeAchievementHorizonRound = 9;
+let activeReferenceBook: ReferenceSearchBook | null = null;
 
 const PHASE_ORDER: GamePhase[] = [
   'OMEN',
@@ -279,6 +296,7 @@ export function runLiveSolver(
   }
   activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
   activeHeuristicCache = new Map();
+  activeReferenceBook = buildReferenceSearchBook(opts.referenceLines, opts.referenceLineWeight);
 
   let beam: SearchNode[] = [{
     state: cloneGameState(state),
@@ -575,7 +593,32 @@ function sanitizeOptions(options: Partial<SearchOptions>): SearchOptions {
     exactNodeLimit: clampNumber(options.exactNodeLimit, 0, 5_000_000, DEFAULT_OPTIONS.exactNodeLimit),
     progressIntervalMs: clampNumber(options.progressIntervalMs, 250, 10000, DEFAULT_OPTIONS.progressIntervalMs),
     skipExactSearch: options.skipExactSearch === true,
+    referenceLines: sanitizeReferenceLines(options.referenceLines),
+    referenceLineWeight: clampNumber(options.referenceLineWeight, 0, 80, DEFAULT_OPTIONS.referenceLineWeight),
   };
+}
+
+function sanitizeReferenceLines(lines: LiveSolverReferenceLine[] | undefined): LiveSolverReferenceLine[] {
+  if (!Array.isArray(lines)) return [];
+  return lines
+    .filter(line => Number.isFinite(line.score) && Array.isArray(line.moves))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 240)
+    .map(line => ({
+      score: line.score,
+      projectedMargin: typeof line.projectedMargin === 'number' ? line.projectedMargin : null,
+      scenarioKey: typeof line.scenarioKey === 'string' ? line.scenarioKey : undefined,
+      tags: Array.isArray(line.tags) ? line.tags.slice(0, 32) : undefined,
+      moves: line.moves
+        .filter(move => typeof move.round === 'number' && typeof move.phase === 'string' && typeof move.decisionType === 'string')
+        .slice(0, 140)
+        .map(move => ({
+          round: move.round,
+          phase: move.phase,
+          decisionType: move.decisionType,
+          message: move.message ?? null,
+        })),
+    }));
 }
 
 function clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
@@ -1098,6 +1141,101 @@ function exactSkipCandidate(instruction: string, detail: string): Candidate {
   };
 }
 
+function buildReferenceSearchBook(
+  lines: LiveSolverReferenceLine[],
+  weight: number,
+): ReferenceSearchBook | null {
+  if (lines.length === 0 || weight <= 0) return null;
+
+  const priors = new Map<string, ReferenceMovePrior>();
+  for (const line of lines) {
+    const lineScore = referenceLineStrength(line);
+    const tags = new Set(line.tags ?? []);
+
+    for (const move of line.moves) {
+      if (!move.message) continue;
+      addReferencePrior(priors, referenceMoveKey(move.round, move.phase, move.decisionType, move.message), lineScore, tags);
+      addReferencePrior(priors, referenceMoveKey('*', move.phase, move.decisionType, move.message), lineScore * 0.35, tags);
+    }
+  }
+
+  return priors.size > 0 ? { weight, priors } : null;
+}
+
+function addReferencePrior(
+  priors: Map<string, ReferenceMovePrior>,
+  key: string,
+  score: number,
+  tags: Set<string>,
+): void {
+  const existing = priors.get(key);
+  if (!existing) {
+    priors.set(key, { score, lineCount: 1, tags: new Set(tags) });
+    return;
+  }
+
+  existing.score = Math.max(existing.score, score) + Math.min(3, score * 0.08);
+  existing.lineCount += 1;
+  for (const tag of tags) existing.tags.add(tag);
+}
+
+function referenceLineStrength(line: LiveSolverReferenceLine): number {
+  const margin = Math.max(0, line.projectedMargin ?? 0);
+  const scoreAboveBaseline = Math.max(0, line.score - 45);
+  return Math.min(36, 4 + scoreAboveBaseline * 0.42 + margin * 0.08);
+}
+
+function referenceCandidateBonus(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+  candidate: Candidate,
+  targetPlayerId: string,
+): number {
+  if (!activeReferenceBook || actorId !== targetPlayerId) return 0;
+
+  const exact = activeReferenceBook.priors.get(referenceMoveKey(
+    state.roundNumber,
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+  ));
+  const flexible = activeReferenceBook.priors.get(referenceMoveKey(
+    '*',
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+  ));
+
+  const raw = Math.max(exact?.score ?? 0, (flexible?.score ?? 0) * 0.55);
+  if (raw <= 0) return 0;
+  return raw * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
+}
+
+function referenceMoveKey(
+  round: number | '*',
+  phase: GamePhase,
+  decisionType: DecisionType | 'ACTIVATE_DEV',
+  message: ClientMessage,
+): string {
+  return `${round}|${phase}|${decisionType}|${stableJson(message)}`;
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value));
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJsonValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, sortJsonValue(entry)]),
+  );
+}
+
 function orderExactCandidates(
   state: GameState,
   actorId: string,
@@ -1117,6 +1255,7 @@ function orderExactCandidates(
 function orderTargetCandidates(
   state: GameState,
   actorId: string,
+  decisionType: DecisionType,
   candidates: Candidate[],
   targetPlayerId: string,
   profile?: StrategyProfile,
@@ -1131,6 +1270,7 @@ function orderTargetCandidates(
             + candidate.quickScore * 0.02
             + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * 0.28
             + strategyCandidateBonus(state, actorId, candidate, profile) * 2.5
+            + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
             + endgameSuffixBonus(applied, targetPlayerId)
           : -Infinity,
       };
@@ -1269,6 +1409,7 @@ function completeMacroTurn(
     const choice = chooseRolloutCandidate(
       current.state,
       decision.playerId,
+      decision.decisionType,
       candidates.length > 0 ? candidates : fallbackCandidates(current.state, decision.playerId, decision.decisionType),
       targetPlayerId,
       actorIsTarget,
@@ -1338,6 +1479,7 @@ function completeLineToGameOver(
     const choice = chooseRolloutCandidate(
       current.state,
       decision.playerId,
+      decision.decisionType,
       usableCandidates,
       targetPlayerId,
       actorIsTarget,
@@ -1372,6 +1514,7 @@ function completeLineToGameOver(
 function chooseRolloutCandidate(
   state: GameState,
   actorId: string,
+  decisionType: DecisionType,
   candidates: Candidate[],
   targetPlayerId: string,
   actorIsTarget: boolean,
@@ -1389,6 +1532,7 @@ function chooseRolloutCandidate(
       ? heuristicScore(applied, targetPlayerId)
         + candidate.quickScore * 0.08
         + strategyCandidateBonus(state, actorId, candidate, profile) * 3
+        + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
         + endgameSuffixBonus(applied, targetPlayerId)
       : opponentCandidateScore(state, actorId, candidate, targetPlayerId);
     if (!best || score > best.score) {
@@ -1483,7 +1627,7 @@ function orderSearchCandidates(
 ): Candidate[] {
   const candidates = enumerateCandidates(state, actorId, decisionType, actorIsTarget ? targetPlayerId : actorId);
   return actorIsTarget
-    ? orderTargetCandidates(state, actorId, candidates, targetPlayerId, profile)
+    ? orderTargetCandidates(state, actorId, decisionType, candidates, targetPlayerId, profile)
     : orderOpponentCandidates(state, actorId, candidates, targetPlayerId);
 }
 

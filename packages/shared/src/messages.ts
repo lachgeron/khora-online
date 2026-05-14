@@ -211,6 +211,23 @@ export interface LiveSolverRequestOptions {
   exactNodeLimit?: number;
   progressIntervalMs?: number;
   skipExactSearch?: boolean;
+  referenceLines?: LiveSolverReferenceLine[];
+  referenceLineWeight?: number;
+}
+
+export interface LiveSolverReferenceMove {
+  round: number;
+  phase: GamePhase;
+  decisionType: DecisionType | 'ACTIVATE_DEV';
+  message: ClientMessage | null;
+}
+
+export interface LiveSolverReferenceLine {
+  score: number;
+  projectedMargin: number | null;
+  scenarioKey?: string;
+  tags?: string[];
+  moves: LiveSolverReferenceMove[];
 }
 
 export interface LiveSolverScoreProjection {

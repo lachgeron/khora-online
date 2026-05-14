@@ -32,6 +32,8 @@ export type {
   ClientMessage,
   ServerMessage,
   LiveSolverRequestOptions,
+  LiveSolverReferenceLine,
+  LiveSolverReferenceMove,
   LiveSolverMove,
   LiveSolverResult,
   LiveSolverRoundPlan,

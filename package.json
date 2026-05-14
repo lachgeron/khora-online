@@ -10,7 +10,8 @@
     "test": "vitest --run --passWithNoTests",
     "lint": "eslint packages/*/src/**/*.ts",
     "dev:server": "npm run start --workspace=packages/server",
-    "dev:client": "npm run dev --workspace=packages/client"
+    "dev:client": "npm run dev --workspace=packages/client",
+    "reference:search": "tsx packages/server/src/offline-reference-search.ts"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",

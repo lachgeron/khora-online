@@ -1,5 +1,5 @@
 import { gameStateFromLiveSolverSnapshot, runLiveSolver } from '@khora/server';
-import type { LiveSolverRequestOptions, LiveSolverResult, LiveSolverSnapshot } from '../types';
+import type { ClientMessage, LiveSolverReferenceLine, LiveSolverRequestOptions, LiveSolverResult, LiveSolverSnapshot } from '../types';
 
 interface WorkerRequest {
   requestId: string;
@@ -19,11 +19,20 @@ const workerScope = self as unknown as {
   postMessage(message: WorkerResponse): void;
 };
 
-workerScope.addEventListener('message', (event) => {
+let referenceLinesPromise: Promise<LiveSolverReferenceLine[]> | null = null;
+
+workerScope.addEventListener('message', async (event) => {
   const { requestId, playerId, snapshot, options } = event.data;
   try {
     const state = gameStateFromLiveSolverSnapshot(snapshot);
-    runProgressiveSearch(state, playerId, requestId, options);
+    const referenceLines = options.referenceLines?.length
+      ? options.referenceLines
+      : await loadReferenceLines();
+    runProgressiveSearch(state, playerId, requestId, {
+      ...options,
+      referenceLines,
+      referenceLineWeight: options.referenceLineWeight ?? 18,
+    });
   } catch (error) {
     workerScope.postMessage({
       requestId,
@@ -32,6 +41,89 @@ workerScope.addEventListener('message', (event) => {
     });
   }
 });
+
+async function loadReferenceLines(): Promise<LiveSolverReferenceLine[]> {
+  referenceLinesPromise ??= fetch('/live-solver-reference-lines.json', { cache: 'no-cache' })
+    .then(response => response.ok ? response.json() : null)
+    .then(toReferenceLines)
+    .catch(() => []);
+  return referenceLinesPromise;
+}
+
+function toReferenceLines(payload: unknown): LiveSolverReferenceLine[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const record = payload as { lines?: unknown; records?: unknown };
+  if (Array.isArray(record.lines)) return sanitizeReferenceLines(record.lines);
+  if (Array.isArray(record.records)) {
+    return sanitizeReferenceLines(record.records.map(item => {
+      const source = item as {
+        score?: unknown;
+        projectedMargin?: unknown;
+        scenarioKey?: unknown;
+        tags?: unknown;
+        rounds?: Array<{ moves?: unknown[] }>;
+      };
+      return {
+        score: source.score,
+        projectedMargin: source.projectedMargin,
+        scenarioKey: source.scenarioKey,
+        tags: source.tags,
+        moves: source.rounds?.flatMap(round => round.moves ?? []),
+      };
+    }));
+  }
+  return [];
+}
+
+function sanitizeReferenceLines(lines: unknown[]): LiveSolverReferenceLine[] {
+  const seen = new Set<string>();
+  return lines.flatMap(line => {
+    if (!line || typeof line !== 'object') return [];
+    const record = line as {
+      score?: unknown;
+      projectedMargin?: unknown;
+      scenarioKey?: unknown;
+      tags?: unknown;
+      moves?: unknown;
+    };
+    if (typeof record.score !== 'number' || !Array.isArray(record.moves)) return [];
+
+    const moves = record.moves.flatMap(move => sanitizeReferenceMove(move));
+    if (moves.length === 0) return [];
+    const key = JSON.stringify(moves.map(move => move.message));
+    if (seen.has(key)) return [];
+    seen.add(key);
+
+    return [{
+      score: record.score,
+      projectedMargin: typeof record.projectedMargin === 'number' ? record.projectedMargin : null,
+      scenarioKey: typeof record.scenarioKey === 'string' ? record.scenarioKey : undefined,
+      tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === 'string') : undefined,
+      moves,
+    }];
+  }).slice(0, 120);
+}
+
+function sanitizeReferenceMove(move: unknown): LiveSolverReferenceLine['moves'] {
+  if (!move || typeof move !== 'object') return [];
+  const record = move as {
+    round?: unknown;
+    phase?: unknown;
+    decisionType?: unknown;
+    message?: unknown;
+  };
+  if (typeof record.round !== 'number' || typeof record.phase !== 'string' || typeof record.decisionType !== 'string') return [];
+  return [{
+    round: record.round,
+    phase: record.phase as LiveSolverReferenceLine['moves'][number]['phase'],
+    decisionType: record.decisionType as LiveSolverReferenceLine['moves'][number]['decisionType'],
+    message: isClientMessage(record.message) ? record.message : null,
+  }];
+}
+
+function isClientMessage(value: unknown): value is ClientMessage {
+  return !!value && typeof value === 'object' && typeof (value as { type?: unknown }).type === 'string';
+}
 
 function runProgressiveSearch(
   state: ReturnType<typeof gameStateFromLiveSolverSnapshot>,
