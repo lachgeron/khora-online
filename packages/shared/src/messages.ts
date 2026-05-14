@@ -226,6 +226,7 @@ export interface LiveSolverReferenceLine {
   score: number;
   projectedMargin: number | null;
   scenarioKey?: string;
+  cityId?: string;
   tags?: string[];
   moves: LiveSolverReferenceMove[];
 }

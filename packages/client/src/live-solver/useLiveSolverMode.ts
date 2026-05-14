@@ -73,6 +73,7 @@ export function useLiveSolverMode({
       exactNodeLimit: 0,
       progressIntervalMs: 1000,
       skipExactSearch: true,
+      referenceLineWeight: 32,
     };
     worker.postMessage({
       requestId,

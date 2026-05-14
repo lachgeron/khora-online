@@ -87,11 +87,13 @@ interface ReferenceMovePrior {
   score: number;
   lineCount: number;
   tags: Set<string>;
+  cityIds: Set<string>;
 }
 
 interface ReferenceSearchBook {
   weight: number;
-  priors: Map<string, ReferenceMovePrior>;
+  exactPriors: Map<string, ReferenceMovePrior>;
+  generalizedPriors: Map<string, ReferenceMovePrior>;
 }
 
 type StrategyProfileId =
@@ -608,6 +610,7 @@ function sanitizeReferenceLines(lines: LiveSolverReferenceLine[] | undefined): L
       score: line.score,
       projectedMargin: typeof line.projectedMargin === 'number' ? line.projectedMargin : null,
       scenarioKey: typeof line.scenarioKey === 'string' ? line.scenarioKey : undefined,
+      cityId: typeof line.cityId === 'string' ? line.cityId : undefined,
       tags: Array.isArray(line.tags) ? line.tags.slice(0, 32) : undefined,
       moves: line.moves
         .filter(move => typeof move.round === 'number' && typeof move.phase === 'string' && typeof move.decisionType === 'string')
@@ -1147,19 +1150,37 @@ function buildReferenceSearchBook(
 ): ReferenceSearchBook | null {
   if (lines.length === 0 || weight <= 0) return null;
 
-  const priors = new Map<string, ReferenceMovePrior>();
+  const exactPriors = new Map<string, ReferenceMovePrior>();
+  const generalizedPriors = new Map<string, ReferenceMovePrior>();
   for (const line of lines) {
     const lineScore = referenceLineStrength(line);
     const tags = new Set(line.tags ?? []);
 
     for (const move of line.moves) {
       if (!move.message) continue;
-      addReferencePrior(priors, referenceMoveKey(move.round, move.phase, move.decisionType, move.message), lineScore, tags);
-      addReferencePrior(priors, referenceMoveKey('*', move.phase, move.decisionType, move.message), lineScore * 0.35, tags);
+      addReferencePrior(
+        exactPriors,
+        referenceMoveKey(move.round, move.phase, move.decisionType, move.message),
+        lineScore,
+        tags,
+        line.cityId,
+      );
+      addReferencePrior(
+        exactPriors,
+        referenceMoveKey('*', move.phase, move.decisionType, move.message),
+        lineScore * 0.35,
+        tags,
+        line.cityId,
+      );
+      for (const key of generalizedReferenceKeys(move.round, move.phase, move.decisionType, move.message)) {
+        addReferencePrior(generalizedPriors, key, lineScore * generalizedReferenceWeight(key), tags, line.cityId);
+      }
     }
   }
 
-  return priors.size > 0 ? { weight, priors } : null;
+  return exactPriors.size > 0 || generalizedPriors.size > 0
+    ? { weight, exactPriors, generalizedPriors }
+    : null;
 }
 
 function addReferencePrior(
@@ -1167,16 +1188,23 @@ function addReferencePrior(
   key: string,
   score: number,
   tags: Set<string>,
+  cityId?: string,
 ): void {
   const existing = priors.get(key);
   if (!existing) {
-    priors.set(key, { score, lineCount: 1, tags: new Set(tags) });
+    priors.set(key, {
+      score,
+      lineCount: 1,
+      tags: new Set(tags),
+      cityIds: new Set(cityId ? [cityId] : []),
+    });
     return;
   }
 
-  existing.score = Math.max(existing.score, score) + Math.min(3, score * 0.08);
+  existing.score = Math.min(96, Math.max(existing.score, score) + Math.min(3, score * 0.05));
   existing.lineCount += 1;
   for (const tag of tags) existing.tags.add(tag);
+  if (cityId) existing.cityIds.add(cityId);
 }
 
 function referenceLineStrength(line: LiveSolverReferenceLine): number {
@@ -1193,23 +1221,48 @@ function referenceCandidateBonus(
   targetPlayerId: string,
 ): number {
   if (!activeReferenceBook || actorId !== targetPlayerId) return 0;
+  const target = state.players.find(player => player.playerId === targetPlayerId);
+  const targetCityId = target?.cityId;
 
-  const exact = activeReferenceBook.priors.get(referenceMoveKey(
+  const exact = activeReferenceBook.exactPriors.get(referenceMoveKey(
     state.roundNumber,
     state.currentPhase,
     decisionType,
     candidate.message,
   ));
-  const flexible = activeReferenceBook.priors.get(referenceMoveKey(
+  const flexible = activeReferenceBook.exactPriors.get(referenceMoveKey(
     '*',
     state.currentPhase,
     decisionType,
     candidate.message,
   ));
 
-  const raw = Math.max(exact?.score ?? 0, (flexible?.score ?? 0) * 0.55);
+  const exactScore = Math.max(
+    exact ? referencePriorScore(exact, targetCityId) : 0,
+    flexible ? referencePriorScore(flexible, targetCityId) * 0.55 : 0,
+  );
+  const generalizedScores = candidateReferenceKeys(state, decisionType, candidate)
+    .map(key => {
+      const prior = activeReferenceBook?.generalizedPriors.get(key);
+      return prior ? referencePriorScore(prior, targetCityId) : 0;
+    })
+    .filter(score => score > 0)
+    .sort((a, b) => b - a);
+  const generalizedScore = generalizedScores
+    .slice(0, 5)
+    .reduce((sum, score, index) => sum + score * (index === 0 ? 1 : 0.45 / index), 0);
+  const raw = Math.max(exactScore, generalizedScore);
   if (raw <= 0) return 0;
-  return raw * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
+  return Math.min(72, raw) * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
+}
+
+function referencePriorScore(prior: ReferenceMovePrior, targetCityId?: string): number {
+  const cityMultiplier = targetCityId && prior.cityIds.has(targetCityId)
+    ? 1.22
+    : prior.cityIds.size > 0
+      ? 0.92
+      : 1;
+  return (prior.score + Math.min(12, Math.log1p(prior.lineCount) * 2.4)) * cityMultiplier;
 }
 
 function referenceMoveKey(
@@ -1219,6 +1272,130 @@ function referenceMoveKey(
   message: ClientMessage,
 ): string {
   return `${round}|${phase}|${decisionType}|${stableJson(message)}`;
+}
+
+function generalizedReferenceKeys(
+  round: number | '*',
+  phase: GamePhase,
+  decisionType: DecisionType | 'ACTIVATE_DEV',
+  message: ClientMessage,
+  state?: GameState,
+): string[] {
+  const keys: string[] = [];
+  const add = (key: string, roundSensitive = true) => {
+    if (roundSensitive) keys.push(`g|${round}|${phase}|${decisionType}|${key}`);
+    keys.push(`g|*|${phase}|${decisionType}|${key}`);
+    keys.push(`g|*|*|${decisionType}|${key}`);
+  };
+
+  if (message.type === 'ASSIGN_DICE') {
+    const actions = message.assignments
+      .map(assignment => assignment.actionType)
+      .sort();
+    add(`assign:${actions.join('+')}`);
+    for (const action of new Set(actions)) add(`assign-action:${action}`, false);
+    if (actions.includes('TRADE') && actions.includes('MILITARY')) add('engine:trade-military');
+    if (actions.includes('LEGISLATION') && actions.includes('POLITICS')) add('engine:card-setup');
+  }
+
+  if (message.type === 'RESOLVE_ACTION') {
+    add(`action:${message.actionType}`, false);
+    const cardId = message.choices.targetCardId;
+    if (cardId) {
+      add(`card:${cardId}`);
+      add(`action-card:${message.actionType}:${cardId}`);
+    }
+    if (message.actionType === 'MILITARY') {
+      for (const tokenKey of tokenReferenceKeys(message.choices.explorationTokenId, state)) add(tokenKey);
+      for (const tokenKey of tokenReferenceKeys(message.choices.secondExplorationTokenId, state)) add(tokenKey);
+    }
+    if (message.actionType === 'TRADE' && message.choices.buyMinorKnowledge) {
+      add('token:minor');
+      if (message.choices.minorKnowledgeColor) add(`token:minor:${message.choices.minorKnowledgeColor}`);
+    }
+  }
+
+  if (message.type === 'PROGRESS_TRACK') {
+    add(`progress:${message.advancement.track}`);
+    for (const track of message.extraTracks ?? []) add(`progress:${track.track}`);
+    for (const track of message.bonusTracks ?? []) add(`progress:${track.track}`);
+  }
+
+  if (message.type === 'CLAIM_ACHIEVEMENT') {
+    add(`achievement:${message.trackChoice}`, false);
+  }
+
+  if (message.type === 'EVENT_PROGRESS_TRACK') {
+    add(`event-progress:${message.track}`);
+    add(`progress:${message.track}`);
+  }
+
+  if (message.type === 'ACTIVATE_DEV') {
+    add(`dev:${message.devId}`);
+  }
+
+  return Array.from(new Set(keys));
+}
+
+function candidateReferenceKeys(
+  state: GameState,
+  decisionType: DecisionType,
+  candidate: Candidate,
+): string[] {
+  return generalizedReferenceKeys(
+    state.roundNumber,
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+    state,
+  );
+}
+
+function generalizedReferenceWeight(key: string): number {
+  if (key.includes('|card:') || key.includes('|action-card:')) return 1;
+  if (key.includes('|engine:')) return 0.9;
+  if (key.includes('|token:persepolis')) return 0.9;
+  if (key.includes('|token:major')) return 0.72;
+  if (key.includes('|assign:')) return 0.68;
+  if (key.includes('|progress:')) return 0.58;
+  if (key.includes('|achievement:')) return 0.55;
+  if (key.includes('|action:')) return 0.46;
+  return 0.5;
+}
+
+function tokenReferenceKeys(tokenId: string | undefined, state?: GameState): string[] {
+  if (!tokenId) return [];
+  const token = state?.centralBoardTokens.find(candidate => candidate.id === tokenId);
+  const parsed = parseTokenIdTraits(tokenId);
+  const type = token?.tokenType ?? parsed.tokenType;
+  const color = token?.color ?? parsed.color;
+  const keys: string[] = [];
+  if (token?.isPersepolis || tokenId === 'persepolis') keys.push('token:persepolis');
+  if (type) keys.push(`token:${type}`, `token:${type.toLowerCase()}`);
+  if (color) keys.push(`token:color:${color}`, `token:color:${color.toLowerCase()}`);
+  if (type && color) keys.push(`token:${type}:${color}`, `token:${type.toLowerCase()}:${color.toLowerCase()}`);
+  if (type === 'MAJOR') keys.push('token:major');
+  if (type === 'MINOR') keys.push('token:minor');
+  if ((token?.bonusVP ?? 0) > 0) keys.push('token:bonus-vp');
+  if ((token?.bonusCoins ?? 0) > 0) keys.push('token:bonus-coins');
+  return keys;
+}
+
+function parseTokenIdTraits(tokenId: string): { tokenType?: KnowledgeToken['tokenType']; color?: KnowledgeColor } {
+  const lower = tokenId.toLowerCase();
+  const tokenType = lower.includes('major')
+    ? 'MAJOR'
+    : lower.includes('minor')
+      ? 'MINOR'
+      : undefined;
+  const color = lower.includes('green')
+    ? 'GREEN'
+    : lower.includes('blue')
+      ? 'BLUE'
+      : lower.includes('red')
+        ? 'RED'
+        : undefined;
+  return { tokenType, color };
 }
 
 function stableJson(value: unknown): string {

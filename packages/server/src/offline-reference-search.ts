@@ -473,6 +473,7 @@ function selectReferenceLines(
       score: record.score,
       projectedMargin: record.projectedMargin,
       scenarioKey: record.scenarioKey,
+      cityId: record.cityId,
       tags: record.tags,
       moves: record.rounds.flatMap(round => round.moves.map(move => ({
         round: move.round,
@@ -742,6 +743,7 @@ function runtimeReferenceLines(book: SearchBook, limit: number): LiveSolverRefer
         score: record.score,
         projectedMargin: record.projectedMargin,
         scenarioKey: record.scenarioKey,
+        cityId: record.cityId,
         tags: record.tags,
         moves: record.rounds.flatMap(round => round.moves.map(move => ({
           round: move.round,

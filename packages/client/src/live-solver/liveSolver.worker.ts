@@ -31,7 +31,7 @@ workerScope.addEventListener('message', async (event) => {
     runProgressiveSearch(state, playerId, requestId, {
       ...options,
       referenceLines,
-      referenceLineWeight: options.referenceLineWeight ?? 18,
+      referenceLineWeight: options.referenceLineWeight ?? 32,
     });
   } catch (error) {
     workerScope.postMessage({
@@ -60,6 +60,7 @@ function toReferenceLines(payload: unknown): LiveSolverReferenceLine[] {
         score?: unknown;
         projectedMargin?: unknown;
         scenarioKey?: unknown;
+        cityId?: unknown;
         tags?: unknown;
         rounds?: Array<{ moves?: unknown[] }>;
       };
@@ -67,6 +68,7 @@ function toReferenceLines(payload: unknown): LiveSolverReferenceLine[] {
         score: source.score,
         projectedMargin: source.projectedMargin,
         scenarioKey: source.scenarioKey,
+        cityId: source.cityId,
         tags: source.tags,
         moves: source.rounds?.flatMap(round => round.moves ?? []),
       };
@@ -83,6 +85,7 @@ function sanitizeReferenceLines(lines: unknown[]): LiveSolverReferenceLine[] {
       score?: unknown;
       projectedMargin?: unknown;
       scenarioKey?: unknown;
+      cityId?: unknown;
       tags?: unknown;
       moves?: unknown;
     };
@@ -98,6 +101,7 @@ function sanitizeReferenceLines(lines: unknown[]): LiveSolverReferenceLine[] {
       score: record.score,
       projectedMargin: typeof record.projectedMargin === 'number' ? record.projectedMargin : null,
       scenarioKey: typeof record.scenarioKey === 'string' ? record.scenarioKey : undefined,
+      cityId: typeof record.cityId === 'string' ? record.cityId : undefined,
       tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === 'string') : undefined,
       moves,
     }];

@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-14T11:16:17.978Z",
+  "generatedAt": "2026-05-14T11:34:24.788Z",
   "sourceBook": {
     "generatedAt": "2026-05-14T04:55:11.334Z",
-    "updatedAt": "2026-05-14T11:16:17.934Z",
+    "updatedAt": "2026-05-14T11:34:24.742Z",
     "runName": "offline-reference-search",
     "totals": {
       "iterations": 345,
@@ -19,6 +19,7 @@
       "score": 110,
       "projectedMargin": 86,
       "scenarioKey": "tfbdo1",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -663,6 +664,7 @@
       "score": 109,
       "projectedMargin": 85,
       "scenarioKey": "yi53im",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -1280,6 +1282,7 @@
       "score": 109,
       "projectedMargin": 77,
       "scenarioKey": "lwh8m2",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -1912,6 +1915,7 @@
       "score": 106,
       "projectedMargin": 81,
       "scenarioKey": "1wxeyry",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -2560,6 +2564,7 @@
       "score": 106,
       "projectedMargin": 40,
       "scenarioKey": "1y3ch01",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -3205,6 +3210,7 @@
       "score": 105,
       "projectedMargin": 80,
       "scenarioKey": "1jozon4",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -3846,6 +3852,7 @@
       "score": 104,
       "projectedMargin": 83,
       "scenarioKey": "ihqv4w",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -4478,6 +4485,7 @@
       "score": 102,
       "projectedMargin": 78,
       "scenarioKey": "1ge3gp5",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -5103,6 +5111,7 @@
       "score": 102,
       "projectedMargin": 74,
       "scenarioKey": "gnqi3d",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -5711,6 +5720,7 @@
       "score": 96,
       "projectedMargin": 51,
       "scenarioKey": "5c0sl5",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -6368,6 +6378,7 @@
       "score": 96,
       "projectedMargin": 30,
       "scenarioKey": "1cw5j33",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -7013,6 +7024,7 @@
       "score": 91,
       "projectedMargin": 61,
       "scenarioKey": "15vwyha",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -7657,6 +7669,7 @@
       "score": 90,
       "projectedMargin": 52,
       "scenarioKey": "bn15cu",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -8264,6 +8277,7 @@
       "score": 89,
       "projectedMargin": 49,
       "scenarioKey": "f3eu8d",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -8897,6 +8911,7 @@
       "score": 89,
       "projectedMargin": 46,
       "scenarioKey": "18bxdbt",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -9495,6 +9510,7 @@
       "score": 88,
       "projectedMargin": 36,
       "scenarioKey": "1law4tx",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -10099,6 +10115,7 @@
       "score": 87,
       "projectedMargin": 49,
       "scenarioKey": "bl3d4y",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -10711,6 +10728,7 @@
       "score": 87,
       "projectedMargin": 20,
       "scenarioKey": "9lonpi",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -11329,6 +11347,7 @@
       "score": 85,
       "projectedMargin": 61,
       "scenarioKey": "7ywoob",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -11974,6 +11993,7 @@
       "score": 85,
       "projectedMargin": 60,
       "scenarioKey": "13pk64q",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -12584,6 +12604,7 @@
       "score": 85,
       "projectedMargin": 48,
       "scenarioKey": "piqudu",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -13211,6 +13232,7 @@
       "score": 85,
       "projectedMargin": 43,
       "scenarioKey": "1r5pelc",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -13849,6 +13871,7 @@
       "score": 85,
       "projectedMargin": 41,
       "scenarioKey": "g9xvts",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -14468,6 +14491,7 @@
       "score": 84,
       "projectedMargin": 55,
       "scenarioKey": "1lbz0ee",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -15058,6 +15082,7 @@
       "score": 84,
       "projectedMargin": 40,
       "scenarioKey": "ad1pf0",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -15674,6 +15699,7 @@
       "score": 84,
       "projectedMargin": 37,
       "scenarioKey": "1irci4s",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -16306,6 +16332,7 @@
       "score": 83,
       "projectedMargin": 36,
       "scenarioKey": "1ofr7mc",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -16916,6 +16943,7 @@
       "score": 82,
       "projectedMargin": 59,
       "scenarioKey": "1p5s2qk",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -17535,6 +17563,7 @@
       "score": 82,
       "projectedMargin": 24,
       "scenarioKey": "fj46lc",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -18163,6 +18192,7 @@
       "score": 81,
       "projectedMargin": 23,
       "scenarioKey": "18fgghn",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -18764,6 +18794,7 @@
       "score": 79,
       "projectedMargin": 35,
       "scenarioKey": "1eoca5e",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -19380,6 +19411,7 @@
       "score": 78,
       "projectedMargin": 19,
       "scenarioKey": "jhzuys",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -20001,6 +20033,7 @@
       "score": 77,
       "projectedMargin": 48,
       "scenarioKey": "19m60o2",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -20594,6 +20627,7 @@
       "score": 77,
       "projectedMargin": 42,
       "scenarioKey": "7uclsk",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -21190,6 +21224,7 @@
       "score": 77,
       "projectedMargin": 30,
       "scenarioKey": "txz03u",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -21812,6 +21847,7 @@
       "score": 77,
       "projectedMargin": 23,
       "scenarioKey": "jo2zon",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -22417,6 +22453,7 @@
       "score": 77,
       "projectedMargin": 11,
       "scenarioKey": "1vvk56q",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -23055,6 +23092,7 @@
       "score": 76,
       "projectedMargin": 49,
       "scenarioKey": "14neho6",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -23639,6 +23677,7 @@
       "score": 76,
       "projectedMargin": 25,
       "scenarioKey": "v609nc",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -24278,6 +24317,7 @@
       "score": 76,
       "projectedMargin": 25,
       "scenarioKey": "1vvv12u",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -24913,6 +24953,7 @@
       "score": 75,
       "projectedMargin": 44,
       "scenarioKey": "8yqko0",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -25501,6 +25542,7 @@
       "score": 74,
       "projectedMargin": 52,
       "scenarioKey": "co8bcm",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -26119,6 +26161,7 @@
       "score": 74,
       "projectedMargin": 41,
       "scenarioKey": "vzspue",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -26719,6 +26762,7 @@
       "score": 74,
       "projectedMargin": 27,
       "scenarioKey": "1gc7sjl",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -27330,6 +27374,7 @@
       "score": 74,
       "projectedMargin": 15,
       "scenarioKey": "1x1t0x3",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -27947,6 +27992,7 @@
       "score": 74,
       "projectedMargin": 3,
       "scenarioKey": "f7sxww",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -28551,6 +28597,7 @@
       "score": 73,
       "projectedMargin": 56,
       "scenarioKey": "sj4v2w",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -29193,6 +29240,7 @@
       "score": 73,
       "projectedMargin": 44,
       "scenarioKey": "1bdj39o",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -29793,6 +29841,7 @@
       "score": 73,
       "projectedMargin": 16,
       "scenarioKey": "es999k",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -30408,6 +30457,7 @@
       "score": 72,
       "projectedMargin": 57,
       "scenarioKey": "qu8xsy",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -31030,6 +31080,7 @@
       "score": 72,
       "projectedMargin": 44,
       "scenarioKey": "ryjqcu",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -31645,6 +31696,7 @@
       "score": 72,
       "projectedMargin": 26,
       "scenarioKey": "tjzb1o",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -32261,6 +32313,7 @@
       "score": 72,
       "projectedMargin": 15,
       "scenarioKey": "1owd31w",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -32866,6 +32919,7 @@
       "score": 72,
       "projectedMargin": 13,
       "scenarioKey": "lybrf4",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -33478,6 +33532,7 @@
       "score": 71,
       "projectedMargin": 55,
       "scenarioKey": "moeg7r",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -34092,6 +34147,7 @@
       "score": 71,
       "projectedMargin": 47,
       "scenarioKey": "1ala1wo",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -34681,6 +34737,7 @@
       "score": 71,
       "projectedMargin": 32,
       "scenarioKey": "trkuqz",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -35304,6 +35361,7 @@
       "score": 71,
       "projectedMargin": 22,
       "scenarioKey": "1u6c8tq",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -35901,6 +35959,7 @@
       "score": 71,
       "projectedMargin": 16,
       "scenarioKey": "bczwrr",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -36504,6 +36563,7 @@
       "score": 70,
       "projectedMargin": 54,
       "scenarioKey": "nznns9",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -37118,6 +37178,7 @@
       "score": 70,
       "projectedMargin": 51,
       "scenarioKey": "1x669du",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -37729,6 +37790,7 @@
       "score": 70,
       "projectedMargin": 31,
       "scenarioKey": "1ne0yg0",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -38337,6 +38399,7 @@
       "score": 70,
       "projectedMargin": 29,
       "scenarioKey": "1mqrsoi",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -38983,6 +39046,7 @@
       "score": 70,
       "projectedMargin": 28,
       "scenarioKey": "m4lagf",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -39607,6 +39671,7 @@
       "score": 69,
       "projectedMargin": 53,
       "scenarioKey": "1v55jbv",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -40221,6 +40286,7 @@
       "score": 69,
       "projectedMargin": 42,
       "scenarioKey": "o2782u",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -40853,6 +40919,7 @@
       "score": 69,
       "projectedMargin": 36,
       "scenarioKey": "vgwsr8",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -41464,6 +41531,7 @@
       "score": 69,
       "projectedMargin": 33,
       "scenarioKey": "1x7nuao",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -42088,6 +42156,7 @@
       "score": 69,
       "projectedMargin": 30,
       "scenarioKey": "dhvzjl",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -42717,6 +42786,7 @@
       "score": 69,
       "projectedMargin": 27,
       "scenarioKey": "1il8odv",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -43341,6 +43411,7 @@
       "score": 69,
       "projectedMargin": 19,
       "scenarioKey": "19mavcu",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -43935,6 +44006,7 @@
       "score": 69,
       "projectedMargin": 16,
       "scenarioKey": "1w4bk69",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -44550,6 +44622,7 @@
       "score": 69,
       "projectedMargin": -2,
       "scenarioKey": "1fx6808",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -45158,6 +45231,7 @@
       "score": 68,
       "projectedMargin": 31,
       "scenarioKey": "1wq7q8u",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -45758,6 +45832,7 @@
       "score": 68,
       "projectedMargin": 27,
       "scenarioKey": "11aadfx",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -46397,6 +46472,7 @@
       "score": 68,
       "projectedMargin": 14,
       "scenarioKey": "1kojqqc",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -47017,6 +47093,7 @@
       "score": 67,
       "projectedMargin": 32,
       "scenarioKey": "1lrce8r",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -47627,6 +47704,7 @@
       "score": 67,
       "projectedMargin": 32,
       "scenarioKey": "1vhwt6p",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -48233,6 +48311,7 @@
       "score": 67,
       "projectedMargin": 31,
       "scenarioKey": "nhou0u",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -48817,6 +48896,7 @@
       "score": 67,
       "projectedMargin": 29,
       "scenarioKey": "1nlk9pq",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -49447,6 +49527,7 @@
       "score": 67,
       "projectedMargin": 29,
       "scenarioKey": "10mico4",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -50077,6 +50158,7 @@
       "score": 67,
       "projectedMargin": 28,
       "scenarioKey": "1ff9yo9",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -50676,6 +50758,7 @@
       "score": 67,
       "projectedMargin": 26,
       "scenarioKey": "mgzqqw",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -51289,6 +51372,7 @@
       "score": 67,
       "projectedMargin": 19,
       "scenarioKey": "1obevi9",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -51889,6 +51973,7 @@
       "score": 66,
       "projectedMargin": 34,
       "scenarioKey": "1p24g6k",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -52492,6 +52577,7 @@
       "score": 66,
       "projectedMargin": 32,
       "scenarioKey": "1vi58eh",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -53117,6 +53203,7 @@
       "score": 66,
       "projectedMargin": 25,
       "scenarioKey": "tcxkgp",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -53723,6 +53810,7 @@
       "score": 66,
       "projectedMargin": 24,
       "scenarioKey": "r3215w",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -54330,6 +54418,7 @@
       "score": 66,
       "projectedMargin": 13,
       "scenarioKey": "12am11t",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -54952,6 +55041,7 @@
       "score": 65,
       "projectedMargin": 39,
       "scenarioKey": "zyhpaq",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -55537,6 +55627,7 @@
       "score": 65,
       "projectedMargin": 39,
       "scenarioKey": "1awik4x",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -56151,6 +56242,7 @@
       "score": 65,
       "projectedMargin": 36,
       "scenarioKey": "ldhjp1",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -56766,6 +56858,7 @@
       "score": 65,
       "projectedMargin": 34,
       "scenarioKey": "kiujyk",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -57365,6 +57458,7 @@
       "score": 65,
       "projectedMargin": 30,
       "scenarioKey": "ulm4v",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -57978,6 +58072,7 @@
       "score": 65,
       "projectedMargin": 30,
       "scenarioKey": "1dnu1df",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -58585,6 +58680,7 @@
       "score": 65,
       "projectedMargin": 21,
       "scenarioKey": "fx3hj5",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -59205,6 +59301,7 @@
       "score": 65,
       "projectedMargin": 20,
       "scenarioKey": "cslnuc",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -59810,6 +59907,7 @@
       "score": 65,
       "projectedMargin": 18,
       "scenarioKey": "1nyzh7j",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -60426,6 +60524,7 @@
       "score": 65,
       "projectedMargin": 15,
       "scenarioKey": "zwmigr",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -61006,6 +61105,7 @@
       "score": 64,
       "projectedMargin": 22,
       "scenarioKey": "hqil6o",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -61620,6 +61720,7 @@
       "score": 64,
       "projectedMargin": 18,
       "scenarioKey": "l5mtiz",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -62226,6 +62327,7 @@
       "score": 64,
       "projectedMargin": 17,
       "scenarioKey": "14ypy80",
+      "cityId": "corinth",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -62818,6 +62920,7 @@
       "score": 64,
       "projectedMargin": 15,
       "scenarioKey": "2di8aa",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -63395,6 +63498,7 @@
       "score": 64,
       "projectedMargin": 14,
       "scenarioKey": "1uwx72k",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -64018,6 +64122,7 @@
       "score": 63,
       "projectedMargin": 38,
       "scenarioKey": "se17sv",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -64629,6 +64734,7 @@
       "score": 63,
       "projectedMargin": 35,
       "scenarioKey": "1k2pwwr",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -65230,6 +65336,7 @@
       "score": 63,
       "projectedMargin": 35,
       "scenarioKey": "qkcrnr",
+      "cityId": "olympia",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -65831,6 +65938,7 @@
       "score": 63,
       "projectedMargin": 25,
       "scenarioKey": "5a13x7",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -66435,6 +66543,7 @@
       "score": 63,
       "projectedMargin": 22,
       "scenarioKey": "4tpv45",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -67034,6 +67143,7 @@
       "score": 63,
       "projectedMargin": 17,
       "scenarioKey": "ht0k5e",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -67649,6 +67759,7 @@
       "score": 63,
       "projectedMargin": 15,
       "scenarioKey": "1tpcqjy",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -68251,6 +68362,7 @@
       "score": 63,
       "projectedMargin": 14,
       "scenarioKey": "190scxw",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -68841,6 +68953,7 @@
       "score": 63,
       "projectedMargin": 2,
       "scenarioKey": "ac814w",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -69433,6 +69546,7 @@
       "score": 62,
       "projectedMargin": 42,
       "scenarioKey": "15avrkg",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -70025,6 +70139,7 @@
       "score": 62,
       "projectedMargin": 36,
       "scenarioKey": "g38laq",
+      "cityId": "athens",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -70636,6 +70751,7 @@
       "score": 62,
       "projectedMargin": 34,
       "scenarioKey": "c3q2x6",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -71250,6 +71366,7 @@
       "score": 62,
       "projectedMargin": 34,
       "scenarioKey": "jiyrf6",
+      "cityId": "sparta",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -71851,6 +71968,7 @@
       "score": 62,
       "projectedMargin": 27,
       "scenarioKey": "1rvpys0",
+      "cityId": "argos",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -72475,6 +72593,7 @@
       "score": 62,
       "projectedMargin": 27,
       "scenarioKey": "h8wfix",
+      "cityId": "thebes",
       "tags": [
         "achievement",
         "achievement:glory",
@@ -73071,6 +73190,7 @@
       "score": 62,
       "projectedMargin": 12,
       "scenarioKey": "1vyxxnw",
+      "cityId": "miletus",
       "tags": [
         "achievement",
         "achievement:glory",
