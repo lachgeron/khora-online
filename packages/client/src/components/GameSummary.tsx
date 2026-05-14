@@ -32,6 +32,7 @@ const PlayerCard: React.FC<{
   cityName: string;
 }> = ({ player: p, rank, totalPoints, averageDiceRoll, breakdown, isWinner, achievements, cityName }) => {
   const [expanded, setExpanded] = useState(true);
+  const coinLabel = p.coins === 1 ? 'coin' : 'coins';
 
   return (
     <div className={`rounded-xl overflow-hidden ${
@@ -39,16 +40,19 @@ const PlayerCard: React.FC<{
     }`}>
       {/* Header */}
       <button onClick={() => setExpanded(!expanded)} className="w-full px-5 py-4 text-left">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <span className={`text-xs font-bold uppercase tracking-wider ${isWinner ? 'text-gold' : 'text-sand-400'}`}>#{rank}</span>
-            <div>
+            <div className="min-w-0">
               <span className={`text-lg ${isWinner ? 'font-bold text-sand-900' : 'font-semibold text-sand-700'}`}>{p.playerName}</span>
               <span className="text-xs text-sand-400 ml-2">{cityName}</span>
             </div>
             {isWinner && <span className="text-xs font-semibold bg-gold text-sand-900 px-2 py-0.5 rounded-full">Winner</span>}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="text-sm font-semibold text-sand-600 bg-sand-100 border border-sand-200 px-2.5 py-1 rounded-full">
+              💰 {p.coins} {coinLabel}
+            </span>
             <span className={`text-2xl font-bold ${isWinner ? 'text-sand-900' : 'text-sand-700'}`}>{totalPoints} VP</span>
             <span className="text-sand-400 text-sm">{expanded ? '▾' : '▸'}</span>
           </div>
@@ -95,7 +99,8 @@ const PlayerCard: React.FC<{
 
           {/* Resources & Development */}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="px-2 py-1 bg-sand-200 rounded-full">💰 {p.victoryPoints} VP</span>
+            <span className="px-2 py-1 bg-sand-200 rounded-full">💰 {p.coins} {coinLabel}</span>
+            <span className="px-2 py-1 bg-sand-200 rounded-full">🏛️ {p.victoryPoints} score track VP</span>
             <span className="px-2 py-1 bg-sand-200 rounded-full">🔨 Dev {p.developmentLevel}/4</span>
             <span className="px-2 py-1 bg-sand-200 rounded-full">🃏 {p.playedCardCount} cards played</span>
             <span className="px-2 py-1 bg-sand-200 rounded-full">🎴 {p.handCardCount} in hand</span>
