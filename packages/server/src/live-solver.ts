@@ -53,6 +53,12 @@ interface SearchNode {
   score: number;
 }
 
+interface BranchSeed {
+  node: SearchNode;
+  profile?: StrategyProfile;
+  guide?: LiveSolverReferenceLine;
+}
+
 interface Projection {
   scores: LiveSolverScoreProjection[];
   margin: number | null;
@@ -388,6 +394,39 @@ export function runLiveSolver(
       best = rollout.node;
     }
     emitProgress();
+  }
+
+  const openingBranchDeadline = start + Math.min(Math.max(1800, opts.timeBudgetMs * 0.62), 18000);
+  const openingSeeds = collectOpeningBranchSeeds(
+    beam[0],
+    playerId,
+    opts,
+    portfolioProfiles,
+    referenceGuides,
+    opts.timeBudgetMs >= 15000 ? 72 : 36,
+  );
+  searchedNodes += openingSeeds.searched;
+
+  for (let seedIndex = 0; seedIndex < openingSeeds.seeds.length; seedIndex++) {
+    if (Date.now() > openingBranchDeadline && completedNodes.length > 0) break;
+    const seed = openingSeeds.seeds[seedIndex];
+    const forceFirstFullLine = completedNodes.length === 0;
+    const rollout = completeLineToGameOver(
+      seed.node,
+      playerId,
+      opts,
+      openingBranchDeadline,
+      forceFirstFullLine,
+      seed.profile,
+      seed.guide,
+    );
+    searchedNodes += rollout.searched;
+    if (rollout.completed) {
+      recordCompleted(rollout.node);
+    } else if (rollout.node.score > best.score) {
+      best = rollout.node;
+    }
+    emitProgress(false, 'Best opening-branch full-game line found so far. Search is still running.');
   }
 
   for (let step = 0; step < opts.maxDecisionPlies; step++) {
@@ -1233,9 +1272,8 @@ function addReferencePrior(
 }
 
 function referenceLineStrength(line: LiveSolverReferenceLine): number {
-  const margin = Math.max(0, line.projectedMargin ?? 0);
   const scoreAboveBaseline = Math.max(0, line.score - 45);
-  return Math.min(36, 4 + scoreAboveBaseline * 0.42 + margin * 0.08);
+  return Math.min(36, 4 + scoreAboveBaseline * 0.42);
 }
 
 function referenceCandidateBonus(
@@ -1305,7 +1343,7 @@ function referenceGuideFitScore(
   const target = state.players.find(player => player.playerId === targetPlayerId);
   if (!target) return -Infinity;
 
-  let score = line.score + Math.max(0, line.projectedMargin ?? 0) * 0.2;
+  let score = line.score;
   if (line.cityId && target.cityId) {
     score += line.cityId === target.cityId ? 90 : -24;
   }
@@ -1833,6 +1871,255 @@ function shouldMacroExpand(decisionType: DecisionType): boolean {
   return decisionType === 'ASSIGN_DICE'
     || decisionType === 'RESOLVE_ACTION'
     || decisionType === 'PROGRESS_TRACK';
+}
+
+function collectOpeningBranchSeeds(
+  root: SearchNode,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  profiles: StrategyProfile[],
+  guides: LiveSolverReferenceLine[],
+  limit: number,
+): { seeds: BranchSeed[]; searched: number } {
+  const seedMap = new Map<string, BranchSeed>();
+  let searched = 0;
+  const branchProfiles = prioritizedBranchProfiles(profiles);
+  const branchGuides = guides.slice(0, 8);
+
+  for (const profile of branchProfiles) {
+    for (const guide of [undefined, ...branchGuides.slice(0, 3)] as Array<LiveSolverReferenceLine | undefined>) {
+      const expanded = collectOpeningBranchSeedsForGuide(root, targetPlayerId, opts, profile, guide, Math.max(8, Math.ceil(limit / 2)));
+      searched += expanded.searched;
+      for (const seed of expanded.seeds) {
+        const key = stateSignature(seed.node.state);
+        const existing = seedMap.get(key);
+        if (!existing || seed.node.score > existing.node.score) seedMap.set(key, seed);
+      }
+      if (seedMap.size >= limit * 3) break;
+    }
+    if (seedMap.size >= limit * 3) break;
+  }
+
+  const seeds = Array.from(seedMap.values())
+    .sort((a, b) => b.node.score - a.node.score)
+    .slice(0, limit);
+  return { seeds, searched };
+}
+
+function prioritizedBranchProfiles(profiles: StrategyProfile[]): Array<StrategyProfile | undefined> {
+  const byId = new Map(profiles.map(profile => [profile.id, profile]));
+  const preferredIds: StrategyProfileId[] = [
+    'military_glory',
+    'development_rush',
+    'politics_engine',
+    'economy_tax',
+    'old_guard',
+    'diversification',
+  ];
+  const selected: Array<StrategyProfile | undefined> = [undefined];
+  for (const profile of profiles.slice(0, 4)) selected.push(profile);
+  for (const id of preferredIds) {
+    const profile = byId.get(id);
+    if (profile) selected.push(profile);
+  }
+  const seen = new Set<string>();
+  return selected.filter(profile => {
+    const key = profile?.id ?? 'none';
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 7);
+}
+
+function collectOpeningBranchSeedsForGuide(
+  root: SearchNode,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  profile: StrategyProfile | undefined,
+  guide: LiveSolverReferenceLine | undefined,
+  limit: number,
+): { seeds: BranchSeed[]; searched: number } {
+  let current = root;
+  let searched = 0;
+  let guideCursor = guide ? initialReferenceGuideCursor(guide, current.state) : 0;
+
+  for (let step = 0; step < Math.min(100, opts.maxDecisionPlies); step++) {
+    const normalized = normalizeNode(current, targetPlayerId);
+    searched += normalized.searched;
+    current = normalized.node;
+
+    if (current.state.currentPhase === 'GAME_OVER') {
+      return { seeds: [{ node: current, profile, guide }], searched };
+    }
+
+    const decision = pickDecision(current.state, targetPlayerId);
+    if (!decision) {
+      const before = stateSignature(current.state);
+      const advanced = advancePhase(current.state);
+      searched++;
+      current = scoreNode({ ...current, state: advanced }, targetPlayerId);
+      if (stateSignature(current.state) === before) break;
+      continue;
+    }
+
+    const actorIsTarget = decision.playerId === targetPlayerId;
+    const expectedGuideMove = guide && actorIsTarget
+      ? findExpectedReferenceMove(guide, current.state, decision.decisionType, guideCursor)
+      : null;
+    const candidates = orderBranchCandidates(
+      current.state,
+      decision.playerId,
+      decision.decisionType,
+      targetPlayerId,
+      actorIsTarget,
+      profile,
+      guide,
+      expectedGuideMove?.index,
+    );
+    const usableCandidates = candidates.length > 0
+      ? candidates
+      : fallbackCandidates(current.state, decision.playerId, decision.decisionType);
+
+    if (actorIsTarget && usableCandidates.length > 1 && decision.decisionType !== 'ROLL_DICE') {
+      const seeds: BranchSeed[] = [];
+      for (const candidate of diversifyOpeningCandidates(usableCandidates, limit)) {
+        const applied = applyMessage(current.state, decision.playerId, candidate.message);
+        searched++;
+        if (!applied) continue;
+        seeds.push({
+          node: scoreNode({
+            state: applied,
+            moves: [
+              ...current.moves,
+              buildMove(current.state, decision.playerId, decision.decisionType, candidate),
+            ],
+            score: 0,
+          }, targetPlayerId),
+          profile,
+          guide,
+        });
+      }
+      return { seeds, searched };
+    }
+
+    const choice = chooseRolloutCandidate(
+      current.state,
+      decision.playerId,
+      decision.decisionType,
+      usableCandidates,
+      targetPlayerId,
+      actorIsTarget,
+      actorIsTarget ? Math.min(usableCandidates.length, Math.max(1, opts.targetBranches)) : opts.opponentBranches,
+      profile,
+      guide,
+      expectedGuideMove?.index,
+    );
+    if (!choice) break;
+    searched += choice.searched;
+    const moves = actorIsTarget
+      ? [
+          ...current.moves,
+          buildMove(current.state, decision.playerId, decision.decisionType, choice.candidate),
+        ]
+      : current.moves;
+    if (actorIsTarget && expectedGuideMove) guideCursor = expectedGuideMove.index + 1;
+    current = scoreNode({ state: choice.state, moves, score: 0 }, targetPlayerId);
+  }
+
+  return { seeds: [{ node: current, profile, guide }], searched };
+}
+
+function orderBranchCandidates(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+  targetPlayerId: string,
+  actorIsTarget: boolean,
+  profile?: StrategyProfile,
+  guide?: LiveSolverReferenceLine,
+  expectedGuideMoveIndex?: number,
+): Candidate[] {
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!actor) return [];
+  const candidates = enumerateBranchCandidates(state, actor, decisionType, actorIsTarget ? targetPlayerId : actorId);
+  if (!actorIsTarget) return orderOpponentCandidates(state, actorId, candidates, targetPlayerId);
+
+  return candidates
+    .map((candidate, index) => {
+      const applied = applyMessage(state, actorId, candidate.message);
+      return {
+        candidate,
+        index,
+        score: applied
+          ? heuristicScore(applied, targetPlayerId)
+            + candidate.quickScore * 0.04
+            + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * 0.34
+            + strategyCandidateBonus(state, actorId, candidate, profile) * 4
+            + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
+            + referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedGuideMoveIndex)
+            + endgameSuffixBonus(applied, targetPlayerId)
+          : -Infinity,
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(entry => entry.candidate);
+}
+
+function enumerateBranchCandidates(
+  state: GameState,
+  actor: PlayerState,
+  decisionType: DecisionType,
+  scoringPlayerId: string,
+): Candidate[] {
+  switch (decisionType) {
+    case 'ASSIGN_DICE':
+      return enumerateDiceAssignments(state, actor, true);
+    case 'RESOLVE_ACTION':
+      return enumerateExactActionResolution(state, actor);
+    case 'PROGRESS_TRACK':
+      return enumerateProgress(state, actor, true);
+    default:
+      return enumerateCandidates(state, actor.playerId, decisionType, scoringPlayerId);
+  }
+}
+
+function diversifyOpeningCandidates(candidates: Candidate[], limit: number): Candidate[] {
+  const selected: Candidate[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const key = openingCandidateKey(candidate);
+    if (seen.has(key) && selected.length >= Math.ceil(limit * 0.65)) continue;
+    seen.add(key);
+    selected.push(candidate);
+    if (selected.length >= limit) break;
+  }
+
+  return selected;
+}
+
+function openingCandidateKey(candidate: Candidate): string {
+  const message = candidate.message;
+  if (message.type === 'ASSIGN_DICE') {
+    return `assign:${message.assignments.map(assignment => assignment.actionType).sort().join('+')}`;
+  }
+  if (message.type === 'RESOLVE_ACTION') {
+    return [
+      'action',
+      message.actionType,
+      message.choices.targetCardId ?? '',
+      message.choices.explorationTokenId ? parseTokenIdTraits(message.choices.explorationTokenId).tokenType ?? message.choices.explorationTokenId : '',
+      message.choices.minorKnowledgeColor ?? '',
+    ].join(':');
+  }
+  if (message.type === 'PROGRESS_TRACK') {
+    return `progress:${[
+      message.advancement.track,
+      ...(message.extraTracks ?? []).map(track => track.track),
+      ...(message.bonusTracks ?? []).map(track => track.track),
+    ].sort().join('+')}`;
+  }
+  return stableJson(message);
 }
 
 function completeMacroTurn(
@@ -3043,11 +3330,11 @@ function heuristicScore(state: GameState, targetPlayerId: string): number {
   const target = state.players.find(p => p.playerId === targetPlayerId);
   if (!target) return -Infinity;
   const targetScore = roughPlayerScore(target, state);
-  const opponentScore = Math.max(0, ...state.players
-    .filter(p => p.playerId !== targetPlayerId)
-    .map(player => roughPlayerScore(player, state)));
   const phaseProgress = Math.max(0, PHASE_ORDER.indexOf(state.currentPhase));
-  score = (targetScore - opponentScore) * 3 + targetScore + endgameSynergyScore(target, state) + state.roundNumber * 0.05 + phaseProgress * 0.01;
+  score = targetScore * 2.35
+    + endgameSynergyScore(target, state) * 1.15
+    + state.roundNumber * 0.05
+    + phaseProgress * 0.01;
   if (cacheKey) activeHeuristicCache?.set(cacheKey, score);
   return score;
 }
@@ -3059,8 +3346,7 @@ function solvedNodeScore(node: SearchNode, targetPlayerId: string): number {
 function solvedStateScore(state: GameState, targetPlayerId: string): number {
   const projection = projectScores(state, targetPlayerId);
   const target = projection.scores.find(score => score.playerId === targetPlayerId);
-  const margin = projection.margin ?? -999;
-  return margin * 1000 + (target?.projectedTotal ?? 0);
+  return target?.projectedTotal ?? Number.NEGATIVE_INFINITY;
 }
 
 function roughPlayerScore(player: PlayerState, state?: GameState): number {

@@ -444,7 +444,7 @@ function promisingGeneratedSeeds(book: SearchBook): number[] {
   const seen = new Set<number>();
   return book.records
     .filter(record => record.source === 'generated' && record.seed !== null)
-    .sort((a, b) => b.score - a.score || safeMargin(b.projectedMargin) - safeMargin(a.projectedMargin))
+    .sort((a, b) => b.score - a.score)
     .flatMap(record => {
       if (record.seed === null || seen.has(record.seed)) return [];
       seen.add(record.seed);
@@ -485,7 +485,7 @@ function selectReferenceLines(
 }
 
 function compareRecords(a: ReferenceLineRecord, b: ReferenceLineRecord): number {
-  return b.score - a.score || safeMargin(b.projectedMargin) - safeMargin(a.projectedMargin);
+  return b.score - a.score;
 }
 
 function loadSnapshotScenario(snapshotPath: string): Scenario {
@@ -639,7 +639,7 @@ function scenarioKey(state: GameState, source: 'snapshot' | 'generated', salt: s
 
 function mergeRecord(book: SearchBook, record: ReferenceLineRecord, options: CliOptions): SearchBook {
   const records = [...book.records.filter(existing => existing.id !== record.id), record]
-    .sort((a, b) => b.score - a.score || safeMargin(b.projectedMargin) - safeMargin(a.projectedMargin));
+    .sort((a, b) => b.score - a.score);
 
   const perScenario = new Map<string, ReferenceLineRecord[]>();
   for (const candidate of records) {
@@ -654,7 +654,7 @@ function mergeRecord(book: SearchBook, record: ReferenceLineRecord, options: Cli
     ...book,
     records: Array.from(perScenario.values())
       .flat()
-      .sort((a, b) => b.score - a.score || safeMargin(b.projectedMargin) - safeMargin(a.projectedMargin))
+      .sort((a, b) => b.score - a.score)
       .slice(0, options.keep),
   };
 }
@@ -774,7 +774,7 @@ function betterResult(
   const candidateScore = projectedTotal(candidate, playerId);
   if (candidateScore !== currentScore) return candidateScore > currentScore ? candidate : current;
   if (candidate.horizon !== current.horizon) return candidate.horizon === 'FULL_GAME' ? candidate : current;
-  return safeMargin(candidate.projectedMargin) > safeMargin(current.projectedMargin) ? candidate : current;
+  return current;
 }
 
 function projectedTotal(result: LiveSolverResult, playerId: string): number {
@@ -785,10 +785,6 @@ function bestScore(book: SearchBook): number {
   return book.records.length > 0
     ? Math.max(...book.records.map(record => record.score))
     : Number.NEGATIVE_INFINITY;
-}
-
-function safeMargin(margin: number | null): number {
-  return margin ?? Number.NEGATIVE_INFINITY;
 }
 
 function inferTags(result: LiveSolverResult): string[] {

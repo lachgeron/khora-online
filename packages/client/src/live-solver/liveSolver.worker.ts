@@ -43,11 +43,27 @@ workerScope.addEventListener('message', async (event) => {
 });
 
 async function loadReferenceLines(): Promise<LiveSolverReferenceLine[]> {
-  referenceLinesPromise ??= fetch('/live-solver-reference-lines.json', { cache: 'no-cache' })
-    .then(response => response.ok ? response.json() : null)
-    .then(toReferenceLines)
-    .catch(() => []);
+  referenceLinesPromise ??= loadReferenceLinesFromPublicAsset();
   return referenceLinesPromise;
+}
+
+async function loadReferenceLinesFromPublicAsset(): Promise<LiveSolverReferenceLine[]> {
+  const urls = [
+    '/live-solver-reference-lines.json',
+    new URL('live-solver-reference-lines.json', self.location.href).toString(),
+    `${self.location.origin}/live-solver-reference-lines.json`,
+  ];
+  for (const url of Array.from(new Set(urls))) {
+    try {
+      const response = await fetch(url, { cache: 'no-cache' });
+      if (!response.ok) continue;
+      const lines = toReferenceLines(await response.json());
+      if (lines.length > 0) return lines;
+    } catch {
+      // Try the next URL form; some dev/prod hosts mount workers differently.
+    }
+  }
+  return [];
 }
 
 function toReferenceLines(payload: unknown): LiveSolverReferenceLine[] {
@@ -160,6 +176,7 @@ function runProgressiveSearch(
         computeMs: Date.now() - startedAt,
         searchedNodes: baseSearchedNodes + iterationSearchedNodes,
         proofNodes: baseProofNodes + iterationProofNodes,
+        proofReason: withReferenceBookStatus((bestResult ?? candidate).proofReason, requestedOptions.referenceLines?.length ?? 0),
         message: done
           ? (bestResult ?? candidate).message
           : 'Best line found so far. Search is still running; close the panel to stop.',
@@ -197,12 +214,17 @@ function progressiveOptions(iteration: number, requested: LiveSolverRequestOptio
   };
 }
 
+function withReferenceBookStatus(reason: string, referenceLineCount: number): string {
+  const suffix = `Reference book: ${referenceLineCount} line${referenceLineCount === 1 ? '' : 's'} loaded.`;
+  return reason.includes('Reference book:') ? reason : `${reason} ${suffix}`;
+}
+
 function resultQuality(result: LiveSolverResult): number {
   if (result.status !== 'READY') return -Infinity;
   const ownProjection = result.projections.find(score => score.playerId === result.playerId);
+  const ownTotal = ownProjection?.projectedTotal ?? 0;
   return (result.horizon === 'FULL_GAME' ? 1_000_000 : 0)
-    + (result.projectedMargin ?? -999) * 1000
-    + (ownProjection?.projectedTotal ?? 0);
+    + ownTotal;
 }
 
 function errorResult(requestId: string, playerId: string, error: unknown): LiveSolverResult {
