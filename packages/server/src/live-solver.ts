@@ -345,6 +345,30 @@ export function runLiveSolver(
     }));
   };
 
+  const referenceGuides = rankReferenceGuidesForState(opts.referenceLines, state, playerId);
+  const referenceGuideDeadline = start + Math.min(Math.max(900, opts.timeBudgetMs * 0.45), 12000);
+  const referenceGuideLimit = Math.min(referenceGuides.length, opts.timeBudgetMs >= 15000 ? 36 : 18);
+  for (let guideIndex = 0; guideIndex < referenceGuideLimit; guideIndex++) {
+    if (Date.now() > referenceGuideDeadline && completedNodes.length > 0) break;
+    const guide = referenceGuides[guideIndex];
+    const rollout = completeLineToGameOver(
+      beam[0],
+      playerId,
+      opts,
+      referenceGuideDeadline,
+      completedNodes.length === 0,
+      undefined,
+      guide,
+    );
+    searchedNodes += rollout.searched;
+    if (rollout.completed) {
+      recordCompleted(rollout.node);
+    } else if (rollout.node.score > best.score) {
+      best = rollout.node;
+    }
+    emitProgress(rollout.completed && guideIndex < 3, 'Best reference-guided full-game line found so far. Search is still running.');
+  }
+
   const portfolioProfiles = rankStrategyProfiles(state, playerId);
   const portfolioDeadline = start + Math.min(Math.max(1200, opts.timeBudgetMs * 0.28), 6000);
   for (const profile of portfolioProfiles) {
@@ -480,6 +504,7 @@ export function runLiveSolver(
         completionDeadline,
         forceFirstFullLine,
         profile,
+        referenceGuides[seedIndex % Math.max(1, Math.min(referenceGuides.length, 8))],
       );
       searchedNodes += rollout.searched;
       if (rollout.completed) {
@@ -1256,6 +1281,272 @@ function referenceCandidateBonus(
   return Math.min(72, raw) * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
 }
 
+function rankReferenceGuidesForState(
+  lines: LiveSolverReferenceLine[],
+  state: GameState,
+  targetPlayerId: string,
+): LiveSolverReferenceLine[] {
+  if (lines.length === 0) return [];
+  return [...lines]
+    .map((line, index) => ({
+      line,
+      score: referenceGuideFitScore(line, state, targetPlayerId) - index * 0.001,
+    }))
+    .filter(entry => Number.isFinite(entry.score))
+    .sort((a, b) => b.score - a.score)
+    .map(entry => entry.line);
+}
+
+function referenceGuideFitScore(
+  line: LiveSolverReferenceLine,
+  state: GameState,
+  targetPlayerId: string,
+): number {
+  const target = state.players.find(player => player.playerId === targetPlayerId);
+  if (!target) return -Infinity;
+
+  let score = line.score + Math.max(0, line.projectedMargin ?? 0) * 0.2;
+  if (line.cityId && target.cityId) {
+    score += line.cityId === target.cityId ? 90 : -24;
+  }
+
+  const cardIds = new Set([
+    ...target.handCards.map(card => card.id),
+    ...target.playedCards.map(card => card.id),
+  ]);
+  for (const tag of line.tags ?? []) {
+    if (tag.startsWith('card:') && cardIds.has(tag.slice('card:'.length))) score += 12;
+    if (tag === 'token:explore' && target.militaryTrack >= 2) score += 5;
+    if (tag === 'progress:economy' && target.economyTrack >= 3) score += 4;
+    if (tag === 'progress:military' && target.militaryTrack >= 3) score += 4;
+    if (tag === 'progress:culture' && target.cultureTrack >= 3) score += 4;
+  }
+
+  const futureMoveCount = line.moves.filter(move =>
+    move.round > state.roundNumber
+    || (move.round === state.roundNumber && phaseIndex(move.phase) >= phaseIndex(state.currentPhase))
+  ).length;
+  return futureMoveCount > 0 ? score + Math.min(8, futureMoveCount * 0.1) : score - 40;
+}
+
+function orderGuideCandidates(
+  state: GameState,
+  decisionType: DecisionType,
+  candidates: Candidate[],
+  guide: LiveSolverReferenceLine,
+  expectedMoveIndex?: number,
+): Candidate[] {
+  return [...candidates]
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedMoveIndex),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(entry => entry.candidate);
+}
+
+function referenceGuideCandidateBonus(
+  state: GameState,
+  decisionType: DecisionType,
+  candidate: Candidate,
+  guide?: LiveSolverReferenceLine,
+  expectedMoveIndex?: number,
+): number {
+  if (!guide) return 0;
+  let best = 0;
+  const startIndex = expectedMoveIndex ?? 0;
+  const endIndex = expectedMoveIndex === undefined
+    ? guide.moves.length
+    : Math.min(guide.moves.length, expectedMoveIndex + 5);
+
+  for (let index = startIndex; index < endIndex; index++) {
+    const move = guide.moves[index];
+    if (!move.message || move.decisionType !== decisionType) continue;
+    const similarity = referenceMoveSimilarity(state, decisionType, candidate, move);
+    if (similarity <= 0) continue;
+    const distance = referenceMoveTimeDistance(state, move);
+    if (distance > 18 && similarity < 80) continue;
+    const timingMultiplier = Math.max(0.18, 1 - distance * 0.055);
+    const orderMultiplier = expectedMoveIndex === undefined
+      ? 1
+      : Math.max(0.25, 1 - (index - expectedMoveIndex) * 0.25);
+    best = Math.max(best, similarity * timingMultiplier * orderMultiplier);
+  }
+
+  if (best <= 0) return 0;
+  const bookMultiplier = activeReferenceBook
+    ? activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight
+    : 1;
+  const cap = expectedMoveIndex === undefined ? 360 : 900;
+  return Math.min(cap, best * bookMultiplier);
+}
+
+function referenceMoveSimilarity(
+  state: GameState,
+  decisionType: DecisionType,
+  candidate: Candidate,
+  move: LiveSolverReferenceLine['moves'][number],
+): number {
+  if (!move.message) return 0;
+  const exactMatch = stableJson(candidate.message) === stableJson(move.message);
+  let score = exactMatch ? 520 : 0;
+
+  const candidateKeys = new Set(candidateReferenceKeys(state, decisionType, candidate));
+  for (const key of generalizedReferenceKeys(move.round, move.phase, move.decisionType, move.message)) {
+    if (candidateKeys.has(key)) score += generalizedReferenceWeight(key) * 24;
+  }
+
+  score += messageShapeSimilarity(candidate.message, move.message, state);
+  if (move.phase === state.currentPhase) score += 12;
+  return exactMatch ? Math.min(720, score) : Math.min(260, score);
+}
+
+function messageShapeSimilarity(left: ClientMessage, right: ClientMessage, state: GameState): number {
+  if (left.type !== right.type) return 0;
+
+  switch (left.type) {
+    case 'ROLL_DICE':
+      return 110;
+    case 'SKIP_PHASE':
+      return 46;
+    case 'ASSIGN_DICE':
+      if (right.type !== 'ASSIGN_DICE') return 0;
+      return assignmentSimilarity(left.assignments.map(assignment => assignment.actionType), right.assignments.map(assignment => assignment.actionType));
+    case 'RESOLVE_ACTION':
+      if (right.type !== 'RESOLVE_ACTION') return 0;
+      return actionResolutionSimilarity(left, right, state);
+    case 'PROGRESS_TRACK':
+      if (right.type !== 'PROGRESS_TRACK') return 0;
+      return progressMessageSimilarity(left, right);
+    case 'CLAIM_ACHIEVEMENT':
+      return right.type === 'CLAIM_ACHIEVEMENT' && left.trackChoice === right.trackChoice ? 95 : 45;
+    case 'EVENT_PROGRESS_TRACK':
+      return right.type === 'EVENT_PROGRESS_TRACK' && left.track === right.track ? 90 : 35;
+    case 'ACTIVATE_DEV':
+      return right.type === 'ACTIVATE_DEV' && left.devId === right.devId ? 120 : 20;
+    default:
+      return 0;
+  }
+}
+
+function assignmentSimilarity(left: ActionType[], right: ActionType[]): number {
+  const leftCounts = actionCounts(left);
+  const rightCounts = actionCounts(right);
+  const overlap = (Object.keys(ACTION_NUMBERS) as ActionType[]).reduce((sum, action) =>
+    sum + Math.min(leftCounts.get(action) ?? 0, rightCounts.get(action) ?? 0), 0);
+  const exactSet = left.slice().sort().join('|') === right.slice().sort().join('|');
+  return overlap * 34 + (exactSet ? 38 : 0);
+}
+
+function actionCounts(actions: ActionType[]): Map<ActionType, number> {
+  const counts = new Map<ActionType, number>();
+  for (const action of actions) counts.set(action, (counts.get(action) ?? 0) + 1);
+  return counts;
+}
+
+function actionResolutionSimilarity(
+  left: Extract<ClientMessage, { type: 'RESOLVE_ACTION' }>,
+  right: Extract<ClientMessage, { type: 'RESOLVE_ACTION' }>,
+  state: GameState,
+): number {
+  let score = left.actionType === right.actionType ? 54 : 0;
+  const leftCard = left.choices.targetCardId;
+  const rightCard = right.choices.targetCardId;
+  if (leftCard && rightCard) score += leftCard === rightCard ? 95 : 0;
+
+  if (left.actionType === 'MILITARY' && right.actionType === 'MILITARY') {
+    const leftTokens = [
+      ...tokenReferenceKeys(left.choices.explorationTokenId, state),
+      ...tokenReferenceKeys(left.choices.secondExplorationTokenId, state),
+    ];
+    const rightTokens = [
+      ...tokenReferenceKeys(right.choices.explorationTokenId),
+      ...tokenReferenceKeys(right.choices.secondExplorationTokenId),
+    ];
+    score += keyOverlapScore(leftTokens, rightTokens, 20, 70);
+  }
+
+  if (left.actionType === 'TRADE' && right.actionType === 'TRADE') {
+    if (!!left.choices.buyMinorKnowledge === !!right.choices.buyMinorKnowledge) score += 26;
+    if (left.choices.minorKnowledgeColor && left.choices.minorKnowledgeColor === right.choices.minorKnowledgeColor) score += 32;
+  }
+
+  return score;
+}
+
+function progressMessageSimilarity(
+  left: Extract<ClientMessage, { type: 'PROGRESS_TRACK' }>,
+  right: Extract<ClientMessage, { type: 'PROGRESS_TRACK' }>,
+): number {
+  const leftTracks = [
+    left.advancement.track,
+    ...(left.extraTracks ?? []).map(track => track.track),
+    ...(left.bonusTracks ?? []).map(track => track.track),
+  ];
+  const rightTracks = [
+    right.advancement.track,
+    ...(right.extraTracks ?? []).map(track => track.track),
+    ...(right.bonusTracks ?? []).map(track => track.track),
+  ];
+  return keyOverlapScore(leftTracks, rightTracks, 38, 125)
+    + (left.advancement.track === right.advancement.track ? 35 : 0);
+}
+
+function keyOverlapScore(left: string[], right: string[], perMatch: number, cap: number): number {
+  const rightSet = new Set(right);
+  const matches = new Set(left.filter(key => rightSet.has(key)));
+  return Math.min(cap, matches.size * perMatch);
+}
+
+function referenceMoveTimeDistance(
+  state: GameState,
+  move: LiveSolverReferenceLine['moves'][number],
+): number {
+  const roundDistance = Math.abs(move.round - state.roundNumber) * 4;
+  const phaseDistance = Math.abs(phaseIndex(move.phase) - phaseIndex(state.currentPhase));
+  const isPast = move.round < state.roundNumber
+    || (move.round === state.roundNumber && phaseIndex(move.phase) < phaseIndex(state.currentPhase));
+  return roundDistance + phaseDistance + (isPast ? 8 : 0);
+}
+
+function initialReferenceGuideCursor(
+  guide: LiveSolverReferenceLine,
+  state: GameState,
+): number {
+  const index = guide.moves.findIndex(move => !isReferenceMoveBeforeState(move, state));
+  return index >= 0 ? index : guide.moves.length;
+}
+
+function findExpectedReferenceMove(
+  guide: LiveSolverReferenceLine,
+  state: GameState,
+  decisionType: DecisionType,
+  cursor: number,
+): { index: number; move: LiveSolverReferenceLine['moves'][number] } | null {
+  for (let index = Math.max(0, cursor); index < guide.moves.length; index++) {
+    const move = guide.moves[index];
+    if (isReferenceMoveBeforeState(move, state)) continue;
+    if (move.decisionType !== decisionType) continue;
+    return { index, move };
+  }
+  return null;
+}
+
+function isReferenceMoveBeforeState(
+  move: LiveSolverReferenceLine['moves'][number],
+  state: GameState,
+): boolean {
+  if (move.round < state.roundNumber) return true;
+  if (move.round > state.roundNumber) return false;
+  return phaseIndex(move.phase) < phaseIndex(state.currentPhase);
+}
+
+function phaseIndex(phase: GamePhase): number {
+  const index = PHASE_ORDER.indexOf(phase);
+  return index >= 0 ? index : PHASE_ORDER.length;
+}
+
 function referencePriorScore(prior: ReferenceMovePrior, targetCityId?: string): number {
   const cityMultiplier = targetCityId && prior.cityIds.has(targetCityId)
     ? 1.22
@@ -1615,9 +1906,11 @@ function completeLineToGameOver(
   deadlineMs: number,
   forceCompletion: boolean,
   profile?: StrategyProfile,
+  guide?: LiveSolverReferenceLine,
 ): { node: SearchNode; completed: boolean; searched: number } {
   let current = node;
   let searched = 0;
+  let guideCursor = guide ? initialReferenceGuideCursor(guide, current.state) : 0;
 
   for (let step = 0; step < opts.maxDecisionPlies; step++) {
     if (!forceCompletion && Date.now() > deadlineMs) break;
@@ -1641,6 +1934,9 @@ function completeLineToGameOver(
     }
 
     const actorIsTarget = decision.playerId === targetPlayerId;
+    const expectedGuideMove = guide && actorIsTarget
+      ? findExpectedReferenceMove(guide, current.state, decision.decisionType, guideCursor)
+      : null;
     const rankedCandidates = orderSearchCandidates(
       current.state,
       decision.playerId,
@@ -1661,9 +1957,13 @@ function completeLineToGameOver(
       targetPlayerId,
       actorIsTarget,
       actorIsTarget
-        ? Math.min(opts.targetBranches, current.state.roundNumber >= 6 ? 24 : 10)
+        ? guide
+          ? Math.min(usableCandidates.length, Math.max(opts.targetBranches, current.state.roundNumber >= 6 ? 96 : 72))
+          : Math.min(opts.targetBranches, current.state.roundNumber >= 6 ? 24 : 10)
         : opts.opponentBranches,
       profile,
+      guide,
+      expectedGuideMove?.index,
     );
 
     if (!choice) {
@@ -1682,6 +1982,9 @@ function completeLineToGameOver(
           buildMove(current.state, decision.playerId, decision.decisionType, choice.candidate),
         ]
       : current.moves;
+    if (actorIsTarget && expectedGuideMove) {
+      guideCursor = expectedGuideMove.index + 1;
+    }
     current = scoreNode({ state: choice.state, moves, score: 0 }, targetPlayerId);
   }
 
@@ -1697,11 +2000,16 @@ function chooseRolloutCandidate(
   actorIsTarget: boolean,
   limit: number,
   profile?: StrategyProfile,
+  guide?: LiveSolverReferenceLine,
+  expectedGuideMoveIndex?: number,
 ): { candidate: Candidate; state: GameState; searched: number } | null {
   let best: { candidate: Candidate; state: GameState; score: number; searched: number } | null = null;
   let searched = 0;
+  const rankedCandidates = guide && actorIsTarget
+    ? orderGuideCandidates(state, decisionType, candidates, guide, expectedGuideMoveIndex)
+    : candidates;
 
-  for (const candidate of candidates.slice(0, Math.max(1, limit))) {
+  for (const candidate of rankedCandidates.slice(0, Math.max(1, limit))) {
     const applied = applyMessage(state, actorId, candidate.message);
     searched++;
     if (!applied) continue;
@@ -1710,6 +2018,7 @@ function chooseRolloutCandidate(
         + candidate.quickScore * 0.08
         + strategyCandidateBonus(state, actorId, candidate, profile) * 3
         + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
+        + referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedGuideMoveIndex)
         + endgameSuffixBonus(applied, targetPlayerId)
       : opponentCandidateScore(state, actorId, candidate, targetPlayerId);
     if (!best || score > best.score) {
