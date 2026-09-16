@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveSolverRequestOptions, LiveSolverResult, PrivatePlayerState, PublicGameState } from '../types';
 import { useLiveSolverKeybind } from './useLiveSolverKeybind';
+import { solverPositionKey } from './solverPosition';
 
 interface LiveSolverMode {
   enabled: boolean;
@@ -29,6 +30,7 @@ export function useLiveSolverMode({
   const [lastRequestId, setLastRequestId] = useState<string | null>(null);
   const latestRequestIdRef = useRef<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const currentRequestKeyRef = useRef<string | null>(null);
   const searchAnchorRef = useRef<string | null>(null);
 
   const toggle = useCallback(() => setEnabled(v => !v), []);
@@ -37,13 +39,16 @@ export function useLiveSolverMode({
   const requestNow = useCallback(() => {
     const snapshot = privateState?.liveSolverSnapshot ?? null;
     if (!connected || !gameState || !currentPlayerId || !snapshot) return;
+    const requestKey = solverPositionKey(snapshot, currentPlayerId);
+
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setLastRequestId(requestId);
+    if (currentRequestKeyRef.current !== requestKey) setResult(null);
     setSearching(true);
     latestRequestIdRef.current = requestId;
+    currentRequestKeyRef.current = requestKey;
 
-    workerRef.current?.terminate();
-    const worker = new Worker(new URL('./liveSolver.worker.ts', import.meta.url), { type: 'module' });
+    const worker = workerRef.current ?? new Worker(new URL('./liveSolver.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current = worker;
     worker.onmessage = (event: MessageEvent<{ requestId: string; result: LiveSolverResult; done?: boolean }>) => {
       if (event.data.requestId !== latestRequestIdRef.current) return;
@@ -51,6 +56,7 @@ export function useLiveSolverMode({
       if (event.data.done) {
         worker.terminate();
         if (workerRef.current === worker) workerRef.current = null;
+        if (currentRequestKeyRef.current === requestKey) currentRequestKeyRef.current = null;
         setSearching(false);
       }
     };
@@ -59,6 +65,7 @@ export function useLiveSolverMode({
       setResult(errorResult(requestId, currentPlayerId, event.message || 'Live solver worker failed.'));
       worker.terminate();
       if (workerRef.current === worker) workerRef.current = null;
+      if (currentRequestKeyRef.current === requestKey) currentRequestKeyRef.current = null;
       setSearching(false);
     };
 
@@ -84,30 +91,32 @@ export function useLiveSolverMode({
   }, [connected, currentPlayerId, gameState, privateState]);
 
   const searchAnchor = (() => {
-    if (!gameState) return '';
-    return JSON.stringify({
-      playerId: currentPlayerId,
-      players: gameState.players.map(p => p.playerId).join(','),
-    });
+    const snapshot = privateState?.liveSolverSnapshot ?? null;
+    return snapshot ? solverPositionKey(snapshot, currentPlayerId) : null;
   })();
 
   useEffect(() => {
     if (!enabled || !connected || !gameState || !currentPlayerId) return;
-    if (!privateState?.liveSolverSnapshot) return;
-    if (searchAnchor === searchAnchorRef.current) return;
-    searchAnchorRef.current = searchAnchor;
+    const snapshot = privateState?.liveSolverSnapshot ?? null;
+    if (!snapshot) return;
+
+    const nextAnchor = searchAnchor;
+    if (nextAnchor === searchAnchorRef.current) return;
+    searchAnchorRef.current = nextAnchor;
     requestNow();
   }, [connected, currentPlayerId, enabled, gameState, privateState, requestNow, searchAnchor]);
 
   useEffect(() => () => {
     workerRef.current?.terminate();
     workerRef.current = null;
+    currentRequestKeyRef.current = null;
   }, []);
 
   useEffect(() => {
     if (enabled) return;
     workerRef.current?.terminate();
     workerRef.current = null;
+    currentRequestKeyRef.current = null;
     searchAnchorRef.current = null;
     setSearching(false);
   }, [enabled]);

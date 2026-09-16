@@ -1,0 +1,306 @@
+{
+  "players": {
+    "Pete": {
+      "games": [
+        {
+          "date": "2026-05-25T08:17:35.020Z",
+          "playerCount": 4,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Miletus"
+        },
+        {
+          "date": "2026-05-25T09:12:56.493Z",
+          "playerCount": 4,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Olympia"
+        },
+        {
+          "date": "2026-05-25T09:21:31.215Z",
+          "playerCount": 4,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Olympia"
+        }
+      ]
+    },
+    "Ian": {
+      "games": [
+        {
+          "date": "2026-05-25T08:17:35.020Z",
+          "playerCount": 4,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Thebes"
+        },
+        {
+          "date": "2026-05-25T09:12:56.493Z",
+          "playerCount": 4,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Miletus"
+        },
+        {
+          "date": "2026-05-25T09:21:31.215Z",
+          "playerCount": 4,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Sparta"
+        }
+      ]
+    },
+    "LachG": {
+      "games": [
+        {
+          "date": "2026-05-24T00:00:15.816Z",
+          "playerCount": 2,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Athens"
+        },
+        {
+          "date": "2026-05-24T00:40:26.345Z",
+          "playerCount": 2,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Athens"
+        },
+        {
+          "date": "2026-05-24T05:31:23.292Z",
+          "playerCount": 2,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Corinth"
+        },
+        {
+          "date": "2026-05-24T05:56:48.128Z",
+          "playerCount": 2,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Corinth"
+        },
+        {
+          "date": "2026-05-24T13:31:46.097Z",
+          "playerCount": 2,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Corinth"
+        },
+        {
+          "date": "2026-05-25T08:17:35.020Z",
+          "playerCount": 4,
+          "rank": 3,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Athens"
+        },
+        {
+          "date": "2026-05-25T09:12:56.493Z",
+          "playerCount": 4,
+          "rank": 3,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Athens"
+        },
+        {
+          "date": "2026-05-25T09:21:31.215Z",
+          "playerCount": 4,
+          "rank": 3,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Athens"
+        }
+      ]
+    },
+    "LJC": {
+      "games": [
+        {
+          "date": "2026-05-24T00:00:15.816Z",
+          "playerCount": 2,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Olympia"
+        },
+        {
+          "date": "2026-05-24T00:40:26.345Z",
+          "playerCount": 2,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Olympia"
+        },
+        {
+          "date": "2026-05-24T05:31:23.292Z",
+          "playerCount": 2,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Miletus"
+        },
+        {
+          "date": "2026-05-24T05:56:48.128Z",
+          "playerCount": 2,
+          "rank": 1,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Olympia"
+        },
+        {
+          "date": "2026-05-24T13:31:46.097Z",
+          "playerCount": 2,
+          "rank": 2,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Miletus"
+        },
+        {
+          "date": "2026-05-25T08:17:35.020Z",
+          "playerCount": 4,
+          "rank": 4,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Sparta"
+        },
+        {
+          "date": "2026-05-25T09:12:56.493Z",
+          "playerCount": 4,
+          "rank": 4,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Sparta"
+        },
+        {
+          "date": "2026-05-25T09:21:31.215Z",
+          "playerCount": 4,
+          "rank": 4,
+          "totalPoints": 0,
+          "breakdown": {
+            "scoreTrackPoints": 0,
+            "developmentPoints": 0,
+            "politicsCardPoints": 0,
+            "gloryKnowledgePoints": 0
+          },
+          "city": "Miletus"
+        }
+      ]
+    }
+  }
+}

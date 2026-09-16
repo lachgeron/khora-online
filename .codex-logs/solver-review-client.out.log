@@ -1,0 +1,16 @@
+
+  VITE v8.0.3  ready in 2675 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+  ➜  press h + enter to show help
+12:51:46 pm [vite] (client) hmr update /src/App.tsx, /src/theme.css
+12:51:46 pm [vite] (client) hmr update /src/components/GameBoard.tsx, /src/theme.css
+12:53:40 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+12:55:23 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+12:55:58 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+12:55:58 pm [vite] (client) page reload src/live-solver/liveSolver.worker.ts
+12:55:58 pm [vite] (client) hmr update /src/live-solver/LiveSolverPanel.tsx, /src/theme.css
+12:56:22 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+12:58:50 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+1:01:33 pm [vite] (client) page reload C:/Users/User/Documents/KHORA/packages/server/src/live-solver.ts
+1:01:33 pm [vite] (client) hmr update /src/live-solver/LiveSolverPanel.tsx, /src/theme.css

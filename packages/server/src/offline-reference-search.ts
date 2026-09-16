@@ -9,9 +9,10 @@ import type {
   LiveSolverRoundPlan,
   LiveSolverSnapshot,
 } from '@khora/shared';
-import { runLiveSolver } from './live-solver';
+import { runLiveSolver, validateLiveSolverLine, type LiveSolverLineValidation } from './live-solver';
 import { gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
 import { GameServer, makeDefaultCentralBoardTokens } from './integration';
+import { generatedSeedForIteration, referenceScenarioIdentity } from './reference-search-policy';
 
 interface CliOptions {
   snapshotPath: string | null;
@@ -32,6 +33,7 @@ interface CliOptions {
   maxDecisionPlies: number;
   keep: number;
   keepPerScenario: number;
+  keepPerCity: number;
   referenceLineWeight: number;
   referenceLineLimit: number;
   runtimeLineLimit: number;
@@ -72,6 +74,12 @@ interface ReferenceLineRecord {
   searchedNodes: number;
   completedLines: number;
   computeMs: number;
+  validated?: boolean;
+  validation?: {
+    executedMoves: number;
+    failedMoveIndex: number | null;
+    errors: string[];
+  };
   tags: string[];
   scenario: ScenarioSummary;
   currentMove: LiveSolverMove | null;
@@ -142,17 +150,17 @@ async function main(): Promise<void> {
 
     const scenario = options.snapshotPath
       ? loadSnapshotScenario(options.snapshotPath)
-      : selectGeneratedScenario(options, book, iteration, sessionPass);
+      : selectGeneratedScenario(options, book, iteration);
     const playerId = resolvePlayerId(scenario.state, options.player);
     const player = scenario.state.players.find(p => p.playerId === playerId);
     if (!player) throw new Error(`Unable to resolve player ${options.player ?? '(first player)'}.`);
 
-    const referenceLines = selectReferenceLines(book, scenario, options);
+    const referenceLines = selectReferenceLines(book, scenario, playerId, options);
     const solverOptions = optionsForIteration(options, iteration, referenceLines);
     const requestId = `offline-reference-${Date.now()}-${iteration}`;
     const passStartedAt = Date.now();
     let bestProgress: LiveSolverResult | null = null;
-    let checkpointScore = bestScore(book);
+    let checkpointScore = -Infinity;
 
     console.log(
       `[${new Date().toISOString()}] pass ${sessionPass} (${iteration} total) ` +
@@ -171,20 +179,27 @@ async function main(): Promise<void> {
         );
 
         if (score > checkpointScore) {
-          const progressRecord = buildRecord(progress, scenario, playerId, iteration);
-          book = mergeRecord(book, progressRecord, options);
-          book.updatedAt = new Date().toISOString();
-          writeBooks(options, book);
-          checkpointScore = bestScore(book);
+          const progressValidation = validateSolverResult(scenario.state, playerId, progress);
+          if (isReferenceWorthy(progress, progressValidation)) {
+            const progressRecord = buildRecord(progress, scenario, playerId, iteration, progressValidation);
+            book = mergeRecord(book, progressRecord, options);
+            book.updatedAt = new Date().toISOString();
+            writeBooks(options, book);
+            checkpointScore = score;
+          }
         }
       }
     });
     process.stdout.write('\n');
 
     const bestResult = betterResult(bestProgress, result, playerId) ?? result;
-    const record = buildRecord(bestResult, scenario, playerId, iteration);
+    const validation = validateSolverResult(scenario.state, playerId, bestResult);
+    const record = buildRecord(bestResult, scenario, playerId, iteration, validation);
     const previousBest = bestScore(book);
-    book = mergeRecord(book, record, options);
+    const saved = isReferenceWorthy(bestResult, validation);
+    if (saved) {
+      book = mergeRecord(book, record, options);
+    }
     book.totals.iterations += 1;
     book.totals.searchedNodes += result.searchedNodes;
     book.totals.completedLines += result.completedLines;
@@ -195,9 +210,10 @@ async function main(): Promise<void> {
     const newBest = bestScore(book);
     const improved = newBest > previousBest ? ' improved' : '';
     console.log(
-      `  saved score=${record.score} margin=${record.projectedMargin ?? 'n/a'} ` +
+      `  ${saved ? 'saved' : 'skipped'} score=${record.score} margin=${record.projectedMargin ?? 'n/a'} ` +
       `horizon=${record.horizon} nodes=${result.searchedNodes.toLocaleString()} ` +
-      `lines=${result.completedLines.toLocaleString()}${improved}`,
+      `lines=${result.completedLines.toLocaleString()} ` +
+      `valid=${validation.valid}${validation.valid ? '' : ` failedMove=${(validation.failedMoveIndex ?? -1) + 1}`}${improved}`,
     );
 
     if (options.targetScore !== null && newBest >= options.targetScore) {
@@ -238,6 +254,7 @@ function parseArgs(args: string[], workspaceRoot: string): CliOptions {
     maxDecisionPlies: 6000,
     keep: 100,
     keepPerScenario: 5,
+    keepPerCity: 20,
     referenceLineWeight: 18,
     referenceLineLimit: 80,
     runtimeLineLimit: 120,
@@ -322,6 +339,9 @@ function parseArgs(args: string[], workspaceRoot: string): CliOptions {
       case '--keep-per-scenario':
         options.keepPerScenario = parseInteger(next(), arg);
         break;
+      case '--keep-per-city':
+        options.keepPerCity = parseInteger(next(), arg);
+        break;
       case '--reference-weight':
         options.referenceLineWeight = parseInteger(next(), arg);
         break;
@@ -384,6 +404,7 @@ Options:
   --completion <number>      Base completion rollout count.
   --keep <number>            Max records to keep globally.
   --keep-per-scenario <n>    Max records to keep for the same scenario.
+  --keep-per-city <n>        Soft floor for strong records retained per city. Default: 20.
   --reference-weight <n>     How strongly saved lines bias later passes. Default: 18.
   --reference-limit <n>      Max saved lines fed into each solver pass. Default: 80.
   --runtime-lines <n>        Max deduped lines written for the browser solver. Default: 120.
@@ -425,19 +446,9 @@ function selectGeneratedScenario(
   options: CliOptions,
   book: SearchBook,
   iteration: number,
-  sessionPass: number,
 ): Scenario {
-  const revisitSeeds = promisingGeneratedSeeds(book);
-  if (
-    options.revisitEvery > 0
-    && revisitSeeds.length > 0
-    && sessionPass % options.revisitEvery === 0
-  ) {
-    const revisitIndex = Math.floor(sessionPass / options.revisitEvery - 1) % revisitSeeds.length;
-    return createGeneratedScenario(revisitSeeds[revisitIndex], options.generatedPlayers);
-  }
-
-  return createGeneratedScenario(options.seed + iteration - 1, options.generatedPlayers);
+  return createGeneratedScenario(generatedSeedForIteration(options.seed, iteration, options.revisitEvery,
+    promisingGeneratedSeeds(book)), options.generatedPlayers);
 }
 
 function promisingGeneratedSeeds(book: SearchBook): number[] {
@@ -456,18 +467,32 @@ function promisingGeneratedSeeds(book: SearchBook): number[] {
 function selectReferenceLines(
   book: SearchBook,
   scenario: Scenario,
+  playerId: string,
   options: CliOptions,
 ): LiveSolverReferenceLine[] {
   if (options.referenceLineWeight <= 0 || options.referenceLineLimit <= 0) return [];
 
+  const targetCityId = scenario.state.players.find(player => player.playerId === playerId)?.cityId;
+  const matchesScenario = (record: ReferenceLineRecord) => record.scenarioKey === scenario.key
+    || scenario.source === 'generated' && record.source === 'generated' && record.seed === scenario.seed
+      && record.cityId === targetCityId && record.scenario.playerCount === scenario.state.players.length;
   const sameScenario = book.records
-    .filter(record => record.scenarioKey === scenario.key)
+    .filter(matchesScenario)
+    .sort(compareRecords);
+  const sameCity = book.records
+    .filter(record => !matchesScenario(record) && record.cityId === targetCityId)
     .sort(compareRecords);
   const global = book.records
-    .filter(record => record.scenarioKey !== scenario.key)
+    .filter(record => !matchesScenario(record))
     .sort(compareRecords);
+  const seen = new Set<string>();
 
-  return [...sameScenario, ...global]
+  return [...sameScenario, ...sameCity, ...global]
+    .flatMap(record => {
+      if (seen.has(record.id)) return [];
+      seen.add(record.id);
+      return [record];
+    })
     .slice(0, options.referenceLineLimit)
     .map(record => ({
       score: record.score,
@@ -557,6 +582,7 @@ function buildRecord(
   scenario: Scenario,
   playerId: string,
   iteration: number,
+  validation?: LiveSolverLineValidation,
 ): ReferenceLineRecord {
   const player = scenario.state.players.find(candidate => candidate.playerId === playerId);
   if (!player) throw new Error(`Player ${playerId} not found while building record.`);
@@ -585,6 +611,14 @@ function buildRecord(
     searchedNodes: result.searchedNodes,
     completedLines: result.completedLines,
     computeMs: result.computeMs,
+    validated: validation?.valid,
+    validation: validation
+      ? {
+          executedMoves: validation.executedMoves,
+          failedMoveIndex: validation.failedMoveIndex,
+          errors: validation.errors,
+        }
+      : undefined,
     tags: inferTags(result),
     scenario: scenarioSummary,
     currentMove: result.currentMove,
@@ -618,23 +652,7 @@ function summarizeScenario(state: GameState, targetPlayerId: string): ScenarioSu
 }
 
 function scenarioKey(state: GameState, source: 'snapshot' | 'generated', salt: string): string {
-  return hashString(JSON.stringify({
-    source,
-    salt,
-    roundNumber: state.roundNumber,
-    currentPhase: state.currentPhase,
-    players: state.players.map(player => ({
-      id: player.playerId,
-      name: player.playerName,
-      city: player.cityId,
-      hand: player.handCards.map(card => card.id),
-      played: player.playedCards.map(card => card.id),
-    })),
-    currentEvent: state.currentEvent?.id ?? null,
-    eventDeck: state.eventDeck.map(event => event.id),
-    politicsDeck: state.politicsDeck.map(card => card.id),
-    dice: state.predeterminedDice,
-  }));
+  return hashString(JSON.stringify([source, salt, referenceScenarioIdentity(state)]));
 }
 
 function mergeRecord(book: SearchBook, record: ReferenceLineRecord, options: CliOptions): SearchBook {
@@ -650,13 +668,62 @@ function mergeRecord(book: SearchBook, record: ReferenceLineRecord, options: Cli
     }
   }
 
+  const candidates = Array.from(perScenario.values())
+    .flat()
+    .sort(compareRecords);
+
   return {
     ...book,
-    records: Array.from(perScenario.values())
-      .flat()
-      .sort((a, b) => b.score - a.score)
-      .slice(0, options.keep),
+    records: selectRecordsForBook(candidates, options.keep, options.keepPerCity),
   };
+}
+
+function selectRecordsForBook(
+  records: ReferenceLineRecord[],
+  keep: number,
+  keepPerCity: number,
+): ReferenceLineRecord[] {
+  if (keep <= 0) return [];
+  if (keepPerCity <= 0) return records.slice(0, keep);
+
+  const cityBuckets = new Map<string, ReferenceLineRecord[]>();
+  for (const record of records) {
+    const bucket = cityBuckets.get(record.cityId) ?? [];
+    bucket.push(record);
+    cityBuckets.set(record.cityId, bucket);
+  }
+  for (const bucket of cityBuckets.values()) bucket.sort(compareRecords);
+
+  const cityIds = Array.from(cityBuckets.keys()).sort((left, right) =>
+    (cityBuckets.get(right)?.[0]?.score ?? -Infinity) - (cityBuckets.get(left)?.[0]?.score ?? -Infinity));
+  const selected: ReferenceLineRecord[] = [];
+  const selectedIds = new Set<string>();
+  const cityCounts = new Map<string, number>();
+
+  let added = true;
+  while (selected.length < keep && added) {
+    added = false;
+    for (const cityId of cityIds) {
+      if (selected.length >= keep) break;
+      if ((cityCounts.get(cityId) ?? 0) >= keepPerCity) continue;
+      const bucket = cityBuckets.get(cityId) ?? [];
+      const next = bucket.find(candidate => !selectedIds.has(candidate.id));
+      if (!next) continue;
+      selected.push(next);
+      selectedIds.add(next.id);
+      cityCounts.set(cityId, (cityCounts.get(cityId) ?? 0) + 1);
+      added = true;
+    }
+  }
+
+  for (const record of records) {
+    if (selected.length >= keep) break;
+    if (selectedIds.has(record.id)) continue;
+    selected.push(record);
+    selectedIds.add(record.id);
+  }
+
+  return selected.sort(compareRecords);
 }
 
 function loadBook(outPath: string, runName: string): SearchBook {
@@ -733,8 +800,7 @@ function writeRuntimeBook(outPath: string, book: SearchBook, limit: number): voi
 
 function runtimeReferenceLines(book: SearchBook, limit: number): LiveSolverReferenceLine[] {
   const seen = new Set<string>();
-  return [...book.records]
-    .sort(compareRecords)
+  return balancedRuntimeRecords(book.records, limit)
     .flatMap(record => {
       const key = record.lineKey;
       if (seen.has(key)) return [];
@@ -754,6 +820,32 @@ function runtimeReferenceLines(book: SearchBook, limit: number): LiveSolverRefer
       }];
     })
     .slice(0, Math.max(0, limit));
+}
+
+function balancedRuntimeRecords(records: ReferenceLineRecord[], limit: number): ReferenceLineRecord[] {
+  if (limit <= 0) return [];
+  const sorted = [...records].sort(compareRecords);
+  const cityIds = Array.from(new Set(sorted.map(record => record.cityId)));
+  const perCityFloor = cityIds.length > 0 ? Math.max(1, Math.floor(limit / cityIds.length)) : 0;
+  const selected: ReferenceLineRecord[] = [];
+  const selectedIds = new Set<string>();
+
+  for (const cityId of cityIds) {
+    for (const record of sorted.filter(candidate => candidate.cityId === cityId).slice(0, perCityFloor)) {
+      if (selected.length >= limit) break;
+      selected.push(record);
+      selectedIds.add(record.id);
+    }
+  }
+
+  for (const record of sorted) {
+    if (selected.length >= limit) break;
+    if (selectedIds.has(record.id)) continue;
+    selected.push(record);
+    selectedIds.add(record.id);
+  }
+
+  return selected.sort(compareRecords);
 }
 
 function stripRuntimeHelpers(book: SearchBook): SearchBook {
@@ -779,6 +871,21 @@ function betterResult(
 
 function projectedTotal(result: LiveSolverResult, playerId: string): number {
   return result.projections.find(projection => projection.playerId === playerId)?.projectedTotal ?? Number.NEGATIVE_INFINITY;
+}
+
+function validateSolverResult(
+  state: GameState,
+  playerId: string,
+  result: LiveSolverResult,
+): LiveSolverLineValidation {
+  return validateLiveSolverLine(state, playerId, result.rounds.flatMap(round => round.moves), projectedTotal(result, playerId));
+}
+
+function isReferenceWorthy(result: LiveSolverResult, validation: LiveSolverLineValidation): boolean {
+  return result.horizon === 'FULL_GAME'
+    && result.rounds.length > 0
+    && validation.valid
+    && validation.finalScore !== null;
 }
 
 function bestScore(book: SearchBook): number {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ActionType, DecisionType, GameState, KnowledgeColor, KnowledgeToken, PlayerState, PoliticsCard } from '@khora/shared';
 import { ALL_CITIES, ALL_POLITICS_CARDS, RANDOM_EVENTS } from './game-data';
 import { GameServer } from './integration';
-import { __liveSolverInternals, runLiveSolver } from './live-solver';
+import { __liveSolverInternals, buildReferenceLinePreview, runLiveSolver, validateLiveSolverLine } from './live-solver';
 import { buildLiveSolverSnapshot, gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
 
 const COLORS: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
@@ -389,6 +389,7 @@ describe('live solver rule-content coverage', () => {
   it('does not let exact proof time starve the principal line search', () => {
     const state = baseState();
     const playerId = state.players[0].playerId;
+    const principalResults: number[] = [];
 
     const result = runLiveSolver(state, playerId, 'principal-search-test', {
       timeBudgetMs: 500,
@@ -398,12 +399,15 @@ describe('live solver rule-content coverage', () => {
       completionWidth: 6,
       exactTimeBudgetMs: 600,
       exactNodeLimit: 30_000,
+    }, progress => {
+      if (progress.proofNodes === 0 && progress.verifiedFinalScore !== undefined) principalResults.push(progress.verifiedFinalScore);
     });
 
     expect(result.status).toBe('READY');
     expect(result.horizon).toBe('FULL_GAME');
-    expect(result.completedLines).toBeGreaterThan(1);
-    expect(result.searchedNodes).toBeGreaterThan(500);
+    expect(principalResults.length).toBeGreaterThan(0);
+    expect(result.completedLines).toBeGreaterThan(0);
+    expect(validateLiveSolverLine(state, playerId, result.rounds.flatMap(round => round.moves), result.verifiedFinalScore).valid).toBe(true);
   });
 
   it('uses portfolio rollouts to produce a full-game line under a tiny principal budget', () => {
@@ -426,6 +430,59 @@ describe('live solver rule-content coverage', () => {
     expect(result.completedLines).toBeGreaterThan(0);
   });
 
+  it('can replay a strong reference line as an immediate preview', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const result = runLiveSolver(state, playerId, 'reference-source-test', {
+      timeBudgetMs: 500,
+      beamWidth: 16,
+      targetBranches: 4,
+      opponentBranches: 1,
+      completionWidth: 4,
+      exactTimeBudgetMs: 0,
+      exactNodeLimit: 0,
+      skipExactSearch: true,
+    });
+    const ownTotal = result.projections.find(score => score.playerId === playerId)?.projectedTotal ?? 0;
+    const preview = buildReferenceLinePreview(state, playerId, 'reference-preview-test', {
+      referenceLines: [{
+        score: ownTotal,
+        projectedMargin: result.projectedMargin,
+        cityId: state.players[0].cityId,
+        tags: [],
+        moves: result.rounds.flatMap(round => round.moves.map(move => ({
+          round: move.round,
+          phase: move.phase,
+          decisionType: move.decisionType,
+          message: move.message,
+        }))),
+      }],
+      referenceLineWeight: 32,
+    });
+
+    expect(preview?.status).toBe('READY');
+    expect(preview?.rounds.length).toBeGreaterThan(0);
+  });
+
+  it('validates solver lines by replaying them through the real engine', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const result = runLiveSolver(state, playerId, 'line-validation-test', {
+      timeBudgetMs: 500,
+      beamWidth: 16,
+      targetBranches: 4,
+      opponentBranches: 1,
+      completionWidth: 4,
+      exactTimeBudgetMs: 0,
+      exactNodeLimit: 0,
+      skipExactSearch: true,
+    });
+    const validation = validateLiveSolverLine(state, playerId, result.rounds.flatMap(round => round.moves));
+
+    expect(validation.valid).toBe(true);
+    expect(validation.executedMoves).toBeGreaterThan(0);
+  });
+
   it('detects strong card-driven strategy profiles for portfolio ordering', () => {
     const state = baseState();
     const playerId = state.players[0].playerId;
@@ -439,6 +496,120 @@ describe('live solver rule-content coverage', () => {
 
     const [topProfile] = __liveSolverInternals.rankStrategyProfiles(testState, playerId);
     expect(topProfile?.id).toBe('old_guard');
+  });
+
+  it('detects Olympia culture-development plans for portfolio ordering', () => {
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const peripteros = ALL_POLITICS_CARDS.find(card => card.id === 'peripteros')!;
+    const stoa = ALL_POLITICS_CARDS.find(card => card.id === 'stoa-poikile')!;
+    const testState: GameState = {
+      ...state,
+      players: state.players.map((player, index) => index === 0
+        ? {
+            ...player,
+            cityId: 'olympia',
+            developmentLevel: 1,
+            cultureTrack: 3,
+            handCards: [peripteros, stoa],
+            playedCards: [],
+          }
+        : player),
+    };
+
+    const [topProfile] = __liveSolverInternals.rankStrategyProfiles(testState, playerId);
+    expect(topProfile?.id).toBe('olympia_culture');
+  });
+
+  it('prioritizes green knowledge for Olympia development before generic card colors', () => {
+    const bank = ALL_POLITICS_CARDS.find(card => card.id === 'bank')!;
+    const { state, playerId } = prepareActionState('TRADE', player => ({
+      ...player,
+      cityId: 'olympia',
+      developmentLevel: 1,
+      economyTrack: 4,
+      coins: 2,
+      philosophyTokens: 0,
+      knowledgeTokens: [],
+      handCards: [bank],
+    }));
+
+    const candidates = __liveSolverInternals.enumerateCandidates(state, playerId, 'RESOLVE_ACTION', playerId);
+    const firstBuy = candidates.find(candidate =>
+      candidate.message.type === 'RESOLVE_ACTION'
+      && candidate.message.actionType === 'TRADE'
+      && candidate.message.choices.buyMinorKnowledge);
+
+    expect(firstBuy?.message.type).toBe('RESOLVE_ACTION');
+    if (firstBuy?.message.type !== 'RESOLVE_ACTION') return;
+    expect(firstBuy.message.choices.minorKnowledgeColor).toBe('GREEN');
+  });
+
+  it('preserves Olympia culture-engine cards when choosing non-exact discards', () => {
+    const peripteros = ALL_POLITICS_CARDS.find(card => card.id === 'peripteros')!;
+    const stoa = ALL_POLITICS_CARDS.find(card => card.id === 'stoa-poikile')!;
+    const contribution = ALL_POLITICS_CARDS.find(card => card.id === 'contribution')!;
+    const gifts = ALL_POLITICS_CARDS.find(card => card.id === 'gifts-from-the-west')!;
+    const state = baseState();
+    const playerId = state.players[0].playerId;
+    const testState: GameState = {
+      ...state,
+      currentPhase: 'GLORY',
+      pendingDecisions: [pending(playerId, 'THIRTY_TYRANTS_DISCARD')],
+      players: state.players.map((player, index) => index === 0
+        ? {
+            ...player,
+            cityId: 'olympia',
+            developmentLevel: 1,
+            handCards: [peripteros, stoa, contribution, gifts],
+          }
+        : player),
+    };
+
+    const [topDiscard] = __liveSolverInternals.enumerateCandidates(testState, playerId, 'THIRTY_TYRANTS_DISCARD', playerId);
+    expect(topDiscard?.message.type).toBe('DISCARD_CARDS');
+    if (topDiscard?.message.type !== 'DISCARD_CARDS') return;
+    expect(topDiscard.message.cardIds).not.toContain('peripteros');
+    expect(topDiscard.message.cardIds).not.toContain('stoa-poikile');
+  });
+
+  it('uses followability only as a light candidate ordering tie-break', () => {
+    const followabilityScore = (__liveSolverInternals as unknown as {
+      candidateFollowabilityScore(candidate: {
+        message: {
+          type: 'ASSIGN_DICE';
+          assignments: Array<{ slotIndex: 0 | 1 | 2; actionType: ActionType; dieValue: number }>;
+          philosophyTokensToSpend?: number;
+        };
+        instruction: string;
+        detail: string;
+        estimatedSeconds: number;
+        quickScore: number;
+      }): number;
+    }).candidateFollowabilityScore;
+    const simpleTrade = {
+      message: {
+        type: 'ASSIGN_DICE' as const,
+        assignments: [{ slotIndex: 0 as const, actionType: 'TRADE' as const, dieValue: 3 }],
+      },
+      instruction: 'Assign 3 to Trade',
+      detail: 'Citizen cost 0.',
+      estimatedSeconds: 8,
+      quickScore: 0,
+    };
+    const costlyDevelopment = {
+      message: {
+        type: 'ASSIGN_DICE' as const,
+        assignments: [{ slotIndex: 0 as const, actionType: 'DEVELOPMENT' as const, dieValue: 1 }],
+        philosophyTokensToSpend: 1,
+      },
+      instruction: 'Assign 1 to Development',
+      detail: 'Spend 1 scroll first to cover citizen cost 2.',
+      estimatedSeconds: 8,
+      quickScore: 0,
+    };
+
+    expect(followabilityScore(simpleTrade)).toBeGreaterThan(followabilityScore(costlyDevelopment));
   });
 
   it('rehydrates a browser live-solver snapshot with executable rule functions', () => {

@@ -171,7 +171,7 @@ export class ProgressPhaseManager implements PhaseManager {
     };
   }
 
-  private applySubmissionToPlayer(
+  applySubmissionToPlayer(
     player: PlayerState,
     submission: ProgressSubmission,
   ): Result<PlayerState, GameError> {

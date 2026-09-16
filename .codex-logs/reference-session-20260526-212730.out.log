@@ -1,0 +1,3 @@
+
+[session] pass=1 started=2026-05-26T11:27:30.105Z budget=2m
+[session] command=npm run reference:search -- --keep 700 --keep-per-city 80 --runtime-lines 420 --reference-weight 28 --reference-limit 180 20s 5s .codex-artifacts/session-smoke-book.json .codex-artifacts/session-smoke-runtime.json 5 2 5 5 20 200 500 --run-name reference-session-20260526-212730 --iterations 1 --budget 2m

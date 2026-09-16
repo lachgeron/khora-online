@@ -41,6 +41,9 @@ import { applyDevelopmentEffect } from './city-abilities';
 import { getAllCityCards } from './game-data';
 import { appendLogEntry } from './game-log';
 import { buildLiveSolverSnapshot } from './live-solver-snapshot';
+import { shouldHideActionAssignments } from './visibility';
+import { hasExpansionChoices, prepareExpansionChoices, restoreExpansionDecisions } from './expansion-choices';
+import { resolveExpansionChoice, autoResolveExpansionChoice } from './expansion-resolver';
 
 /**
  * Determines the next phase given the current phase and round number.
@@ -224,10 +227,14 @@ export class GameEngine {
       };
     }
 
-    const result = manager.handleDecision(state, playerId, decision);
+    const resolvingExpansion = Boolean(state.expansionChoices?.length);
+    const result = resolvingExpansion ? resolveExpansionChoice(state, playerId, decision) : manager.handleDecision(state, playerId, decision);
     if (!result.ok) return result;
 
     let newState = { ...result.value, updatedAt: Date.now() };
+
+    if (hasExpansionChoices(newState)) return { ok: true, value: prepareExpansionChoices(newState) };
+    if (resolvingExpansion) newState = this.resumeAfterExpansion(newState);
 
     if (manager.isComplete(newState)) {
       newState = this.advancePhase(newState);
@@ -243,8 +250,13 @@ export class GameEngine {
     const manager = this.phaseManagers.get(state.currentPhase);
     if (!manager) return state;
 
-    let newState = manager.autoResolve(state, playerId);
+    const resolvingExpansion = Boolean(state.expansionChoices?.length);
+    if (resolvingExpansion && state.expansionChoices![0].playerId !== playerId) return state;
+    let newState = resolvingExpansion ? autoResolveExpansionChoice(state) : manager.autoResolve(state, playerId);
     newState = { ...newState, updatedAt: Date.now() };
+
+    if (hasExpansionChoices(newState)) return prepareExpansionChoices(newState);
+    if (resolvingExpansion) newState = this.resumeAfterExpansion(newState);
 
     if (manager.isComplete(newState)) {
       newState = this.advancePhase(newState);
@@ -265,9 +277,11 @@ export class GameEngine {
     let newState: GameState = {
       ...state,
       players: state.players.map(p =>
-        p.playerId === playerId ? { ...p, hasFlagged: true, timeBankMs: 0 } : p,
+        p.playerId === playerId ? { ...p, hasFlagged: true, timeBankMs: 0, pendingGloryGains: 0 } : p,
       ),
       pendingDecisions: state.pendingDecisions.filter(d => d.playerId !== playerId),
+      expansionChoices: state.expansionChoices?.filter(c => c.playerId !== playerId),
+      suspendedDecisions: state.suspendedDecisions?.filter(d => d.playerId !== playerId),
       updatedAt: Date.now(),
     };
 
@@ -280,6 +294,8 @@ export class GameEngine {
     });
 
     const manager = this.phaseManagers.get(newState.currentPhase);
+    if (hasExpansionChoices(newState)) return prepareExpansionChoices(newState);
+    if (state.suspendedDecisions) newState = this.resumeAfterExpansion(newState);
     if (manager instanceof ProgressPhaseManager) {
       newState = manager.finishAfterExternalPendingChange(newState);
     }
@@ -425,6 +441,7 @@ export class GameEngine {
       startPlayerId: state.startPlayerId,
       turnOrder: state.turnOrder,
       players: state.players.map((p) => {
+        const hideActionSlots = shouldHideActionAssignments(state);
         const pending = state.pendingDecisions.find(d => d.playerId === p.playerId && d.usingTimeBank);
         const timeBankMs = pending
           ? Math.min(p.timeBankMs, Math.max(0, pending.timeoutAt - Date.now()))
@@ -450,9 +467,11 @@ export class GameEngine {
         developmentLevel: p.developmentLevel,
         victoryPoints: p.victoryPoints,
         diceRoll: p.diceRoll,
-        actionSlots: p.actionSlots
-          .filter((s): s is NonNullable<typeof s> => s !== null)
-          .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
+        actionSlots: hideActionSlots
+          ? []
+          : p.actionSlots
+            .filter((s): s is NonNullable<typeof s> => s !== null)
+            .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
         isConnected: p.isConnected,
         hasFlagged: p.hasFlagged,
         timeBankMs,
@@ -494,7 +513,12 @@ export class GameEngine {
           draftPack,
           draftedCards,
           legislationDraw: null,
-          liveSolverSnapshot: buildLiveSolverSnapshot(state),
+          expansionChoice: state.expansionChoices?.[0]?.playerId === playerId ? state.expansionChoices[0] : null,
+          nextActionType: (state.pendingDecisions.find(d => d.playerId === playerId && d.decisionType === 'RESOLVE_ACTION')?.options as { actionType?: import('@khora/shared').ActionType } | null)?.actionType,
+          liveSolverSnapshot: buildLiveSolverSnapshot(state, {
+            viewerPlayerId: playerId,
+            hideUnrevealedActionSlots: shouldHideActionAssignments(state),
+          }),
         }
       : {
           coins: 0,
@@ -524,11 +548,22 @@ export class GameEngine {
 
     let newState = manager.onEnter(state);
 
+    if (hasExpansionChoices(newState)) return prepareExpansionChoices(newState);
+
     if (manager.isComplete(newState)) {
       newState = this.advancePhase(newState);
     }
 
     return newState;
+  }
+
+  private resumeAfterExpansion(state: GameState): GameState {
+    const restored = restoreExpansionDecisions(state);
+    if (state.currentPhase === 'ACTIONS') {
+      const resumed = this.phaseManagers.get('ACTIONS')!.onEnter(restored);
+      return hasExpansionChoices(resumed) ? prepareExpansionChoices(resumed) : resumed;
+    }
+    return restored;
   }
 }
 

@@ -5,6 +5,8 @@
 
 import type { PoliticsCard, EventCard, CityCard } from '@khora/shared';
 import type { AchievementToken } from '@khora/shared';
+import { EXPANSION_POLITICS_CARDS } from './expansion-cards';
+export { EXPANSION_POLITICS_CARDS } from './expansion-cards';
 
 // ─── POLITICS CARDS ──────────────────────────────────────────────────────────
 
@@ -391,8 +393,8 @@ export function buildEventDeck(): EventCard[] {
 }
 
 /** Returns a shuffled copy of all politics cards. */
-export function buildPoliticsDeck(): PoliticsCard[] {
-  return shuffle([...ALL_POLITICS_CARDS]);
+export function buildPoliticsDeck(includeExpansionCards = false): PoliticsCard[] {
+  return shuffle([...ALL_POLITICS_CARDS, ...(includeExpansionCards ? EXPANSION_POLITICS_CARDS : [])]);
 }
 
 /** Returns all city cards. */

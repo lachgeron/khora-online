@@ -460,7 +460,7 @@ export class GloryPhaseManager implements PhaseManager {
     if (pending?.decisionType === 'ORACLE_CHOOSE_TOKEN') {
       const player = state.players.find(p => p.playerId === playerId);
       if (player && player.knowledgeTokens.length > 0) {
-        let s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, knowledgeTokens: p.knowledgeTokens.slice(0, -1), philosophyTokens: p.philosophyTokens + 2 } : p) };
+        const s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, knowledgeTokens: p.knowledgeTokens.slice(0, -1), philosophyTokens: p.philosophyTokens + 2 } : p) };
         return finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId));
       }
     }
@@ -471,7 +471,7 @@ export class GloryPhaseManager implements PhaseManager {
       if (player && player.handCards.length > 0) {
         const toDiscard = Math.min(2, player.handCards.length);
         const discardedCards = player.handCards.slice(player.handCards.length - toDiscard);
-        let s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p), politicsDeck: [...state.politicsDeck, ...discardedCards] };
+        const s: GameState = { ...state, players: state.players.map(p => p.playerId === playerId ? { ...p, handCards: p.handCards.slice(0, p.handCards.length - toDiscard) } : p), politicsDeck: [...state.politicsDeck, ...discardedCards] };
         return finishOrDisplay(s, s.pendingDecisions.filter(d => d.playerId !== playerId));
       }
     }

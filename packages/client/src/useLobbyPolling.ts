@@ -11,6 +11,7 @@ export interface LobbyPollResult {
   started: boolean;
   gameId: string | null;
   recordStats: boolean;
+  includeExpansionCards: boolean;
   draftMode: 'STANDARD' | 'PICK_BAN';
 }
 
@@ -38,6 +39,7 @@ export function useLobbyPolling(
             started: data.started ?? false,
             gameId: data.gameId ?? null,
             recordStats: data.recordStats ?? true,
+            includeExpansionCards: data.includeExpansionCards ?? false,
             draftMode: data.draftMode ?? 'STANDARD',
           });
         }

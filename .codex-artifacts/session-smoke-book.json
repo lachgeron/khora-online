@@ -1,0 +1,3032 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T11:29:32.664Z",
+  "updatedAt": "2026-05-26T11:29:54.530Z",
+  "runName": "reference-session-20260526-212931",
+  "totals": {
+    "iterations": 3,
+    "searchedNodes": 12127,
+    "completedLines": 24,
+    "computeMs": 19591
+  },
+  "records": [
+    {
+      "id": "1f8qhbk-4hi4eh",
+      "scenarioKey": "1f8qhbk",
+      "lineKey": "4hi4eh",
+      "source": "generated",
+      "seed": 3,
+      "iteration": 3,
+      "playerId": "player-1-mpmjzers",
+      "playerName": "LachG",
+      "cityId": "sparta",
+      "score": 38,
+      "projectedMargin": -15,
+      "horizon": "FULL_GAME",
+      "proofStatus": "UNPROVEN",
+      "searchedNodes": 2728,
+      "completedLines": 4,
+      "computeMs": 3749,
+      "validated": true,
+      "validation": {
+        "executedMoves": 49,
+        "failedMoveIndex": null,
+        "errors": []
+      },
+      "tags": [
+        "achievement",
+        "achievement:glory",
+        "achievement:tax",
+        "card:corinthian-columns",
+        "card:diversification",
+        "card:hall-of-statues",
+        "card:proskenion",
+        "card:tunnel-of-eupalinos",
+        "development",
+        "legislation",
+        "military",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy",
+        "progress:military",
+        "strategy:diversification",
+        "strategy:proskenion",
+        "token:explore"
+      ],
+      "scenario": {
+        "roundNumber": 1,
+        "currentPhase": "OMEN",
+        "playerCount": 4,
+        "players": [
+          {
+            "playerId": "player-1-mpmjzers",
+            "playerName": "LachG",
+            "cityId": "sparta",
+            "handCardIds": [
+              "lighthouse",
+              "tunnel-of-eupalinos",
+              "quarry",
+              "corinthian-columns",
+              "public-market"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-2-mpmjzert",
+            "playerName": "LJC",
+            "cityId": "athens",
+            "handCardIds": [
+              "austerity",
+              "oracle",
+              "greek-fire",
+              "heavy-taxes",
+              "foreign-supplies"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-3-mpmjzert",
+            "playerName": "Ian",
+            "cityId": "argos",
+            "handCardIds": [
+              "scholarly-welcome",
+              "stoa-poikile",
+              "persians",
+              "colossus-of-rhodes",
+              "founding-the-lyceum"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-4-mpmjzert",
+            "playerName": "Pete",
+            "cityId": "corinth",
+            "handCardIds": [
+              "gold-reserve",
+              "peripteros",
+              "gradualism",
+              "reformists",
+              "silver-mining"
+            ],
+            "playedCardIds": []
+          }
+        ],
+        "currentEventId": "growing-populations",
+        "eventDeckIds": [
+          "invention-of-trireme",
+          "rise-of-persia",
+          "drought",
+          "thirty-tyrants",
+          "oracle-of-delphi",
+          "military-victory",
+          "origin-of-academy",
+          "conquest-of-persians"
+        ],
+        "politicsDeckTopIds": [
+          "hall-of-statues",
+          "rivalry",
+          "power",
+          "bank",
+          "council",
+          "gifts-from-the-west",
+          "helepole",
+          "diolkos",
+          "archives",
+          "old-guard",
+          "constructing-the-mint",
+          "diversification"
+        ],
+        "targetDiceByRound": {
+          "1": [
+            6,
+            5,
+            2
+          ],
+          "2": [
+            1,
+            6,
+            1
+          ],
+          "3": [
+            1,
+            1,
+            4
+          ],
+          "4": [
+            4,
+            5,
+            2
+          ],
+          "5": [
+            5,
+            1,
+            3
+          ],
+          "6": [
+            6,
+            5,
+            6
+          ],
+          "7": [
+            4,
+            3,
+            3
+          ],
+          "8": [
+            2,
+            3,
+            6
+          ],
+          "9": [
+            1,
+            3,
+            5
+          ]
+        }
+      },
+      "currentMove": {
+        "round": 1,
+        "phase": "DICE",
+        "playerId": "player-1-mpmjzers",
+        "playerName": "LachG",
+        "decisionType": "ROLL_DICE",
+        "instruction": "Roll dice",
+        "detail": "Reveal the scheduled dice for this round.",
+        "message": {
+          "type": "ROLL_DICE"
+        },
+        "estimatedSeconds": 1
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "moves": [
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 5 to Military and 6 to Politics",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "POLITICS",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 5
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military without exploring",
+              "detail": "Gain 1 troops.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {}
+              },
+              "estimatedSeconds": 3
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Corinthian Columns",
+              "detail": "Free card; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "corinthian-columns"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 1,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Military",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "MILITARY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "moves": [
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Military and 6 to Development",
+              "detail": "Citizen cost 3.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue minor",
+              "detail": "Gain 2 troops, then take Blue minor.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-minor-blue-3-12"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            },
+            {
+              "round": 2,
+              "phase": "ACHIEVEMENT",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+              "instruction": "Achievement: choose +1 Tax",
+              "detail": "Improves future income.",
+              "message": {
+                "type": "CLAIM_ACHIEVEMENT",
+                "achievementId": "",
+                "trackChoice": "TAX"
+              },
+              "estimatedSeconds": 3
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "moves": [
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Legislation and 1 to Military",
+              "detail": "Citizen cost 3.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "MILITARY",
+                    "dieValue": 1
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Hall of Statues",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "hall-of-statues"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue major",
+              "detail": "Gain 2 troops, then take Blue major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-blue-8-20"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 3,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            },
+            {
+              "round": 3,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RISE_OF_PERSIA_PROGRESS",
+              "instruction": "Rise of Persia: advance Military",
+              "detail": "Pay 1 drachma after the event discount.",
+              "message": {
+                "type": "EVENT_PROGRESS_TRACK",
+                "track": "MILITARY"
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "moves": [
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 4 to Military and 5 to Development",
+              "detail": "Citizen cost 1.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 5
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 4
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 4,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Red minor",
+              "detail": "Gain 3 troops, then take Red minor.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-minor-red-5-5"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 4,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Develop: +1 taxes on military action",
+              "detail": "Pay 2 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "DEVELOPMENT",
+                "choices": {}
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 4,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "moves": [
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Military and 5 to Development",
+              "detail": "Citizen cost 4.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 5
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 5,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue major",
+              "detail": "Gain 3 troops, then take Blue major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-blue-7-19"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 5,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Culture",
+              "detail": "Pay 1 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "CULTURE"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "moves": [
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 5 to Military and 6 to Development",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 5
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 6,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Green major",
+              "detail": "Gain 3 troops, then take Green major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-green-6-29"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 6,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Develop: Take 2 military actions",
+              "detail": "Pay 2 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "DEVELOPMENT",
+                "choices": {
+                  "spartaMilitaryTokenIds": [
+                    "board-major-blue-6-18",
+                    "board-major-blue-6-17"
+                  ]
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 6,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            },
+            {
+              "round": 6,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ORACLE_CHOOSE_TOKEN",
+              "instruction": "Oracle: lose Blue minor",
+              "detail": "Lose this token and gain 2 scrolls.",
+              "message": {
+                "type": "CHOOSE_TOKEN",
+                "tokenId": "board-minor-blue-3-12"
+              },
+              "estimatedSeconds": 5
+            },
+            {
+              "round": 6,
+              "phase": "ACHIEVEMENT",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+              "instruction": "Achievement: choose +1 Glory",
+              "detail": "Improves end-game major-token scoring.",
+              "message": {
+                "type": "CLAIM_ACHIEVEMENT",
+                "achievementId": "",
+                "trackChoice": "GLORY"
+              },
+              "estimatedSeconds": 3
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "moves": [
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 3 to Politics and 4 to Development",
+              "detail": "Spend 1 scroll first to cover citizen cost 4.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 3
+                  }
+                ],
+                "philosophyTokensToSpend": 1
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Hall of Statues",
+              "detail": "Pay 2 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "hall-of-statues"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "moves": [
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 2 to Legislation and 3 to Politics",
+              "detail": "Spend 1 scroll first to cover citizen cost 2.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "POLITICS",
+                    "dieValue": 3
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 2
+                  }
+                ],
+                "philosophyTokensToSpend": 1
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 8,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Diversification",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "diversification"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 8,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Tunnel of Eupalinos",
+              "detail": "Pay 4 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "tunnel-of-eupalinos"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 8,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 9,
+          "moves": [
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Legislation and 3 to Politics",
+              "detail": "Citizen cost 2.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "POLITICS",
+                    "dieValue": 3
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Proskenion",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "proskenion"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Diversification",
+              "detail": "Pay 6 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "diversification"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 9,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjzers",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-05-26T11:29:54.523Z"
+    },
+    {
+      "id": "dkbbct-1jtuywu",
+      "scenarioKey": "dkbbct",
+      "lineKey": "1jtuywu",
+      "source": "generated",
+      "seed": 2,
+      "iteration": 2,
+      "playerId": "player-1-mpmjz8fj",
+      "playerName": "LachG",
+      "cityId": "argos",
+      "score": 18,
+      "projectedMargin": -31,
+      "horizon": "FULL_GAME",
+      "proofStatus": "UNPROVEN",
+      "searchedNodes": 1931,
+      "completedLines": 3,
+      "computeMs": 2439,
+      "validated": true,
+      "validation": {
+        "executedMoves": 46,
+        "failedMoveIndex": null,
+        "errors": []
+      },
+      "tags": [
+        "card:contribution",
+        "card:hall-of-statues",
+        "card:lighthouse",
+        "development",
+        "legislation",
+        "military",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy",
+        "progress:military",
+        "token:explore"
+      ],
+      "scenario": {
+        "roundNumber": 1,
+        "currentPhase": "OMEN",
+        "playerCount": 4,
+        "players": [
+          {
+            "playerId": "player-1-mpmjz8fj",
+            "playerName": "LachG",
+            "cityId": "argos",
+            "handCardIds": [
+              "diolkos",
+              "diversification",
+              "foreign-supplies",
+              "hall-of-statues",
+              "oracle"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-2-mpmjz8fj",
+            "playerName": "LJC",
+            "cityId": "olympia",
+            "handCardIds": [
+              "stoa-poikile",
+              "stadion",
+              "colossus-of-rhodes",
+              "heavy-taxes",
+              "peripteros"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-3-mpmjz8fj",
+            "playerName": "Ian",
+            "cityId": "athens",
+            "handCardIds": [
+              "tunnel-of-eupalinos",
+              "greek-fire",
+              "scholarly-welcome",
+              "council",
+              "power"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-4-mpmjz8fj",
+            "playerName": "Pete",
+            "cityId": "thebes",
+            "handCardIds": [
+              "gold-reserve",
+              "bank",
+              "helepole",
+              "proskenion",
+              "old-guard"
+            ],
+            "playedCardIds": []
+          }
+        ],
+        "currentEventId": "growing-populations",
+        "eventDeckIds": [
+          "origin-of-academy",
+          "military-victory",
+          "drought",
+          "prosperity",
+          "plague-of-athens",
+          "outbreak-of-war",
+          "oracle-of-delphi",
+          "conquest-of-persians"
+        ],
+        "politicsDeckTopIds": [
+          "mercenary-recruitment",
+          "public-market",
+          "silver-mining",
+          "lighthouse",
+          "archives",
+          "contribution",
+          "persians",
+          "ostracism",
+          "extraordinary-collection",
+          "corinthian-columns",
+          "founding-the-lyceum",
+          "central-government"
+        ],
+        "targetDiceByRound": {
+          "1": [
+            6,
+            3,
+            6
+          ],
+          "2": [
+            4,
+            1,
+            2
+          ],
+          "3": [
+            5,
+            6,
+            3
+          ],
+          "4": [
+            2,
+            2,
+            6
+          ],
+          "5": [
+            5,
+            2,
+            2
+          ],
+          "6": [
+            6,
+            4,
+            6
+          ],
+          "7": [
+            1,
+            2,
+            1
+          ],
+          "8": [
+            6,
+            1,
+            4
+          ],
+          "9": [
+            6,
+            1,
+            2
+          ]
+        }
+      },
+      "currentMove": {
+        "round": 1,
+        "phase": "DICE",
+        "playerId": "player-1-mpmjz8fj",
+        "playerName": "LachG",
+        "decisionType": "ROLL_DICE",
+        "instruction": "Roll dice",
+        "detail": "Reveal the scheduled dice for this round.",
+        "message": {
+          "type": "ROLL_DICE"
+        },
+        "estimatedSeconds": 1
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "moves": [
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 3 to Military and 6 to Development",
+              "detail": "Citizen cost 1.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 3
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue minor",
+              "detail": "Gain 1 troops, then take Blue minor.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-minor-blue-3-13"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 1,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Military",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "MILITARY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "moves": [
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Legislation and 4 to Development",
+              "detail": "Citizen cost 2.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Lighthouse",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "lighthouse"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Military",
+              "detail": "Pay 3 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "MILITARY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "moves": [
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 5 to Military and 6 to Development",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 5
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue minor",
+              "detail": "Gain 3 troops, then take Blue minor.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-minor-blue-3-12"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Develop: Gain 2 troops, or 3 Drachma, or 4 VP, or 5 citizens",
+              "detail": "No drachma cost; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "DEVELOPMENT",
+                "choices": {
+                  "argosDevReward": "vp"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 3,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            },
+            {
+              "round": 3,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "MILITARY_VICTORY_PROGRESS",
+              "instruction": "Military Victory: advance Economy",
+              "detail": "Pay 0 drachma after the event discount.",
+              "message": {
+                "type": "EVENT_PROGRESS_TRACK",
+                "track": "ECONOMY"
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "moves": [
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 2 to Military and 2 to Development",
+              "detail": "Citizen cost 6.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 2
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 2
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 4,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Red major",
+              "detail": "Gain 3 troops, then take Red major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-red-5-6"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 4,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Develop: Move up 1 Military for free",
+              "detail": "No drachma cost; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "DEVELOPMENT",
+                "choices": {}
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 4,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "moves": [
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 2 to Military and 5 to Development",
+              "detail": "Citizen cost 3.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 5
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 2
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 5,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Blue major",
+              "detail": "Gain 4 troops, then take Blue major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-blue-5-16"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 5,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Culture",
+              "detail": "Pay 1 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "CULTURE"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "moves": [
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 4 to Military and 6 to Development",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "MILITARY",
+                    "dieValue": 4
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 6,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Military: explore Green major",
+              "detail": "Gain 4 troops, then take Green major.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "MILITARY",
+                "choices": {
+                  "explorationTokenId": "board-major-green-6-29"
+                }
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 6,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 6,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "moves": [
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Philosophy and 2 to Legislation",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 2
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "PHILOSOPHY",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Resolve Philosophy",
+              "detail": "Gain 1 scroll.",
+              "message": null,
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Contribution",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "contribution"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 7,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "moves": [
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Politics and 6 to Development",
+              "detail": "Spend 1 scroll first to cover citizen cost 4.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 1
+                  }
+                ],
+                "philosophyTokensToSpend": 1
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 8,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Contribution",
+              "detail": "Free card; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "contribution"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 8,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 8,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            },
+            {
+              "round": 8,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ORACLE_CHOOSE_TOKEN",
+              "instruction": "Oracle: lose Blue minor",
+              "detail": "Lose this token and gain 2 scrolls.",
+              "message": {
+                "type": "CHOOSE_TOKEN",
+                "tokenId": "board-minor-blue-3-12"
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 9,
+          "moves": [
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Politics and 6 to Development",
+              "detail": "Spend 1 scroll first to cover citizen cost 4.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 1
+                  }
+                ],
+                "philosophyTokensToSpend": 1
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Hall of Statues",
+              "detail": "Pay 2 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "hall-of-statues"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 9,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz8fj",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-05-26T11:29:48.051Z"
+    },
+    {
+      "id": "1gskmnp-1buqeb",
+      "scenarioKey": "1gskmnp",
+      "lineKey": "1buqeb",
+      "source": "generated",
+      "seed": 1,
+      "iteration": 1,
+      "playerId": "player-1-mpmjz20r",
+      "playerName": "LachG",
+      "cityId": "athens",
+      "score": 11,
+      "projectedMargin": -65,
+      "horizon": "FULL_GAME",
+      "proofStatus": "UNPROVEN",
+      "searchedNodes": 415,
+      "completedLines": 1,
+      "computeMs": 684,
+      "validated": true,
+      "validation": {
+        "executedMoves": 43,
+        "failedMoveIndex": null,
+        "errors": []
+      },
+      "tags": [
+        "achievement",
+        "achievement:tax",
+        "card:central-government",
+        "card:extraordinary-collection",
+        "card:gifts-from-the-west",
+        "card:rivalry",
+        "card:tunnel-of-eupalinos",
+        "legislation",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy"
+      ],
+      "scenario": {
+        "roundNumber": 1,
+        "currentPhase": "OMEN",
+        "playerCount": 4,
+        "players": [
+          {
+            "playerId": "player-1-mpmjz20r",
+            "playerName": "LachG",
+            "cityId": "athens",
+            "handCardIds": [
+              "gold-reserve",
+              "rivalry",
+              "silver-mining",
+              "tunnel-of-eupalinos",
+              "gifts-from-the-west"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-2-mpmjz20r",
+            "playerName": "LJC",
+            "cityId": "argos",
+            "handCardIds": [
+              "heavy-taxes",
+              "corinthian-columns",
+              "contribution",
+              "scholarly-welcome",
+              "foreign-supplies"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-3-mpmjz20r",
+            "playerName": "Ian",
+            "cityId": "thebes",
+            "handCardIds": [
+              "reformists",
+              "gradualism",
+              "council",
+              "archives",
+              "diversification"
+            ],
+            "playedCardIds": []
+          },
+          {
+            "playerId": "player-4-mpmjz20r",
+            "playerName": "Pete",
+            "cityId": "sparta",
+            "handCardIds": [
+              "helepole",
+              "stoa-poikile",
+              "bank",
+              "colossus-of-rhodes",
+              "amnesty-for-socrates"
+            ],
+            "playedCardIds": []
+          }
+        ],
+        "currentEventId": "growing-populations",
+        "eventDeckIds": [
+          "rise-of-persia",
+          "outbreak-of-war",
+          "conscripting-troops",
+          "origin-of-academy",
+          "prosperity",
+          "thirty-tyrants",
+          "supplies-from-lydia",
+          "conquest-of-persians"
+        ],
+        "politicsDeckTopIds": [
+          "constructing-the-mint",
+          "quarry",
+          "oracle",
+          "extraordinary-collection",
+          "mercenary-recruitment",
+          "proskenion",
+          "austerity",
+          "hall-of-statues",
+          "lighthouse",
+          "persians",
+          "central-government",
+          "old-guard"
+        ],
+        "targetDiceByRound": {
+          "1": [
+            1,
+            4,
+            4
+          ],
+          "2": [
+            4,
+            2,
+            5
+          ],
+          "3": [
+            5,
+            6,
+            1
+          ],
+          "4": [
+            2,
+            6,
+            2
+          ],
+          "5": [
+            6,
+            6,
+            1
+          ],
+          "6": [
+            6,
+            4,
+            3
+          ],
+          "7": [
+            4,
+            1,
+            2
+          ],
+          "8": [
+            4,
+            4,
+            1
+          ],
+          "9": [
+            1,
+            1,
+            2
+          ]
+        }
+      },
+      "currentMove": {
+        "round": 1,
+        "phase": "DICE",
+        "playerId": "player-1-mpmjz20r",
+        "playerName": "LachG",
+        "decisionType": "ROLL_DICE",
+        "instruction": "Roll dice",
+        "detail": "Reveal the scheduled dice for this round.",
+        "message": {
+          "type": "ROLL_DICE"
+        },
+        "estimatedSeconds": 1
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "moves": [
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 1,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Politics and 4 to Development",
+              "detail": "Spend 1 scroll first to cover citizen cost 6.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 1
+                  }
+                ],
+                "philosophyTokensToSpend": 1
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Tunnel of Eupalinos",
+              "detail": "Pay 4 drachma; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "tunnel-of-eupalinos"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 1,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 1,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "moves": [
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 2 to Politics and 4 to Development",
+              "detail": "Spend 2 scrolls first to cover citizen cost 5.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 2
+                  }
+                ],
+                "philosophyTokensToSpend": 2
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Gifts from the West",
+              "detail": "Free card; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "gifts-from-the-west"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 2,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 2,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            },
+            {
+              "round": 2,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RISE_OF_PERSIA_PROGRESS",
+              "instruction": "Rise of Persia: advance Military",
+              "detail": "Pay 0 drachma after the event discount.",
+              "message": {
+                "type": "EVENT_PROGRESS_TRACK",
+                "track": "MILITARY"
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "moves": [
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 3,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 5 to Politics and 6 to Development",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 5
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Politics: play Rivalry",
+              "detail": "Free card; requirements met",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "POLITICS",
+                "choices": {
+                  "targetCardId": "rivalry"
+                }
+              },
+              "estimatedSeconds": 10
+            },
+            {
+              "round": 3,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 3,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Culture",
+              "detail": "Pay 1 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "CULTURE"
+                }
+              },
+              "estimatedSeconds": 5
+            },
+            {
+              "round": 3,
+              "phase": "ACHIEVEMENT",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+              "instruction": "Achievement: choose +1 Tax",
+              "detail": "Improves future income.",
+              "message": {
+                "type": "CLAIM_ACHIEVEMENT",
+                "achievementId": "",
+                "trackChoice": "TAX"
+              },
+              "estimatedSeconds": 3
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "moves": [
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 4,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 2 to Politics and 6 to Development",
+              "detail": "Citizen cost 3.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 2
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 4,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Politics action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 4,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "moves": [
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 6 to Politics and 6 to Development",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 6
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 5,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Politics action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 5,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 2 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "moves": [
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 6,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 4 to Politics and 6 to Development",
+              "detail": "Citizen cost 1.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 6
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 4
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 6,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Politics action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 6,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "moves": [
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Legislation and 4 to Development",
+              "detail": "Citizen cost 2.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Extraordinary Collection",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "extraordinary-collection"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 7,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Development action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 7,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Skip progress",
+              "detail": "Save drachma for later.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 2
+            },
+            {
+              "round": 7,
+              "phase": "GLORY",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "THIRTY_TYRANTS_DISCARD",
+              "instruction": "Discard Silver Mining and Extraordinary Collection",
+              "detail": "Search is preserving the highest-value playable and city-synergy cards.",
+              "message": {
+                "type": "DISCARD_CARDS",
+                "cardIds": [
+                  "silver-mining",
+                  "extraordinary-collection"
+                ]
+              },
+              "estimatedSeconds": 8
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "moves": [
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 8,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 4 to Politics and 4 to Development",
+              "detail": "Citizen cost 3.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "DEVELOPMENT",
+                    "dieValue": 4
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "POLITICS",
+                    "dieValue": 4
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 8,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Skip Politics action",
+              "detail": "No reliable candidate was found for this optional action.",
+              "message": {
+                "type": "SKIP_PHASE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 8,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 3 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        },
+        {
+          "round": 9,
+          "moves": [
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ROLL_DICE",
+              "instruction": "Roll dice",
+              "detail": "Reveal the scheduled dice for this round.",
+              "message": {
+                "type": "ROLL_DICE"
+              },
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 9,
+              "phase": "DICE",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "ASSIGN_DICE",
+              "instruction": "Assign 1 to Philosophy and 1 to Legislation",
+              "detail": "Citizen cost 0.",
+              "message": {
+                "type": "ASSIGN_DICE",
+                "assignments": [
+                  {
+                    "slotIndex": 0,
+                    "actionType": "LEGISLATION",
+                    "dieValue": 1
+                  },
+                  {
+                    "slotIndex": 1,
+                    "actionType": "PHILOSOPHY",
+                    "dieValue": 1
+                  }
+                ]
+              },
+              "estimatedSeconds": 8
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Resolve Philosophy",
+              "detail": "Gain 1 scroll.",
+              "message": null,
+              "estimatedSeconds": 1
+            },
+            {
+              "round": 9,
+              "phase": "ACTIONS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "RESOLVE_ACTION",
+              "instruction": "Legislation: keep Central Government",
+              "detail": "Gain 3 citizens and keep this card from the draw.",
+              "message": {
+                "type": "RESOLVE_ACTION",
+                "actionType": "LEGISLATION",
+                "choices": {
+                  "targetCardId": "central-government"
+                }
+              },
+              "estimatedSeconds": 6
+            },
+            {
+              "round": 9,
+              "phase": "PROGRESS",
+              "playerId": "player-1-mpmjz20r",
+              "playerName": "LachG",
+              "decisionType": "PROGRESS_TRACK",
+              "instruction": "Advance Economy",
+              "detail": "Pay 3 drachma total.",
+              "message": {
+                "type": "PROGRESS_TRACK",
+                "advancement": {
+                  "track": "ECONOMY"
+                }
+              },
+              "estimatedSeconds": 5
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-05-26T11:29:33.683Z"
+    }
+  ]
+}

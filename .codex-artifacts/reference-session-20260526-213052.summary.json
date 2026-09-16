@@ -1,0 +1,379 @@
+{
+  "version": 1,
+  "stamp": "20260526-213052",
+  "startedAt": "2026-05-26T11:30:52.556Z",
+  "endedAt": null,
+  "durationMs": 36000000,
+  "configuredPassBudgetMs": 120000,
+  "finalPassBudgetMs": 120000,
+  "heapMb": 8192,
+  "commandDefaults": [
+    "--keep",
+    "700",
+    "--keep-per-city",
+    "80",
+    "--runtime-lines",
+    "420",
+    "--reference-weight",
+    "28",
+    "--reference-limit",
+    "180"
+  ],
+  "forwardedSearchArgs": [
+    "--run-name",
+    "reference-session-20260526-213052"
+  ],
+  "passes": [
+    {
+      "pass": 1,
+      "startedAt": "2026-05-26T11:30:52.557Z",
+      "endedAt": "2026-05-26T11:32:56.077Z",
+      "durationMs": 123520,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 2,
+      "startedAt": "2026-05-26T11:32:56.151Z",
+      "endedAt": "2026-05-26T11:34:59.656Z",
+      "durationMs": 123505,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 3,
+      "startedAt": "2026-05-26T11:34:59.738Z",
+      "endedAt": "2026-05-26T11:37:03.481Z",
+      "durationMs": 123743,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 4,
+      "startedAt": "2026-05-26T11:37:03.609Z",
+      "endedAt": "2026-05-26T11:39:07.297Z",
+      "durationMs": 123688,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 5,
+      "startedAt": "2026-05-26T11:39:07.412Z",
+      "endedAt": "2026-05-26T11:41:11.074Z",
+      "durationMs": 123662,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 6,
+      "startedAt": "2026-05-26T11:41:11.179Z",
+      "endedAt": "2026-05-26T11:43:14.830Z",
+      "durationMs": 123651,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 7,
+      "startedAt": "2026-05-26T11:43:14.950Z",
+      "endedAt": "2026-05-26T11:45:18.452Z",
+      "durationMs": 123502,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 8,
+      "startedAt": "2026-05-26T11:45:18.549Z",
+      "endedAt": "2026-05-26T11:47:22.214Z",
+      "durationMs": 123665,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 9,
+      "startedAt": "2026-05-26T11:47:22.337Z",
+      "endedAt": "2026-05-26T11:49:25.856Z",
+      "durationMs": 123519,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 10,
+      "startedAt": "2026-05-26T11:49:25.954Z",
+      "endedAt": "2026-05-26T11:51:29.468Z",
+      "durationMs": 123514,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 11,
+      "startedAt": "2026-05-26T11:51:29.575Z",
+      "endedAt": "2026-05-26T11:53:33.557Z",
+      "durationMs": 123982,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 12,
+      "startedAt": "2026-05-26T11:53:33.664Z",
+      "endedAt": "2026-05-26T11:55:37.402Z",
+      "durationMs": 123738,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 13,
+      "startedAt": "2026-05-26T11:55:37.536Z",
+      "endedAt": "2026-05-26T11:57:41.215Z",
+      "durationMs": 123679,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 14,
+      "startedAt": "2026-05-26T11:57:41.316Z",
+      "endedAt": "2026-05-26T11:59:45.294Z",
+      "durationMs": 123978,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 15,
+      "startedAt": "2026-05-26T11:59:45.433Z",
+      "endedAt": "2026-05-26T12:01:49.232Z",
+      "durationMs": 123799,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 16,
+      "startedAt": "2026-05-26T12:01:49.359Z",
+      "endedAt": "2026-05-26T12:03:52.776Z",
+      "durationMs": 123417,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 17,
+      "startedAt": "2026-05-26T12:03:52.878Z",
+      "endedAt": "2026-05-26T12:05:56.451Z",
+      "durationMs": 123573,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 18,
+      "startedAt": "2026-05-26T12:05:56.556Z",
+      "endedAt": "2026-05-26T12:08:00.206Z",
+      "durationMs": 123650,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 19,
+      "startedAt": "2026-05-26T12:08:00.347Z",
+      "endedAt": "2026-05-26T12:10:04.234Z",
+      "durationMs": 123887,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 20,
+      "startedAt": "2026-05-26T12:10:04.337Z",
+      "endedAt": "2026-05-26T12:12:08.045Z",
+      "durationMs": 123708,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 21,
+      "startedAt": "2026-05-26T12:12:08.179Z",
+      "endedAt": "2026-05-26T12:14:11.725Z",
+      "durationMs": 123546,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 22,
+      "startedAt": "2026-05-26T12:14:11.823Z",
+      "endedAt": "2026-05-26T12:16:15.380Z",
+      "durationMs": 123557,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 23,
+      "startedAt": "2026-05-26T12:16:15.485Z",
+      "endedAt": "2026-05-26T12:18:19.479Z",
+      "durationMs": 123994,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 24,
+      "startedAt": "2026-05-26T12:18:19.595Z",
+      "endedAt": "2026-05-26T12:20:22.932Z",
+      "durationMs": 123337,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 25,
+      "startedAt": "2026-05-26T12:20:23.058Z",
+      "endedAt": "2026-05-26T12:22:26.709Z",
+      "durationMs": 123651,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 26,
+      "startedAt": "2026-05-26T12:22:26.830Z",
+      "endedAt": "2026-05-26T12:24:30.616Z",
+      "durationMs": 123786,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 27,
+      "startedAt": "2026-05-26T12:24:30.741Z",
+      "endedAt": "2026-05-26T12:26:34.407Z",
+      "durationMs": 123666,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 28,
+      "startedAt": "2026-05-26T12:26:34.517Z",
+      "endedAt": "2026-05-26T12:28:38.063Z",
+      "durationMs": 123546,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 29,
+      "startedAt": "2026-05-26T12:28:38.166Z",
+      "endedAt": "2026-05-26T12:30:41.957Z",
+      "durationMs": 123791,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 30,
+      "startedAt": "2026-05-26T12:30:42.079Z",
+      "endedAt": "2026-05-26T12:32:45.799Z",
+      "durationMs": 123720,
+      "passBudgetMs": 120000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    }
+  ],
+  "book": {
+    "path": "C:\\Users\\User\\Documents\\KHORA\\tools\\live-solver-reference-lines.json",
+    "updatedAt": "2026-05-26T12:32:45.424Z",
+    "records": 373,
+    "lines": 0,
+    "bestScore": 110,
+    "bestByCity": {
+      "olympia": 110,
+      "miletus": 109,
+      "argos": 106,
+      "thebes": 90,
+      "sparta": 87,
+      "athens": 85,
+      "corinth": 83
+    }
+  },
+  "benchmark": {
+    "ran": false,
+    "exitCode": null,
+    "reportPath": null
+  }
+}

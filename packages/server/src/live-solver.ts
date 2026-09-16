@@ -19,6 +19,7 @@ import type {
 } from '@khora/shared';
 import { ACTION_NUMBERS } from '@khora/shared';
 import { GameEngine } from './game-engine';
+import { ProgressPhaseManager } from './phases/progress-phase';
 import { getAllCityCards } from './game-data';
 import { calculateFinalScores } from './scoring-engine';
 import { activateDev, calculateDevEndGameScore, getActivatableDevs, hasDevUnlocked } from './city-dev-handlers';
@@ -45,18 +46,40 @@ interface Candidate {
   detail: string;
   estimatedSeconds: number;
   quickScore: number;
+  rankingScore?: number;
+  unusableActions?: ActionType[];
+  outcome?: { source: GameState; actorId: string; state: GameState | null };
 }
 
 interface SearchNode {
   state: GameState;
   moves: LiveSolverMove[];
   score: number;
+  verifiedScore?: number;
 }
 
 interface BranchSeed {
   node: SearchNode;
   profile?: StrategyProfile;
   guide?: LiveSolverReferenceLine;
+}
+
+export interface LiveSolverSearchSession {
+  key?: string;
+  beam?: SearchNode[];
+  completed?: SearchNode[];
+  passes: number;
+  repairCursor: number;
+  repairJob?: SearchNode;
+  repairGuide?: LiveSolverReferenceLine;
+  heuristicCache?: WeakMap<GameState, Map<string, number>>;
+  completedLineCount?: number;
+  seedCursor?: number;
+  seedJob?: { node: SearchNode; profile?: StrategyProfile; guide?: LiveSolverReferenceLine };
+}
+
+export function createLiveSolverSearchSession(): LiveSolverSearchSession {
+  return { passes: 0, repairCursor: 0 };
 }
 
 interface Projection {
@@ -100,6 +123,16 @@ interface ReferenceSearchBook {
   weight: number;
   exactPriors: Map<string, ReferenceMovePrior>;
   generalizedPriors: Map<string, ReferenceMovePrior>;
+  lateGamePriors: Map<string, ReferenceMovePrior>;
+}
+
+export interface LiveSolverLineValidation {
+  valid: boolean;
+  finalScore: number | null;
+  executedMoves: number;
+  failedMoveIndex: number | null;
+  errors: string[];
+  finalState?: GameState;
 }
 
 type StrategyProfileId =
@@ -110,7 +143,14 @@ type StrategyProfileId =
   | 'politics_engine'
   | 'development_rush'
   | 'cash_endgame'
-  | 'diversification';
+  | 'diversification'
+  | 'olympia_culture'
+  | 'athens_cards'
+  | 'miletus_trade'
+  | 'sparta_blue'
+  | 'corinth_tokens'
+  | 'thebes_minors'
+  | 'argos_military';
 
 interface StrategyProfile {
   id: StrategyProfileId;
@@ -169,6 +209,9 @@ const PROGRESS_COSTS: Record<ProgressTrackType, Record<number, number>> = {
   CULTURE: { 1: 1, 2: 4, 3: 6, 4: 6, 5: 7, 6: 7 },
   MILITARY: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 7, 6: 9 },
 };
+
+const KNOWLEDGE_COLORS: KnowledgeColor[] = ['GREEN', 'BLUE', 'RED'];
+const CITY_BY_ID = new Map(getAllCityCards().map(city => [city.id, city]));
 
 const ACTION_LABELS: Record<ActionType, string> = {
   PHILOSOPHY: 'Philosophy',
@@ -278,9 +321,98 @@ const STRATEGY_PROFILES: StrategyProfile[] = [
     taxBias: 1.1,
     gloryBias: 1.1,
   },
+  {
+    id: 'olympia_culture',
+    actionBias: { CULTURE: 4.8, DEVELOPMENT: 4.5, TRADE: 2.9, PHILOSOPHY: 1.9, POLITICS: 1.5, LEGISLATION: 0.7, MILITARY: 0.7 },
+    progressBias: { CULTURE: 5.4, ECONOMY: 1.8, MILITARY: 0.7 },
+    cardBias: {
+      peripteros: 16,
+      'stoa-poikile': 12,
+      persians: 11,
+      gradualism: 9,
+      reformists: 9,
+      oracle: 8,
+      'founding-the-lyceum': 7,
+      archives: 6,
+      'colossus-of-rhodes': 6,
+      'scholarly-welcome': 6,
+      'tunnel-of-eupalinos': 5,
+    },
+    skipProgressBias: -6,
+    majorTokenBias: 0.9,
+    minorTokenBias: 2.8,
+    taxBias: 1.4,
+    gloryBias: 0.8,
+  },
+  {
+    id: 'athens_cards',
+    actionBias: { POLITICS: 5, LEGISLATION: 3, DEVELOPMENT: 3.2, PHILOSOPHY: 1.8, TRADE: 1.8 },
+    progressBias: { ECONOMY: 1.4, CULTURE: 0.8, MILITARY: 0.7 },
+    cardBias: { council: 14, 'extraordinary-collection': 13, 'central-government': 14, oracle: 8, 'corinthian-columns': 7, reformists: 7 },
+    skipProgressBias: -1,
+    majorTokenBias: 0.9,
+    minorTokenBias: 1.4,
+    taxBias: 1.1,
+    gloryBias: 0.8,
+  },
+  {
+    id: 'miletus_trade',
+    actionBias: { TRADE: 5, DEVELOPMENT: 3.6, PHILOSOPHY: 1.4, POLITICS: 1.5, MILITARY: 0.8 },
+    progressBias: { ECONOMY: 4.8, CULTURE: 1.3, MILITARY: 0.8 },
+    cardBias: { lighthouse: 15, diolkos: 14, 'public-market': 9, bank: 8, 'gold-reserve': 8, 'constructing-the-mint': 8 },
+    skipProgressBias: -4,
+    majorTokenBias: 0.8,
+    minorTokenBias: 1.6,
+    taxBias: 1.8,
+    gloryBias: 0.5,
+  },
+  {
+    id: 'sparta_blue',
+    actionBias: { MILITARY: 5, DEVELOPMENT: 3.6, TRADE: 2.2, POLITICS: 1.1 },
+    progressBias: { MILITARY: 5.2, ECONOMY: 1.4, CULTURE: 0.5 },
+    cardBias: { helepole: 12, 'greek-fire': 11, 'mercenary-recruitment': 9, stadion: 8, 'hall-of-statues': 7 },
+    skipProgressBias: -2,
+    majorTokenBias: 3.7,
+    minorTokenBias: 1.1,
+    taxBias: 1.6,
+    gloryBias: 3.2,
+  },
+  {
+    id: 'corinth_tokens',
+    actionBias: { TRADE: 3.6, MILITARY: 3.4, DEVELOPMENT: 3.8, PHILOSOPHY: 1.4, POLITICS: 1.3 },
+    progressBias: { ECONOMY: 2.2, CULTURE: 1.8, MILITARY: 1.8 },
+    cardBias: { 'corinthian-columns': 14, 'hall-of-statues': 11, contribution: 8, 'scholarly-welcome': 8, diversification: 7 },
+    skipProgressBias: -2,
+    majorTokenBias: 2.3,
+    minorTokenBias: 2.3,
+    taxBias: 1.5,
+    gloryBias: 1.2,
+  },
+  {
+    id: 'thebes_minors',
+    actionBias: { MILITARY: 3.8, TRADE: 3.6, DEVELOPMENT: 3.8, POLITICS: 1.1 },
+    progressBias: { MILITARY: 3.5, ECONOMY: 1.5, CULTURE: 0.8 },
+    cardBias: { 'corinthian-columns': 10, 'scholarly-welcome': 9, helepole: 7, 'hall-of-statues': 7 },
+    skipProgressBias: -1,
+    majorTokenBias: 1.1,
+    minorTokenBias: 4.4,
+    taxBias: 1.1,
+    gloryBias: 1.5,
+  },
+  {
+    id: 'argos_military',
+    actionBias: { MILITARY: 4.4, DEVELOPMENT: 3.4, TRADE: 1.8, POLITICS: 1.1 },
+    progressBias: { MILITARY: 4.7, ECONOMY: 1.2, CULTURE: 0.6 },
+    cardBias: { 'greek-fire': 10, 'mercenary-recruitment': 9, helepole: 8, rivalry: 7, stadion: 7 },
+    skipProgressBias: -2,
+    majorTokenBias: 3.4,
+    minorTokenBias: 0.9,
+    taxBias: 0.9,
+    gloryBias: 3.4,
+  },
 ];
 
-let activeHeuristicCache: Map<string, number> | null = null;
+let activeHeuristicCache: WeakMap<GameState, Map<string, number>> | null = null;
 
 export function runLiveSolver(
   state: GameState,
@@ -288,6 +420,7 @@ export function runLiveSolver(
   requestId: string,
   options: Partial<SearchOptions> = {},
   onProgress?: (result: LiveSolverResult) => void,
+  session: LiveSolverSearchSession = createLiveSolverSearchSession(),
 ): LiveSolverResult {
   const start = Date.now();
   const opts = sanitizeOptions(options);
@@ -302,33 +435,47 @@ export function runLiveSolver(
   if (state.currentPhase === 'GAME_OVER') {
     return unavailableResult(requestId, playerId, start, 'Game is already over.');
   }
+  opts.referenceLines = rankReferenceGuidesForState(opts.referenceLines, state, playerId).slice(0, 240);
   activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
-  activeHeuristicCache = new Map();
+  const sessionKey = `${playerId}|${stateSignature(state)}`;
+  if (session.key !== sessionKey) {
+    Object.assign(session, { key: sessionKey, beam: undefined, completed: [], completedLineCount: 0, passes: 0, repairCursor: 0, repairJob: undefined, repairGuide: undefined, heuristicCache: new WeakMap(), seedCursor: 0, seedJob: undefined });
+  }
+  activeHeuristicCache = session.heuristicCache ?? new WeakMap();
   activeReferenceBook = buildReferenceSearchBook(opts.referenceLines, opts.referenceLineWeight);
 
-  let beam: SearchNode[] = [{
+  const root: SearchNode = {
     state: cloneGameState(state),
     moves: [],
     score: heuristicScore(state, playerId),
-  }];
+  };
+  let beam: SearchNode[] = session.beam?.length ? session.beam : [root];
   let best: SearchNode = beam[0];
   let searchedNodes = 0;
-  const completedNodes: SearchNode[] = [];
-  const completedSignatures = new Set<string>();
+  const completedNodes: SearchNode[] = [...(session.completed ?? [])];
+  let forcedRolloutUsed = false;
+  let completedLineCount = session.completedLineCount ?? 0;
+  const completedSignatures = new Set(completedNodes.map(node => stateSignature(node.state)));
   let lastProgressAt = 0;
 
   const recordCompleted = (node: SearchNode) => {
     const key = stateSignature(node.state);
     if (completedSignatures.has(key)) return;
+    const expectedScore = solvedStateScore(node.state, playerId);
+    const validation = validateLiveSolverLine(state, playerId, node.moves, expectedScore);
+    if (!validation.valid) return;
     completedSignatures.add(key);
-    completedNodes.push(scoreNode(node, playerId));
+    completedLineCount++;
+    completedNodes.push(scoreNode({ ...node, verifiedScore: expectedScore }, playerId));
+    completedNodes.sort((a, b) => lineSelectionScore(b, playerId) - lineSelectionScore(a, playerId));
+    if (completedNodes.length > 16) completedNodes.length = 16;
     emitProgress(true, 'Best full-game line found so far. Search is still running.');
   };
 
   const bestKnownNode = () => completedNodes.length > 0
     ? completedNodes
         .slice()
-        .sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
+        .sort((a, b) => lineSelectionScore(b, playerId) - lineSelectionScore(a, playerId))[0]
     : normalizeNode(best, playerId).node;
 
   const emitProgress = (force = false, message = 'Best line found so far. Search is still running.') => {
@@ -342,7 +489,7 @@ export function runLiveSolver(
       start,
       node: bestKnownNode(),
       searchedNodes,
-      completedLines: completedNodes.length,
+      completedLines: completedLineCount,
       proofNodes: 0,
       proofReason: opts.skipExactSearch
         ? 'Progressive line search is still running; exact proof is deferred.'
@@ -352,81 +499,56 @@ export function runLiveSolver(
   };
 
   const referenceGuides = rankReferenceGuidesForState(opts.referenceLines, state, playerId);
-  const referenceGuideDeadline = start + Math.min(Math.max(900, opts.timeBudgetMs * 0.45), 12000);
-  const referenceGuideLimit = Math.min(referenceGuides.length, opts.timeBudgetMs >= 15000 ? 36 : 18);
-  for (let guideIndex = 0; guideIndex < referenceGuideLimit; guideIndex++) {
-    if (Date.now() > referenceGuideDeadline && completedNodes.length > 0) break;
-    const guide = referenceGuides[guideIndex];
-    const rollout = completeLineToGameOver(
-      beam[0],
-      playerId,
-      opts,
-      referenceGuideDeadline,
-      completedNodes.length === 0,
-      undefined,
-      guide,
-    );
-    searchedNodes += rollout.searched;
-    if (rollout.completed) {
-      recordCompleted(rollout.node);
-    } else if (rollout.node.score > best.score) {
-      best = rollout.node;
-    }
-    emitProgress(rollout.completed && guideIndex < 3, 'Best reference-guided full-game line found so far. Search is still running.');
-  }
-
   const portfolioProfiles = rankStrategyProfiles(state, playerId);
-  const portfolioDeadline = start + Math.min(Math.max(1200, opts.timeBudgetMs * 0.28), 6000);
-  for (const profile of portfolioProfiles) {
-    if (Date.now() > portfolioDeadline && completedNodes.length > 0) break;
-    const rollout = completeLineToGameOver(
-      beam[0],
-      playerId,
-      opts,
-      portfolioDeadline,
-      completedNodes.length === 0,
-      profile,
-    );
+  const seedDeadline = start + opts.timeBudgetMs * 0.45;
+  // Alternate reference replay and independent strategies; resume unfinished lines next pass.
+  while (Date.now() < seedDeadline || completedNodes.length === 0 && !session.seedCursor) {
+    if (!session.seedJob) {
+      const cursor = session.seedCursor ?? 0;
+      session.seedCursor = cursor + 1;
+      const useGuide = cursor % 2 === 0 && referenceGuides.length > 0;
+      const index = Math.floor(cursor / 2);
+      session.seedJob = {
+        node: root,
+        guide: useGuide ? referenceGuides[index % referenceGuides.length] : undefined,
+        profile: useGuide ? undefined : portfolioProfiles[index % portfolioProfiles.length],
+      };
+    }
+    const job = session.seedJob;
+    const forceCompletion: boolean = completedNodes.length === 0 && !forcedRolloutUsed;
+    forcedRolloutUsed ||= forceCompletion;
+    const rollout = completeLineToGameOver(job.node, playerId, opts, seedDeadline,
+      forceCompletion, job.profile, job.guide);
     searchedNodes += rollout.searched;
     if (rollout.completed) {
       recordCompleted(rollout.node);
-    } else if (rollout.node.score > best.score) {
-      best = rollout.node;
+      session.seedJob = undefined;
+    } else {
+      job.node = rollout.node;
+      if (rollout.node.score > best.score) best = rollout.node;
+      break;
     }
     emitProgress();
   }
 
-  const openingBranchDeadline = start + Math.min(Math.max(1800, opts.timeBudgetMs * 0.62), 18000);
-  const openingSeeds = collectOpeningBranchSeeds(
-    beam[0],
-    playerId,
-    opts,
-    portfolioProfiles,
-    referenceGuides,
-    opts.timeBudgetMs >= 15000 ? 72 : 36,
-  );
-  searchedNodes += openingSeeds.searched;
-
-  for (let seedIndex = 0; seedIndex < openingSeeds.seeds.length; seedIndex++) {
-    if (Date.now() > openingBranchDeadline && completedNodes.length > 0) break;
-    const seed = openingSeeds.seeds[seedIndex];
-    const forceFirstFullLine = completedNodes.length === 0;
-    const rollout = completeLineToGameOver(
-      seed.node,
-      playerId,
-      opts,
-      openingBranchDeadline,
-      forceFirstFullLine,
-      seed.profile,
-      seed.guide,
-    );
-    searchedNodes += rollout.searched;
-    if (rollout.completed) {
-      recordCompleted(rollout.node);
-    } else if (rollout.node.score > best.score) {
-      best = rollout.node;
+  const repairDeadline = Math.min(start + opts.timeBudgetMs * 0.85, Date.now() + opts.timeBudgetMs * 0.3);
+  while (completedNodes.length > 0 && Date.now() < repairDeadline) {
+    if (!session.repairJob) {
+      const repair = makeLineRepair(root, playerId, completedNodes[0], session.repairCursor++);
+      if (!repair) continue;
+      session.repairJob = repair.node;
+      session.repairGuide = repair.guide;
     }
-    emitProgress(false, 'Best opening-branch full-game line found so far. Search is still running.');
+    const repaired = completeLineToGameOver(session.repairJob, playerId, opts, repairDeadline, false,
+      undefined, session.repairGuide);
+    searchedNodes += repaired.searched;
+    if (repaired.completed) {
+      recordCompleted(repaired.node);
+      session.repairJob = undefined;
+    } else {
+      session.repairJob = repaired.node;
+      break;
+    }
   }
 
   for (let step = 0; step < opts.maxDecisionPlies; step++) {
@@ -434,9 +556,11 @@ export function runLiveSolver(
 
     const nextBeam: SearchNode[] = [];
     let allComplete = true;
+    let processedNodes = 0;
 
     for (const node of beam) {
       if (Date.now() - start >= opts.timeBudgetMs) break;
+      processedNodes++;
 
       const normalized = normalizeNode(node, playerId);
       searchedNodes += normalized.searched;
@@ -471,7 +595,7 @@ export function runLiveSolver(
 
       for (let candidateIndex = 0; candidateIndex < usableCandidates.length; candidateIndex++) {
         const candidate = usableCandidates[candidateIndex];
-        const applied = applyMessage(normalized.node.state, decision.playerId, candidate.message);
+        const applied = applyCandidate(normalized.node.state, decision.playerId, candidate);
         searchedNodes++;
         if (!applied) continue;
 
@@ -500,6 +624,7 @@ export function runLiveSolver(
       }
     }
 
+    nextBeam.push(...beam.slice(processedNodes));
     if (nextBeam.length === 0) break;
 
     nextBeam.sort((a, b) => b.score - a.score);
@@ -511,7 +636,7 @@ export function runLiveSolver(
     }
   }
 
-  const completionDeadline = start + opts.timeBudgetMs + COMPLETION_GRACE_MS;
+  const completionDeadline = start + opts.timeBudgetMs + (completedNodes.length > 0 ? 100 : COMPLETION_GRACE_MS);
   const completionSeeds = rankAndPruneNodes(
     [...completedNodes, ...beam, best]
       .sort((a, b) => b.score - a.score),
@@ -533,8 +658,9 @@ export function runLiveSolver(
       : [undefined];
 
     for (const profile of profilesForSeed) {
-      const forceFirstFullLine = completedNodes.length === 0;
+      const forceFirstFullLine = completedNodes.length === 0 && !forcedRolloutUsed;
       if (!forceFirstFullLine && Date.now() > completionDeadline) break;
+      forcedRolloutUsed ||= forceFirstFullLine;
 
       const rollout = completeLineToGameOver(
         normalized.node,
@@ -556,8 +682,12 @@ export function runLiveSolver(
   }
 
   const finalBest = completedNodes.length > 0
-    ? completedNodes.sort((a, b) => solvedNodeScore(b, playerId) - solvedNodeScore(a, playerId))[0]
+    ? completedNodes.sort((a, b) => lineSelectionScore(b, playerId) - lineSelectionScore(a, playerId))[0]
     : normalizeNode(best, playerId).node;
+  session.beam = beam.filter(node => node.state.currentPhase !== 'GAME_OVER');
+  session.completed = completedNodes.slice(0, 8);
+  session.completedLineCount = completedLineCount;
+  session.passes++;
   const horizon: LiveSolverResult['horizon'] = finalBest.state.currentPhase === 'GAME_OVER' ? 'FULL_GAME' : 'PARTIAL';
   emitProgress(true, horizon === 'FULL_GAME'
     ? 'Best full-game line found so far. Search is still running.'
@@ -573,7 +703,7 @@ export function runLiveSolver(
         cacheHits: 0,
       }
     : runExactProofSearch(state, playerId, opts, Date.now());
-  if (exact.proven) {
+  if (exact.proven && validateLiveSolverLine(state, playerId, exact.node.moves, solvedStateScore(exact.node.state, playerId)).valid) {
     return provenExactResult(requestId, playerId, start, exact);
   }
 
@@ -593,14 +723,148 @@ export function runLiveSolver(
     projections: projection.scores,
     projectedMargin: projection.margin,
     searchedNodes,
-    completedLines: completedNodes.length,
+    completedLines: completedLineCount,
     computeMs: Date.now() - start,
     horizon,
+    verifiedFinalScore: finalBest.verifiedScore,
     proofStatus: 'UNPROVEN',
     proofNodes: exact.nodes,
     proofReason: exact.reason,
     opponentModel: 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD',
   };
+}
+
+export function buildReferenceLinePreview(
+  state: GameState,
+  playerId: string,
+  requestId: string,
+  options: Partial<SearchOptions> = {},
+): LiveSolverResult | null {
+  const start = Date.now();
+  const opts = sanitizeOptions({
+    ...options,
+    timeBudgetMs: Math.min(options.timeBudgetMs ?? 1500, 1500),
+    beamWidth: Math.min(options.beamWidth ?? 96, 128),
+    targetBranches: Math.min(options.targetBranches ?? 32, 48),
+    completionWidth: Math.min(options.completionWidth ?? 48, 64),
+    maxDecisionPlies: Math.min(options.maxDecisionPlies ?? 900, 1200),
+    skipExactSearch: true,
+  });
+  const target = state.players.find(p => p.playerId === playerId);
+  if (!target || opts.referenceLines.length === 0) return null;
+  if (state.currentPhase === 'CITY_SELECTION' || state.currentPhase === 'DRAFT_POLITICS' || state.currentPhase === 'GAME_OVER') return null;
+
+  activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
+  activeHeuristicCache = new WeakMap();
+  activeReferenceBook = buildReferenceSearchBook(opts.referenceLines, opts.referenceLineWeight);
+
+  const root = scoreNode({
+    state: cloneGameState(state),
+    moves: [],
+    score: 0,
+  }, playerId);
+  const guides = rankReferenceGuidesForState(opts.referenceLines, state, playerId).slice(0, 10);
+  let best: SearchNode | null = null;
+  let searched = 0;
+
+  for (const guide of guides) {
+    const replay = replayReferenceGuide(root, playerId, opts, guide);
+    searched += replay.searched;
+    if (!replay.completed && replay.node.moves.length === 0) continue;
+    if (replay.completed) {
+      const expectedScore = solvedStateScore(replay.node.state, playerId);
+      if (!validateLiveSolverLine(state, playerId, replay.node.moves, expectedScore).valid) continue;
+      replay.node.verifiedScore = expectedScore;
+    }
+    const scored = scoreNode(replay.node, playerId);
+    if (!best || lineSelectionScore(scored, playerId) > lineSelectionScore(best, playerId)) {
+      best = scored;
+    }
+    if (Date.now() - start > 450 && best?.state.currentPhase === 'GAME_OVER') break;
+  }
+
+  if (!best) return null;
+  return buildUnprovenResult({
+    requestId,
+    playerId,
+    start,
+    node: best,
+    searchedNodes: searched,
+    completedLines: best.state.currentPhase === 'GAME_OVER' ? 1 : 0,
+    proofNodes: 0,
+    proofReason: 'Instant reference-book line replayed against the current game state; progressive search is still improving it.',
+    message: 'Best matching reference-book line is available immediately while search continues.',
+  });
+}
+
+export function validateLiveSolverLine(
+  state: GameState,
+  playerId: string,
+  moves: Array<LiveSolverMove | LiveSolverReferenceLine['moves'][number]>,
+  expectedScore?: number,
+): LiveSolverLineValidation {
+  const previousHorizon = activeAchievementHorizonRound;
+  activeAchievementHorizonRound = Math.min(9, state.roundNumber + 1);
+  try {
+    return replayCompleteLine(state, playerId, moves, expectedScore);
+  } finally {
+    activeAchievementHorizonRound = previousHorizon;
+  }
+}
+
+function replayCompleteLine(
+  state: GameState,
+  playerId: string,
+  moves: Array<LiveSolverMove | LiveSolverReferenceLine['moves'][number]>,
+  expectedScore?: number,
+): LiveSolverLineValidation {
+  let current = cloneGameState(state);
+  const errors: string[] = [];
+  let executedMoves = 0;
+
+  for (let index = 0; index < moves.length; index++) {
+    const move = moves[index];
+    if (!move.message) continue;
+    const actorId = 'playerId' in move && typeof move.playerId === 'string' ? move.playerId : playerId;
+    const aligned = alignStateForValidation(current, actorId, playerId, move.decisionType, move.round, move.phase);
+    current = aligned.state;
+    if (!aligned.ok) {
+      errors.push(`Move ${index + 1}: could not align ${move.decisionType} in round ${move.round} ${move.phase}.`);
+      return validationResult(false, current, playerId, executedMoves, index, errors);
+    }
+
+    const applied = applyMessage(current, actorId, move.message)
+      ?? applyEquivalentValidationMessage(current, actorId, move.message);
+    if (!applied) {
+      errors.push(`Move ${index + 1}: ${move.message.type} was not legal for ${actorId}.`);
+      return validationResult(false, current, playerId, executedMoves, index, errors);
+    }
+    current = applied;
+    executedMoves += 1;
+  }
+
+  for (let step = 0; step < 6000 && current.currentPhase !== 'GAME_OVER'; step++) {
+    const display = current.pendingDecisions.find(d => d.decisionType === 'PHASE_DISPLAY');
+    const decision = pickDecision(current, playerId);
+    const activation = chooseBestActivation(current, playerId);
+    if (!display && decision?.playerId === playerId) {
+      errors.push(`Line ended before ${decision.decisionType} in round ${current.roundNumber}.`);
+      break;
+    }
+    const before = stateSignature(current);
+    current = display ? autoResolve(current, display.playerId)
+      : activation ? applyMessage(current, activation.playerId, activation.candidate.message) ?? current
+      : decision ? applyValidationOpponentMove(current, decision.playerId, decision.decisionType, playerId)
+      : advancePhase(current);
+    if (stateSignature(current) === before) break;
+  }
+  if (current.currentPhase !== 'GAME_OVER') errors.push('Replay did not reach final scoring.');
+  const result = validationResult(errors.length === 0, current, playerId, executedMoves, null, errors);
+  if (expectedScore !== undefined && result.finalScore !== expectedScore) {
+    result.valid = false;
+    result.errors.push(`Projected ${expectedScore} VP, but replay scored ${result.finalScore ?? 'no final score'}.`);
+  }
+  return result;
 }
 
 function buildUnprovenResult({
@@ -640,6 +904,7 @@ function buildUnprovenResult({
     completedLines,
     computeMs: Date.now() - start,
     horizon,
+    verifiedFinalScore: node.verifiedScore,
     proofStatus: 'UNPROVEN',
     proofNodes,
     proofReason,
@@ -668,8 +933,6 @@ function sanitizeReferenceLines(lines: LiveSolverReferenceLine[] | undefined): L
   if (!Array.isArray(lines)) return [];
   return lines
     .filter(line => Number.isFinite(line.score) && Array.isArray(line.moves))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 240)
     .map(line => ({
       score: line.score,
       projectedMargin: typeof line.projectedMargin === 'number' ? line.projectedMargin : null,
@@ -1183,7 +1446,7 @@ function enumerateExactCandidates(
 }
 
 function enumerateExactActionResolution(state: GameState, actor: PlayerState): Candidate[] {
-  const action = nextAction(actor);
+  const action = (state.pendingDecisions.find(d => d.playerId === actor.playerId && d.decisionType === 'RESOLVE_ACTION')?.options as { actionType?: ActionType } | null)?.actionType ?? nextAction(actor);
   if (!action) return [];
   const candidates = enumerateActionResolution(state, actor, true);
   if (['LEGISLATION', 'POLITICS', 'DEVELOPMENT'].includes(action)) {
@@ -1216,6 +1479,7 @@ function buildReferenceSearchBook(
 
   const exactPriors = new Map<string, ReferenceMovePrior>();
   const generalizedPriors = new Map<string, ReferenceMovePrior>();
+  const lateGamePriors = new Map<string, ReferenceMovePrior>();
   for (const line of lines) {
     const lineScore = referenceLineStrength(line);
     const tags = new Set(line.tags ?? []);
@@ -1239,11 +1503,37 @@ function buildReferenceSearchBook(
       for (const key of generalizedReferenceKeys(move.round, move.phase, move.decisionType, move.message)) {
         addReferencePrior(generalizedPriors, key, lineScore * generalizedReferenceWeight(key), tags, line.cityId);
       }
+      if (move.round >= 6) {
+        addReferencePrior(
+          lateGamePriors,
+          lateGameReferenceKey(line.cityId, move.round, move.phase, move.decisionType, move.message),
+          lineScore * 1.65,
+          tags,
+          line.cityId,
+        );
+        addReferencePrior(
+          lateGamePriors,
+          lateGameReferenceKey(line.cityId, '*', move.phase, move.decisionType, move.message),
+          lineScore * 1.25,
+          tags,
+          line.cityId,
+        );
+        addReferencePrior(
+          lateGamePriors,
+          lateGameReferenceKey(undefined, '*', move.phase, move.decisionType, move.message),
+          lineScore * 0.8,
+          tags,
+          line.cityId,
+        );
+        for (const key of generalizedReferenceKeys('*', move.phase, move.decisionType, move.message)) {
+          addReferencePrior(lateGamePriors, `late|${line.cityId ?? '*'}|${key}`, lineScore * generalizedReferenceWeight(key), tags, line.cityId);
+        }
+      }
     }
   }
 
-  return exactPriors.size > 0 || generalizedPriors.size > 0
-    ? { weight, exactPriors, generalizedPriors }
+  return exactPriors.size > 0 || generalizedPriors.size > 0 || lateGamePriors.size > 0
+    ? { weight, exactPriors, generalizedPriors, lateGamePriors }
     : null;
 }
 
@@ -1273,7 +1563,7 @@ function addReferencePrior(
 
 function referenceLineStrength(line: LiveSolverReferenceLine): number {
   const scoreAboveBaseline = Math.max(0, line.score - 45);
-  return Math.min(36, 4 + scoreAboveBaseline * 0.42);
+  return Math.min(54, 5 + scoreAboveBaseline * 0.55);
 }
 
 function referenceCandidateBonus(
@@ -1316,7 +1606,7 @@ function referenceCandidateBonus(
     .reduce((sum, score, index) => sum + score * (index === 0 ? 1 : 0.45 / index), 0);
   const raw = Math.max(exactScore, generalizedScore);
   if (raw <= 0) return 0;
-  return Math.min(72, raw) * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
+  return Math.min(120, raw) * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight);
 }
 
 function rankReferenceGuidesForState(
@@ -1352,13 +1642,27 @@ function referenceGuideFitScore(
     ...target.handCards.map(card => card.id),
     ...target.playedCards.map(card => card.id),
   ]);
+  const deckWindow = new Map(state.politicsDeck.slice(0, 14).map((card, index) => [card.id, index]));
+  let missingCardTags = 0;
   for (const tag of line.tags ?? []) {
-    if (tag.startsWith('card:') && cardIds.has(tag.slice('card:'.length))) score += 12;
+    if (tag.startsWith('card:')) {
+      const cardId = tag.slice('card:'.length);
+      const deckIndex = deckWindow.get(cardId);
+      if (cardIds.has(cardId)) {
+        score += 14;
+      } else if (deckIndex !== undefined) {
+        score += Math.max(2, 9 - deckIndex * 0.55);
+      } else {
+        missingCardTags += 1;
+        score -= 9;
+      }
+    }
     if (tag === 'token:explore' && target.militaryTrack >= 2) score += 5;
     if (tag === 'progress:economy' && target.economyTrack >= 3) score += 4;
     if (tag === 'progress:military' && target.militaryTrack >= 3) score += 4;
     if (tag === 'progress:culture' && target.cultureTrack >= 3) score += 4;
   }
+  if (missingCardTags >= 3) score -= (missingCardTags - 2) * 7;
 
   const futureMoveCount = line.moves.filter(move =>
     move.round > state.roundNumber
@@ -1413,11 +1717,40 @@ function referenceGuideCandidateBonus(
   }
 
   if (best <= 0) return 0;
+  if (best < minimumReferenceGuideSimilarity(decisionType)) return 0;
   const bookMultiplier = activeReferenceBook
     ? activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight
     : 1;
   const cap = expectedMoveIndex === undefined ? 360 : 900;
   return Math.min(cap, best * bookMultiplier);
+}
+
+function minimumReferenceGuideSimilarity(decisionType: DecisionType): number {
+  switch (decisionType) {
+    case 'ROLL_DICE':
+      return 80;
+    case 'ASSIGN_DICE':
+      return 82;
+    case 'RESOLVE_ACTION':
+      return 72;
+    case 'PROGRESS_TRACK':
+      return 65;
+    case 'ACHIEVEMENT_TRACK_CHOICE':
+    case 'MILITARY_VICTORY_PROGRESS':
+    case 'RISE_OF_PERSIA_PROGRESS':
+    case 'PROSPERITY_POLITICS':
+    case 'CONQUEST_ACTION':
+      return 68;
+    case 'SELECT_CITY':
+    case 'DRAFT_CARD':
+    case 'PICK_BAN_CARD':
+      return 55;
+    case 'ORACLE_CHOOSE_TOKEN':
+    case 'THIRTY_TYRANTS_DISCARD':
+      return 52;
+    default:
+      return 40;
+  }
 }
 
 function referenceMoveSimilarity(
@@ -1587,9 +1920,9 @@ function phaseIndex(phase: GamePhase): number {
 
 function referencePriorScore(prior: ReferenceMovePrior, targetCityId?: string): number {
   const cityMultiplier = targetCityId && prior.cityIds.has(targetCityId)
-    ? 1.22
+    ? 1.45
     : prior.cityIds.size > 0
-      ? 0.92
+      ? 0.78
       : 1;
   return (prior.score + Math.min(12, Math.log1p(prior.lineCount) * 2.4)) * cityMultiplier;
 }
@@ -1601,6 +1934,68 @@ function referenceMoveKey(
   message: ClientMessage,
 ): string {
   return `${round}|${phase}|${decisionType}|${stableJson(message)}`;
+}
+
+function lateGameReferenceKey(
+  cityId: string | undefined,
+  round: number | '*',
+  phase: GamePhase,
+  decisionType: DecisionType | 'ACTIVATE_DEV',
+  message: ClientMessage,
+): string {
+  return `late|${cityId ?? '*'}|${round}|${phase}|${decisionType}|${stableJson(message)}`;
+}
+
+function lateGameTablebaseBonus(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+  candidate: Candidate,
+  targetPlayerId: string,
+): number {
+  if (!activeReferenceBook || state.roundNumber < 6 || actorId !== targetPlayerId) return 0;
+  const target = state.players.find(player => player.playerId === targetPlayerId);
+  if (!target) return 0;
+
+  const exact = activeReferenceBook.lateGamePriors.get(lateGameReferenceKey(
+    target.cityId,
+    state.roundNumber,
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+  ));
+  const flexibleExact = activeReferenceBook.lateGamePriors.get(lateGameReferenceKey(
+    target.cityId,
+    '*',
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+  ));
+  const genericExact = activeReferenceBook.lateGamePriors.get(lateGameReferenceKey(
+    undefined,
+    '*',
+    state.currentPhase,
+    decisionType,
+    candidate.message,
+  ));
+
+  const generalized = generalizedReferenceKeys('*', state.currentPhase, decisionType, candidate.message, state)
+    .map(key => activeReferenceBook?.lateGamePriors.get(`late|${target.cityId}|${key}`)
+      ?? activeReferenceBook?.lateGamePriors.get(`late|*|${key}`))
+    .filter((prior): prior is ReferenceMovePrior => Boolean(prior))
+    .map(prior => referencePriorScore(prior, target.cityId))
+    .sort((a, b) => b - a)
+    .slice(0, 4)
+    .reduce((sum, score, index) => sum + score * (index === 0 ? 1 : 0.35), 0);
+
+  const raw = Math.max(
+    exact ? referencePriorScore(exact, target.cityId) : 0,
+    flexibleExact ? referencePriorScore(flexibleExact, target.cityId) * 0.8 : 0,
+    genericExact ? referencePriorScore(genericExact, target.cityId) * 0.55 : 0,
+    generalized,
+  );
+  if (raw <= 0) return 0;
+  return Math.min(140, raw * (activeReferenceBook.weight / DEFAULT_OPTIONS.referenceLineWeight));
 }
 
 function generalizedReferenceKeys(
@@ -1768,18 +2163,20 @@ function orderTargetCandidates(
 ): Candidate[] {
   return candidates
     .map(candidate => {
-      const applied = applyMessage(state, actorId, candidate.message);
-      return {
-        candidate,
-        score: applied
+      const applied = applyCandidate(state, actorId, candidate);
+      const score = applied
           ? heuristicScore(applied, targetPlayerId)
             + candidate.quickScore * 0.02
-            + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * 0.28
+            + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * (decisionType === 'ASSIGN_DICE' ? 0.65 : 0.28)
+            + candidateFollowabilityScore(candidate) * 0.45
             + strategyCandidateBonus(state, actorId, candidate, profile) * 2.5
-            + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
+            + cityStrategyCandidateBonus(state, actorId, candidate) * 2.2
+            + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId) * (profile ? 0.15 : 1)
+            + lateGameTablebaseBonus(state, actorId, decisionType, candidate, targetPlayerId)
             + endgameSuffixBonus(applied, targetPlayerId)
-          : -Infinity,
-      };
+          : -Infinity;
+      candidate.rankingScore = score;
+      return { candidate, score };
     })
     .sort((a, b) => b.score - a.score)
     .map(entry => entry.candidate);
@@ -1827,10 +2224,11 @@ function mergeCachedNode(prefix: SearchNode, cached: SearchNode): SearchNode {
   };
 }
 
-function chooseBestActivation(state: GameState): { playerId: string; candidate: Candidate; scoreDelta: number } | null {
+function chooseBestActivation(state: GameState, excludePlayerId?: string): { playerId: string; candidate: Candidate; scoreDelta: number } | null {
   let best: { playerId: string; candidate: Candidate; scoreDelta: number } | null = null;
 
   for (const player of state.players) {
+    if (player.playerId === excludePlayerId) continue;
     if (!player.isConnected || player.hasFlagged) continue;
     for (const devId of getActivatableDevs(player)) {
       const candidate = activationCandidate(devId);
@@ -1909,6 +2307,13 @@ function collectOpeningBranchSeeds(
 function prioritizedBranchProfiles(profiles: StrategyProfile[]): Array<StrategyProfile | undefined> {
   const byId = new Map(profiles.map(profile => [profile.id, profile]));
   const preferredIds: StrategyProfileId[] = [
+    'olympia_culture',
+    'athens_cards',
+    'miletus_trade',
+    'sparta_blue',
+    'corinth_tokens',
+    'thebes_minors',
+    'argos_military',
     'military_glory',
     'development_rush',
     'politics_engine',
@@ -1986,15 +2391,20 @@ function collectOpeningBranchSeedsForGuide(
         const applied = applyMessage(current.state, decision.playerId, candidate.message);
         searched++;
         if (!applied) continue;
+        const seedNode = scoreNode({
+          state: applied,
+          moves: [
+            ...current.moves,
+            buildMove(current.state, decision.playerId, decision.decisionType, candidate),
+          ],
+          score: 0,
+        }, targetPlayerId);
+        seedNode.score += candidate.quickScore * 0.04
+          + strategyCandidateBonus(current.state, decision.playerId, candidate, profile) * 2.2
+          + cityStrategyCandidateBonus(current.state, decision.playerId, candidate) * 5.2
+          + referenceGuideCandidateBonus(current.state, decision.decisionType, candidate, guide, expectedGuideMove?.index);
         seeds.push({
-          node: scoreNode({
-            state: applied,
-            moves: [
-              ...current.moves,
-              buildMove(current.state, decision.playerId, decision.decisionType, candidate),
-            ],
-            score: 0,
-          }, targetPlayerId),
+          node: seedNode,
           profile,
           guide,
         });
@@ -2046,7 +2456,7 @@ function orderBranchCandidates(
 
   return candidates
     .map((candidate, index) => {
-      const applied = applyMessage(state, actorId, candidate.message);
+      const applied = applyCandidate(state, actorId, candidate);
       return {
         candidate,
         index,
@@ -2055,8 +2465,10 @@ function orderBranchCandidates(
             + candidate.quickScore * 0.04
             + candidateOutcomeScore(state, actorId, candidate, targetPlayerId) * 0.34
             + strategyCandidateBonus(state, actorId, candidate, profile) * 4
+            + cityStrategyCandidateBonus(state, actorId, candidate) * 4.4
             + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
             + referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedGuideMoveIndex)
+            + lateGameTablebaseBonus(state, actorId, decisionType, candidate, targetPlayerId)
             + endgameSuffixBonus(applied, targetPlayerId)
           : -Infinity,
       };
@@ -2186,6 +2598,146 @@ function completeMacroTurn(
   return { node: current, searched };
 }
 
+function replayReferenceGuide(
+  node: SearchNode,
+  targetPlayerId: string,
+  opts: SearchOptions,
+  guide: LiveSolverReferenceLine,
+): { node: SearchNode; completed: boolean; searched: number } {
+  let current = node;
+  let searched = 0;
+  let guideCursor = initialReferenceGuideCursor(guide, current.state);
+  const profiles = rankStrategyProfiles(current.state, targetPlayerId);
+
+  for (let step = 0; step < Math.min(180, opts.maxDecisionPlies); step++) {
+    const normalized = normalizeNode(current, targetPlayerId);
+    searched += normalized.searched;
+    current = normalized.node;
+
+    if (current.state.currentPhase === 'GAME_OVER') {
+      return { node: current, completed: true, searched };
+    }
+
+    const decision = pickDecision(current.state, targetPlayerId);
+    if (!decision) {
+      const before = stateSignature(current.state);
+      const advanced = advancePhase(current.state);
+      searched++;
+      current = scoreNode({ ...current, state: advanced }, targetPlayerId);
+      if (stateSignature(current.state) === before) break;
+      continue;
+    }
+
+    const actorIsTarget = decision.playerId === targetPlayerId;
+    const expectedGuideMove = actorIsTarget
+      ? findExpectedReferenceMove(guide, current.state, decision.decisionType, guideCursor)
+      : null;
+    const candidates = actorIsTarget
+      ? enumerateBranchCandidates(current.state, current.state.players.find(player => player.playerId === decision.playerId)!, decision.decisionType, targetPlayerId)
+      : enumerateLightweightOpponentCandidates(current.state, decision.playerId, decision.decisionType);
+    const usableCandidates = candidates.length > 0
+      ? candidates
+      : fallbackCandidates(current.state, decision.playerId, decision.decisionType);
+    const guideCandidate = actorIsTarget
+      ? chooseReferenceReplayCandidate(current.state, decision.decisionType, usableCandidates, guide, expectedGuideMove?.index)
+      : null;
+    const choice = guideCandidate
+      ? {
+          candidate: guideCandidate,
+          state: applyMessage(current.state, decision.playerId, guideCandidate.message),
+          searched: 1,
+        }
+      : chooseRolloutCandidate(
+          current.state,
+          decision.playerId,
+          decision.decisionType,
+          actorIsTarget
+            ? orderTargetCandidates(current.state, decision.playerId, decision.decisionType, usableCandidates, targetPlayerId, profiles[0])
+            : orderOpponentCandidates(current.state, decision.playerId, usableCandidates, targetPlayerId),
+          targetPlayerId,
+          actorIsTarget,
+          actorIsTarget ? 4 : 1,
+          profiles[0],
+          guide,
+          expectedGuideMove?.index,
+        );
+
+    if (!choice || !choice.state) break;
+    searched += choice.searched;
+    const moves = actorIsTarget
+      ? [
+          ...current.moves,
+          buildMove(current.state, decision.playerId, decision.decisionType, choice.candidate),
+        ]
+      : current.moves;
+    if (actorIsTarget && expectedGuideMove) guideCursor = expectedGuideMove.index + 1;
+    current = scoreNode({ state: choice.state, moves, score: 0 }, targetPlayerId);
+  }
+
+  return { node: current, completed: current.state.currentPhase === 'GAME_OVER', searched };
+}
+
+function chooseReferenceReplayCandidate(
+  state: GameState,
+  decisionType: DecisionType,
+  candidates: Candidate[],
+  guide: LiveSolverReferenceLine,
+  expectedGuideMoveIndex?: number,
+): Candidate | null {
+  let best: { candidate: Candidate; score: number } | null = null;
+  for (const candidate of candidates) {
+    const score = referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedGuideMoveIndex);
+    if (score <= 0) continue;
+    if (!best || score > best.score) best = { candidate, score };
+  }
+  return best && best.score >= 24 ? best.candidate : null;
+}
+
+function makeLineRepair(
+  root: SearchNode,
+  playerId: string,
+  incumbent: SearchNode,
+  cursor: number,
+): { node: SearchNode; guide?: LiveSolverReferenceLine } | null {
+  const pivots = incumbent.moves.map((move, index) => ({ move, index }))
+    .filter(({ move }) => move.message && move.message.type !== 'ROLL_DICE' && move.message.type !== 'ACTIVATE_DEV')
+    .reverse();
+  if (pivots.length === 0) return null;
+  const pivot = pivots[cursor % pivots.length];
+  let current = root.state;
+  for (const move of incumbent.moves.slice(0, pivot.index)) {
+    if (!move.message) continue;
+    const aligned = alignStateForValidation(current, playerId, playerId, move.decisionType, move.round, move.phase);
+    if (!aligned.ok) return null;
+    const applied = applyMessage(aligned.state, playerId, move.message)
+      ?? applyEquivalentValidationMessage(aligned.state, playerId, move.message);
+    if (!applied) return null;
+    current = applied;
+  }
+  const aligned = alignStateForValidation(current, playerId, playerId, pivot.move.decisionType, pivot.move.round, pivot.move.phase);
+  if (!aligned.ok || pivot.move.decisionType === 'ACTIVATE_DEV') return null;
+  const alternatives = orderSearchCandidates(aligned.state, playerId, pivot.move.decisionType, playerId, true)
+    .filter(candidate => stableJson(candidate.message) !== stableJson(pivot.move.message));
+  if (alternatives.length === 0) return null;
+  const offset = Math.floor(cursor / pivots.length) % alternatives.length;
+  for (const candidate of [...alternatives.slice(offset), ...alternatives.slice(0, offset)]) {
+    const applied = applyMessage(aligned.state, playerId, candidate.message);
+    if (!applied) continue;
+    return {
+      node: scoreNode({ state: applied, score: 0, moves: [
+        ...incumbent.moves.slice(0, pivot.index),
+        buildMove(aligned.state, playerId, pivot.move.decisionType, candidate),
+      ] }, playerId),
+      guide: cursor % 2 === 0 ? {
+        score: incumbent.verifiedScore ?? solvedStateScore(incumbent.state, playerId),
+        projectedMargin: null,
+        moves: incumbent.moves,
+      } : undefined,
+    };
+  }
+  return null;
+}
+
 function completeLineToGameOver(
   node: SearchNode,
   targetPlayerId: string,
@@ -2245,8 +2797,8 @@ function completeLineToGameOver(
       actorIsTarget,
       actorIsTarget
         ? guide
-          ? Math.min(usableCandidates.length, Math.max(opts.targetBranches, current.state.roundNumber >= 6 ? 96 : 72))
-          : Math.min(opts.targetBranches, current.state.roundNumber >= 6 ? 24 : 10)
+          ? Math.min(usableCandidates.length, Math.max(opts.targetBranches, current.state.roundNumber >= 6 ? 128 : 96))
+          : Math.min(opts.targetBranches, current.state.roundNumber >= 6 ? 44 : 22)
         : opts.opponentBranches,
       profile,
       guide,
@@ -2297,16 +2849,19 @@ function chooseRolloutCandidate(
     : candidates;
 
   for (const candidate of rankedCandidates.slice(0, Math.max(1, limit))) {
-    const applied = applyMessage(state, actorId, candidate.message);
+    const applied = applyCandidate(state, actorId, candidate);
     searched++;
     if (!applied) continue;
     const score = actorIsTarget
-      ? heuristicScore(applied, targetPlayerId)
+      ? (candidate.rankingScore ?? (heuristicScore(applied, targetPlayerId)
         + candidate.quickScore * 0.08
+        + candidateFollowabilityScore(candidate) * 0.45
         + strategyCandidateBonus(state, actorId, candidate, profile) * 3
-        + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId)
+        + cityStrategyCandidateBonus(state, actorId, candidate) * 2.6
+        + referenceCandidateBonus(state, actorId, decisionType, candidate, targetPlayerId) * (profile ? 0.15 : 1)
+        + lateGameTablebaseBonus(state, actorId, decisionType, candidate, targetPlayerId)
+        + endgameSuffixBonus(applied, targetPlayerId)))
         + referenceGuideCandidateBonus(state, decisionType, candidate, guide, expectedGuideMoveIndex)
-        + endgameSuffixBonus(applied, targetPlayerId)
       : opponentCandidateScore(state, actorId, candidate, targetPlayerId);
     if (!best || score > best.score) {
       best = { candidate, state: applied, score, searched };
@@ -2327,6 +2882,9 @@ function enumerateCandidates(
 
   let candidates: Candidate[] = [];
   switch (decisionType) {
+    case 'EXPANSION_CHOICE':
+      candidates = enumerateExpansionChoices(state, actor);
+      break;
     case 'ROLL_DICE':
       candidates = [{
         message: { type: 'ROLL_DICE' },
@@ -2370,7 +2928,8 @@ function enumerateCandidates(
       candidates = enumerateDiscardChoices(actor);
       break;
     case 'PROSPERITY_POLITICS':
-      candidates = enumeratePoliticsCards(state, actor, 'Prosperity politics');
+      candidates = [exactSkipCandidate('Prosperity: skip politics', 'Decline the optional politics action.'),
+        ...enumeratePoliticsCards(state, actor, 'Prosperity politics')];
       break;
     case 'CONQUEST_ACTION':
       candidates = enumerateConquestActions(state, actor);
@@ -2382,7 +2941,9 @@ function enumerateCandidates(
   const scored = candidates
     .map(candidate => ({
       candidate,
-      score: candidate.quickScore + candidateOutcomeScore(state, actorId, candidate, scoringPlayerId),
+      score: candidate.quickScore
+        + candidateOutcomeScore(state, actorId, candidate, scoringPlayerId)
+        + candidateFollowabilityScore(candidate) * 0.4,
     }))
     .sort((a, b) => b.score - a.score)
     .map(x => x.candidate);
@@ -2427,6 +2988,28 @@ function fallbackCandidates(state: GameState, actorId: string, decisionType: Dec
   }];
 }
 
+function enumerateExpansionChoices(state: GameState, actor: PlayerState): Candidate[] {
+  const choice = state.expansionChoices?.[0];
+  if (!choice || choice.playerId !== actor.playerId) return [];
+  const candidate = (instruction: string, value?: string, amount?: number): Candidate => ({
+    message: { type: 'RESOLVE_EXPANSION', value, amount }, instruction,
+    detail: `Resolve ${choice.cardId}.`, estimatedSeconds: 3, quickScore: 0,
+  });
+  switch (choice.kind) {
+    case 'TOKEN': return actor.knowledgeTokens.filter(t => t.tokenType === 'MINOR').map(t => candidate(`Sacrifice ${t.color.toLowerCase()} minor for 6 VP`, t.id));
+    case 'COINS': return Array.from({ length: Math.min(3, actor.coins) + 1 }, (_, amount) => candidate(`Spend ${amount} drachma for citizens`, undefined, amount));
+    case 'GLORY': return Array.from({ length: (choice.amount ?? 0) + 1 }, (_, amount) => candidate(`Replace ${amount} Glory with ${amount * 3} VP`, undefined, amount));
+    case 'DRAW': return (choice.cards ?? []).map(c => candidate(`Take ${c.name}`, c.id));
+    case 'ENLIST': return [candidate('Keep citizen', undefined, 0), ...(actor.citizenTrack > 0 ? [candidate('Exchange citizen for troop', undefined, 1)] : [])];
+    case 'REWARD': return [candidate('Gain 1 scroll', 'scroll'), candidate('Gain 1 drachma', 'coin')];
+    case 'POLITICS': return [candidate('Decline bonus card play', 'skip'),
+      ...enumeratePoliticsCards(state, { ...actor, coins: actor.coins - (choice.extraCost ?? 0) }, 'Bonus card play')
+        .filter(c => c.message.type === 'RESOLVE_ACTION')
+        .map(c => ({ ...c, message: { type: 'RESOLVE_EXPANSION' as const, choices: c.message.type === 'RESOLVE_ACTION' ? c.message.choices : {} } })),
+    ];
+  }
+}
+
 function enumerateDiceAssignments(state: GameState, actor: PlayerState, exact = false): Candidate[] {
   const dice = actor.diceRoll ?? state.predeterminedDice[state.roundNumber]?.[actor.playerId] ?? [];
   if (dice.length === 0) return [];
@@ -2440,7 +3023,7 @@ function enumerateDiceAssignments(state: GameState, actor: PlayerState, exact = 
     const assignments = bestDicePairing(dice, actions);
     const citizenCost = assignments.reduce((sum, assignment) =>
       sum + Math.max(0, ACTION_NUMBERS[assignment.actionType] - assignment.dieValue), 0);
-    const maxScrolls = Math.min(actor.philosophyTokens, Math.ceil(Math.max(0, citizenCost - actor.citizenTrack) / 3));
+    const maxScrolls = Math.min(actor.philosophyTokens, Math.ceil(Math.max(0, 15 - actor.citizenTrack) / 3));
     for (let spend = 0; spend <= maxScrolls; spend++) {
       if (citizenCost > actor.citizenTrack + spend * 3) continue;
       const message: ClientMessage = {
@@ -2456,7 +3039,7 @@ function enumerateDiceAssignments(state: GameState, actor: PlayerState, exact = 
         message,
         instruction: `Assign ${joinNatural(actionNames)}`,
         detail: spend > 0
-          ? `Spend ${spend} scroll${spend === 1 ? '' : 's'} first to cover citizen cost ${citizenCost}.`
+          ? `Convert ${spend} scroll${spend === 1 ? '' : 's'} to ${Math.min(spend * 3, 15 - actor.citizenTrack)} citizens first. Assignment cost: ${citizenCost} citizens.`
           : `Citizen cost ${citizenCost}.`,
         estimatedSeconds: 8,
         quickScore: actions.reduce((sum, action) => sum + actionPriority(state, actor, action), 0) - citizenCost * 1.5 - spend * 0.75,
@@ -2478,7 +3061,7 @@ function bestDicePairing(dice: number[], actions: ActionType[]): Array<{ slotInd
 }
 
 function enumerateActionResolution(state: GameState, actor: PlayerState, exact = false): Candidate[] {
-  const action = nextAction(actor);
+  const action = (state.pendingDecisions.find(d => d.playerId === actor.playerId && d.decisionType === 'RESOLVE_ACTION')?.options as { actionType?: ActionType } | null)?.actionType ?? nextAction(actor);
   if (!action) return [];
   switch (action) {
     case 'PHILOSOPHY':
@@ -2525,7 +3108,7 @@ function enumerateTrade(actor: PlayerState): Candidate[] {
         instruction: `Trade and buy ${formatColor(color)} minor`,
         detail: `Gain ${actor.economyTrack + 1} drachma, then spend ${tokenCost} on a ${formatColor(color)} minor token.`,
         estimatedSeconds: 5,
-        quickScore: actor.economyTrack + 6 + knowledgeColorNeed(actor, color),
+        quickScore: actor.economyTrack + 3 + minorKnowledgeValue(actor, color) - tokenCost * 0.2,
       });
     }
   }
@@ -2545,8 +3128,7 @@ function enumerateMilitary(state: GameState, actor: PlayerState, exact = false):
 
   const explorable = state.centralBoardTokens
     .filter(t => !t.explored && canExploreToken(actor, t, troopAfterGain))
-    .sort((a, b) => tokenValue(b) - tokenValue(a))
-    .slice(0, exact ? undefined : hasDevUnlocked(actor, 'thebes-dev-3') ? 5 : 4);
+    .sort((a, b) => tokenValueForPlayer(b, actor) - tokenValueForPlayer(a, actor));
 
   for (const token of explorable) {
     candidates.push({
@@ -2558,12 +3140,12 @@ function enumerateMilitary(state: GameState, actor: PlayerState, exact = false):
       instruction: `Military: explore ${tokenLabel(token)}`,
       detail: `Gain ${actor.militaryTrack} troops, then take ${tokenLabel(token)}.`,
       estimatedSeconds: 8,
-      quickScore: actor.militaryTrack + tokenValue(token),
+      quickScore: actor.militaryTrack + tokenValueForPlayer(token, actor),
     });
   }
 
   if (hasDevUnlocked(actor, 'thebes-dev-3') && explorable.length >= 2) {
-    const pairLimit = exact ? explorable.length : Math.min(3, explorable.length);
+    const pairLimit = explorable.length;
     for (let i = 0; i < pairLimit; i++) {
       for (let j = 0; j < pairLimit; j++) {
         if (i === j) continue;
@@ -2578,7 +3160,7 @@ function enumerateMilitary(state: GameState, actor: PlayerState, exact = false):
           instruction: `Military: explore ${tokenLabel(first)}, then ${tokenLabel(second)}`,
           detail: 'Uses Thebes development to explore twice.',
           estimatedSeconds: 12,
-          quickScore: actor.militaryTrack + tokenValue(first) + tokenValue(second),
+          quickScore: actor.militaryTrack + tokenValueForPlayer(first, actor) + tokenValueForPlayer(second, actor),
         });
       }
     }
@@ -2588,7 +3170,7 @@ function enumerateMilitary(state: GameState, actor: PlayerState, exact = false):
 }
 
 function enumerateLegislation(state: GameState, actor: PlayerState): Candidate[] {
-  return state.politicsDeck.slice(0, 2).map(card => ({
+  return state.politicsDeck.slice(0, hasCard(actor, 'ecclesia') ? 3 : 2).map(card => ({
     message: { type: 'RESOLVE_ACTION', actionType: 'LEGISLATION', choices: { targetCardId: card.id } },
     instruction: `Legislation: keep ${card.name}`,
     detail: 'Gain 3 citizens and keep this card from the draw.',
@@ -2693,7 +3275,7 @@ function enumerateDevelopment(state: GameState, actor: PlayerState, exact = fals
   if (dev.id === 'sparta-dev-3') {
     const allTokens = state.centralBoardTokens
       .filter(t => !t.explored)
-      .sort((a, b) => tokenValue(b) - tokenValue(a));
+      .sort((a, b) => tokenValueForPlayer(b, actor) - tokenValueForPlayer(a, actor));
     const firstExploreTokens = allTokens
       .filter(t => canExploreToken(actor, t, actor.troopTrack + actor.militaryTrack))
       .slice(0, exact ? undefined : 6);
@@ -2720,8 +3302,73 @@ function enumerateDevelopment(state: GameState, actor: PlayerState, exact = fals
       pairs > 0 ? `spend ${pairs * 2} scrolls for missing knowledge` : 'requirements met',
     ].join('; '),
     estimatedSeconds: 10,
-    quickScore: 14 + dev.level * 7 - dev.drachmaCost - pairs,
+    quickScore: 14 + dev.level * 7 - dev.drachmaCost - pairs + cityDevelopmentValue(state, actor, dev.id, choices),
   }));
+}
+
+function cityDevelopmentValue(
+  state: GameState,
+  actor: PlayerState,
+  devId: string,
+  choices: ActionChoices,
+): number {
+  const remainingRounds = Math.max(1, 10 - state.roundNumber);
+  switch (devId) {
+    case 'olympia-dev-2':
+      return 24 + remainingRounds * (3 + actor.cultureTrack * 0.65);
+    case 'olympia-dev-3':
+      return 28
+        + trackDeltaValue(actor, 'CULTURE', Math.min(2, Math.max(0, 7 - actor.cultureTrack))) * 3.2
+        + (hasCardInHandOrPlay(actor, 'stoa-poikile') ? 4 : 0)
+        + (hasCardInHandOrPlay(actor, 'persians') ? 4 : 0);
+    case 'olympia-dev-4':
+      return 34
+        + actor.cultureTrack * 4.5
+        + (hasDevUnlocked(actor, 'olympia-dev-2') ? 5 : 0)
+        + (hasCardInHandOrPlay(actor, 'stoa-poikile') ? 4 : 0)
+        + (hasCardInHandOrPlay(actor, 'persians') ? 4 : 0);
+    case 'athens-dev-2':
+      return 14 + Math.min(6, actor.handCards.length + remainingRounds) * 3.2;
+    case 'athens-dev-3':
+      return 9 + Math.min(6, actor.handCards.length + remainingRounds) * 1.6;
+    case 'athens-dev-4':
+      return 10 + (actor.playedCards.length + Math.min(3, actor.handCards.length)) * 3;
+    case 'miletus-dev-2':
+      return 8 + (choices.devTrackChoices ?? []).reduce((sum, track) => sum + trackDeltaValue(actor, track, 1), 0);
+    case 'miletus-dev-3':
+      return 13 + remainingRounds * 2.4;
+    case 'miletus-dev-4':
+      return 18;
+    case 'sparta-dev-2':
+      return 12 + remainingRounds * 1.5 + actor.militaryTrack * 0.9;
+    case 'sparta-dev-3':
+      return 12 + (choices.spartaMilitaryTokenIds ?? []).reduce((sum, tokenId) => {
+        const token = state.centralBoardTokens.find(candidate => candidate.id === tokenId);
+        return sum + (token ? tokenValueForPlayer(token, actor) * 0.8 : 0);
+      }, 0);
+    case 'sparta-dev-4':
+      return 10 + actor.knowledgeTokens.filter(token => token.color === 'BLUE').length * 4;
+    case 'corinth-dev-2':
+      return 9 + actor.knowledgeTokens.length * 1.8;
+    case 'corinth-dev-3':
+      return 13 + remainingRounds * 1.6;
+    case 'corinth-dev-4':
+      return 9 + actor.knowledgeTokens.length * 2;
+    case 'thebes-dev-2':
+      return 10 + actor.gloryTrack * 3;
+    case 'thebes-dev-3':
+      return 12 + actor.militaryTrack * 2 + actor.troopTrack * 0.4;
+    case 'thebes-dev-4':
+      return 9 + actor.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length * 3;
+    case 'argos-dev-2':
+      return choices.argosDevReward === 'vp' ? 8 : choices.argosDevReward === 'citizens' ? 6 : 5;
+    case 'argos-dev-3':
+      return 10 + trackDeltaValue(actor, 'MILITARY', 1) * 1.5;
+    case 'argos-dev-4':
+      return 10 + actor.knowledgeTokens.filter(token => token.tokenType === 'MAJOR').length * 2;
+    default:
+      return 0;
+  }
 }
 
 function enumerateProgress(_state: GameState, actor: PlayerState, exact = false): Candidate[] {
@@ -2874,25 +3521,33 @@ function enumerateEventProgress(actor: PlayerState, tracks: ProgressTrackType[],
 function enumerateDiscardChoices(actor: PlayerState, exact = false): Candidate[] {
   const count = Math.min(2, actor.handCards.length);
   if (count <= 0) return [{ message: { type: 'SKIP_PHASE' }, instruction: 'Skip discard', detail: 'No cards to discard.', estimatedSeconds: 1, quickScore: 0 }];
-  if (exact) {
-    return combinations(actor.handCards, count)
-      .map((discard): Candidate => ({
-        message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
-        instruction: `Discard ${joinNatural(discard.map(c => c.name))}`,
-        detail: 'Exact search is considering this discard set.',
-        estimatedSeconds: 8,
-        quickScore: -discard.reduce((sum, card) => sum + cardValue(card, actor), 0),
-      }))
-      .sort((a, b) => b.quickScore - a.quickScore);
-  }
-  const discard = [...actor.handCards].sort((a, b) => cardValue(a, actor) - cardValue(b, actor)).slice(0, count);
-  return [{
-    message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
-    instruction: `Discard ${joinNatural(discard.map(c => c.name))}`,
-    detail: 'Lowest projected card value in hand.',
-    estimatedSeconds: 8,
-    quickScore: -discard.reduce((sum, card) => sum + cardValue(card, actor), 0),
-  }];
+  return combinations(actor.handCards, count)
+    .map((discard): Candidate => ({
+      message: { type: 'DISCARD_CARDS', cardIds: discard.map(c => c.id) },
+      instruction: `Discard ${joinNatural(discard.map(c => c.name))}`,
+      detail: exact
+        ? 'Exact search is considering this discard set.'
+        : 'Search is preserving the highest-value playable and city-synergy cards.',
+      estimatedSeconds: 8,
+      quickScore: -discard.reduce((sum, card) => sum + discardProtectionValue(card, actor), 0),
+    }))
+    .sort((a, b) => b.quickScore - a.quickScore)
+    .slice(0, exact ? undefined : 8);
+}
+
+function discardProtectionValue(card: PoliticsCard, actor: PlayerState): number {
+  const pairs = knowledgeShortfall(actor, card.knowledgeRequirement);
+  const nearPlayableBonus = actor.coins >= card.cost && pairs * 2 <= actor.philosophyTokens + 2 ? 5 : 0;
+  const citySynergy =
+    actor.cityId === 'olympia' && ['peripteros', 'stoa-poikile', 'persians', 'oracle', 'gradualism', 'reformists'].includes(card.id) ? 9 :
+    actor.cityId === 'athens' && ['council', 'extraordinary-collection', 'central-government', 'oracle'].includes(card.id) ? 8 :
+    actor.cityId === 'miletus' && ['lighthouse', 'diolkos', 'bank', 'gold-reserve', 'public-market'].includes(card.id) ? 8 :
+    actor.cityId === 'sparta' && ['helepole', 'greek-fire', 'mercenary-recruitment', 'stadion'].includes(card.id) ? 8 :
+    actor.cityId === 'corinth' && ['corinthian-columns', 'hall-of-statues', 'scholarly-welcome', 'contribution'].includes(card.id) ? 8 :
+    actor.cityId === 'thebes' && ['corinthian-columns', 'scholarly-welcome', 'helepole', 'hall-of-statues'].includes(card.id) ? 8 :
+    actor.cityId === 'argos' && ['greek-fire', 'mercenary-recruitment', 'helepole', 'rivalry', 'stadion'].includes(card.id) ? 8 :
+    0;
+  return cardValue(card, actor) + nearPlayableBonus + citySynergy;
 }
 
 function enumerateConquestActions(state: GameState, actor: PlayerState, exact = false): Candidate[] {
@@ -2950,10 +3605,13 @@ function strategyFitScore(state: GameState, player: PlayerState, profile: Strate
   const devFit = profile.id === 'development_rush'
     ? Math.max(0, 4 - player.developmentLevel) * 2 + player.philosophyTokens * 0.5
     : 0;
-  const oldGuardFit = profile.id === 'old_guard' && playedIds.has('old-guard') ? 18 : 0;
+  const oldGuardFit = profile.id === 'old_guard'
+    ? playedIds.has('old-guard') ? 54 : handIds.has('old-guard') ? 20 : 0
+    : 0;
   const diversificationFit = profile.id === 'diversification'
     ? balance * 2 + (handIds.has('diversification') || playedIds.has('diversification') ? 14 : 0)
     : 0;
+  const cityFit = cityStrategyFitScore(state, player, profile, handIds, playedIds);
 
   return cardScore
     + economyFit
@@ -2961,10 +3619,52 @@ function strategyFitScore(state: GameState, player: PlayerState, profile: Strate
     + devFit
     + oldGuardFit
     + diversificationFit
+    + cityFit
     + majorCount * profile.majorTokenBias
     + minorCount * profile.minorTokenBias
     + player.taxTrack * profile.taxBias
     + player.gloryTrack * profile.gloryBias;
+}
+
+function cityStrategyFitScore(
+  state: GameState,
+  player: PlayerState,
+  profile: StrategyProfile,
+  handIds: Set<string>,
+  playedIds: Set<string>,
+): number {
+  if (profile.id === 'olympia_culture' && player.cityId === 'olympia') {
+    const cultureCards = ['peripteros', 'stoa-poikile', 'persians', 'gradualism', 'reformists', 'oracle']
+      .reduce((sum, cardId) => sum + (handIds.has(cardId) ? 4 : 0) + (playedIds.has(cardId) ? 6 : 0), 0);
+    return 44
+      + player.cultureTrack * 3.6
+      + player.developmentLevel * 8
+      + developmentReadinessScore(player) * 1.2
+      + knowledgeColorNeed(player, 'GREEN') * 1.1
+      + cultureCards
+      + state.centralBoardTokens.filter(token => !token.explored && token.color === 'GREEN').length * 0.4;
+  }
+  if (profile.id === 'athens_cards' && player.cityId === 'athens') {
+    return 34 + player.playedCards.length * 5 + player.handCards.length * 1.5 + player.developmentLevel * 7 + developmentReadinessScore(player);
+  }
+  if (profile.id === 'miletus_trade' && player.cityId === 'miletus') {
+    return 34 + player.economyTrack * 4 + player.coins * 0.35 + player.developmentLevel * 7 + developmentReadinessScore(player);
+  }
+  if (profile.id === 'sparta_blue' && player.cityId === 'sparta') {
+    const blue = player.knowledgeTokens.filter(token => token.color === 'BLUE').length;
+    return 34 + player.militaryTrack * 4 + player.troopTrack * 0.5 + blue * 5 + player.developmentLevel * 7;
+  }
+  if (profile.id === 'corinth_tokens' && player.cityId === 'corinth') {
+    return 30 + player.knowledgeTokens.length * 4 + player.developmentLevel * 7 + developmentReadinessScore(player);
+  }
+  if (profile.id === 'thebes_minors' && player.cityId === 'thebes') {
+    const minors = player.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length;
+    return 30 + minors * 6 + player.militaryTrack * 2.5 + player.developmentLevel * 7;
+  }
+  if (profile.id === 'argos_military' && player.cityId === 'argos') {
+    return 30 + player.militaryTrack * 4 + player.troopTrack * 0.6 + player.gloryTrack * 2 + player.developmentLevel * 7;
+  }
+  return 0;
 }
 
 function strategyCandidateBonus(
@@ -2981,7 +3681,7 @@ function strategyCandidateBonus(
   let bonus = 0;
   if (message.type === 'ASSIGN_DICE') {
     bonus += message.assignments.reduce((sum, assignment) =>
-      sum + (profile.actionBias[assignment.actionType] ?? 0), 0);
+      sum + (candidate.unusableActions?.includes(assignment.actionType) ? 0 : profile.actionBias[assignment.actionType] ?? 0), 0);
   }
   if (message.type === 'RESOLVE_ACTION') {
     bonus += profile.actionBias[message.actionType] ?? 0;
@@ -2995,7 +3695,11 @@ function strategyCandidateBonus(
       if (token) {
         bonus += token.tokenType === 'MAJOR' ? profile.majorTokenBias : profile.minorTokenBias;
         bonus += (token.bonusVP ?? 0) * 0.6 + (token.bonusCoins ?? 0) * 0.2;
+        bonus += cityKnowledgeTokenBonus(actor, token) * 0.9;
       }
+    }
+    if (message.actionType === 'TRADE' && message.choices.buyMinorKnowledge && message.choices.minorKnowledgeColor) {
+      bonus += minorKnowledgeValue(actor, message.choices.minorKnowledgeColor) * 0.25;
     }
   }
   if (message.type === 'PROGRESS_TRACK') {
@@ -3015,6 +3719,248 @@ function strategyCandidateBonus(
   return bonus;
 }
 
+function cityStrategyCandidateBonus(
+  state: GameState,
+  actorId: string,
+  candidate: Candidate,
+): number {
+  const actor = state.players.find(p => p.playerId === actorId);
+  if (!actor || !actor.cityId) return 0;
+
+  const message = candidate.message;
+  let bonus = 0;
+
+  if (message.type === 'ASSIGN_DICE') {
+    for (const assignment of message.assignments) {
+      if (candidate.unusableActions?.includes(assignment.actionType)) continue;
+      bonus += cityActionPlanBonus(state, actor, assignment.actionType);
+    }
+    const politicsOpportunity = playablePoliticsOpportunityScore(state, actor);
+    if (message.assignments.some(assignment => assignment.actionType === 'POLITICS')) {
+      bonus += politicsOpportunity * (state.roundNumber >= 7 ? 0.62 : 0.28)
+        + (state.roundNumber >= 7 && politicsOpportunity > 8 ? 10 : 0);
+    } else if (state.roundNumber >= 7 && politicsOpportunity > 12) {
+      bonus -= Math.min(18, politicsOpportunity * 0.22);
+    }
+    if (!candidate.unusableActions?.includes('DEVELOPMENT') && message.assignments.some(assignment => assignment.actionType === 'DEVELOPMENT')) {
+      bonus += cityDevelopmentUrgency(state, actor) * 0.9;
+    }
+  }
+
+  if (message.type === 'RESOLVE_ACTION') {
+    bonus += cityActionPlanBonus(state, actor, message.actionType) * 1.3;
+    if (message.actionType === 'DEVELOPMENT') {
+      bonus += cityDevelopmentUrgency(state, actor) * 1.8;
+    }
+    if (message.actionType === 'POLITICS' && message.choices.targetCardId) {
+      bonus += cityCardPlanBonus(actor, message.choices.targetCardId);
+      const card = actor.handCards.find(candidateCard => candidateCard.id === message.choices.targetCardId);
+      if (card) bonus += Math.max(0, cardValue(card, actor, state)) * 0.35;
+    }
+    if (message.actionType === 'LEGISLATION' && message.choices.targetCardId) {
+      bonus += cityCardPlanBonus(actor, message.choices.targetCardId) * 0.75;
+    }
+    if (message.actionType === 'TRADE' && message.choices.buyMinorKnowledge && message.choices.minorKnowledgeColor) {
+      bonus += cityKnowledgeColorPlanBonus(actor, message.choices.minorKnowledgeColor, 'MINOR');
+    }
+    if (message.actionType === 'MILITARY') {
+      for (const tokenId of [message.choices.explorationTokenId, message.choices.secondExplorationTokenId]) {
+        if (!tokenId) continue;
+        const token = state.centralBoardTokens.find(candidateToken => candidateToken.id === tokenId);
+        if (token) bonus += cityKnowledgeTokenBonus(actor, token) * 0.55;
+      }
+    }
+    bonus += sameTurnDevelopmentSetupBonus(state, actorId, candidate);
+  }
+
+  if (message.type === 'PROGRESS_TRACK') {
+    const tracks = [
+      message.advancement.track,
+      ...(message.bonusTracks ?? []).map(track => track.track),
+      ...(message.extraTracks ?? []).map(track => track.track),
+    ];
+    bonus += tracks.reduce((sum, track) => sum + cityProgressPlanBonus(actor, track), 0);
+  }
+
+  if (message.type === 'CLAIM_ACHIEVEMENT') {
+    if (message.trackChoice === 'GLORY' && ['sparta', 'argos'].includes(actor.cityId)) bonus += 2.5;
+    if (message.trackChoice === 'TAX' && ['athens', 'miletus', 'corinth', 'olympia'].includes(actor.cityId)) bonus += 2;
+  }
+
+  return bonus;
+}
+
+function sameTurnDevelopmentSetupBonus(
+  state: GameState,
+  actorId: string,
+  candidate: Candidate,
+): number {
+  const message = candidate.message;
+  if (message.type !== 'RESOLVE_ACTION' || message.actionType === 'DEVELOPMENT') return 0;
+  if (ACTION_NUMBERS[message.actionType] >= ACTION_NUMBERS.DEVELOPMENT) return 0;
+
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!actor || actor.developmentLevel >= 4) return 0;
+  if (!actor.actionSlots.some(slot => slot?.actionType === 'DEVELOPMENT' && !slot.resolved)) return 0;
+
+  const city = CITY_BY_ID.get(actor.cityId);
+  const dev = city?.developments[actor.developmentLevel];
+  if (!dev) return 0;
+
+  const applied = applyMessage(state, actorId, message);
+  const after = applied?.players.find(player => player.playerId === actorId);
+  if (!applied || !after) return 0;
+  if (!after.actionSlots.some(slot => slot?.actionType === 'DEVELOPMENT' && !slot.resolved)) return 0;
+
+  const beforeMissing = knowledgeShortfall(actor, dev.knowledgeRequirement);
+  const afterMissing = knowledgeShortfall(after, dev.knowledgeRequirement);
+  const beforeScrollGap = Math.max(0, beforeMissing * 2 - actor.philosophyTokens);
+  const afterScrollGap = Math.max(0, afterMissing * 2 - after.philosophyTokens);
+  const beforeCoinGap = Math.max(0, dev.drachmaCost - actor.coins);
+  const afterCoinGap = Math.max(0, dev.drachmaCost - after.coins);
+  const beforePlayable = beforeMissing * 2 <= actor.philosophyTokens && actor.coins >= dev.drachmaCost;
+  const afterPlayable = afterMissing * 2 <= after.philosophyTokens && after.coins >= dev.drachmaCost;
+
+  let bonus = 0;
+  bonus += Math.max(0, beforeMissing - afterMissing) * 11;
+  bonus += Math.max(0, beforeScrollGap - afterScrollGap) * 4;
+  bonus += Math.max(0, beforeCoinGap - afterCoinGap) * 2.2;
+
+  if (afterPlayable && !beforePlayable) bonus += 18;
+  if (afterPlayable && nextAction(after) === 'DEVELOPMENT') bonus += 12;
+  if (afterPlayable) {
+    const bestDevelopment = enumerateDevelopment(applied, after)[0];
+    bonus += Math.min(30, (bestDevelopment?.quickScore ?? 0) * 0.18);
+  }
+
+  return bonus;
+}
+
+function cityDevelopmentUrgency(state: GameState, actor: PlayerState): number {
+  if (actor.developmentLevel >= 4) return 0;
+  const remainingRounds = Math.max(1, 10 - state.roundNumber);
+  const nextLevel = actor.developmentLevel + 1;
+  const base = remainingRounds * 0.8 + (5 - nextLevel) * 1.8 + developmentReadinessScore(actor) * 0.35;
+
+  switch (actor.cityId) {
+    case 'olympia':
+      return base + (nextLevel === 1 ? 7 : nextLevel === 2 ? 10 : nextLevel === 3 ? 9 : 8);
+    case 'athens':
+      return base + (nextLevel <= 2 ? 10 : 8.5) + Math.min(5, actor.handCards.length) * 1.1;
+    case 'miletus':
+      return base + (nextLevel <= 2 ? 10 : nextLevel === 4 ? 13 : 11) + actor.economyTrack * 0.65;
+    case 'sparta':
+      return base + (nextLevel === 2 ? 7 : nextLevel === 3 ? 9 : 8);
+    case 'corinth':
+      return base + 10 + actor.knowledgeTokens.length * 0.8;
+    case 'thebes':
+      return base + 10 + actor.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length * 1.1;
+    case 'argos':
+      return base + 9 + actor.militaryTrack * 0.7;
+    default:
+      return base;
+  }
+}
+
+function cityActionPlanBonus(state: GameState, actor: PlayerState, action: ActionType): number {
+  const needsDevelopment = actor.developmentLevel < 4;
+  switch (actor.cityId) {
+    case 'olympia':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 9.5 : 0;
+      if (action === 'CULTURE') return 7 + (hasDevUnlocked(actor, 'olympia-dev-2') ? 4 : 0);
+      if (action === 'TRADE') return knowledgeColorNeed(actor, 'GREEN') > 0 ? 3.5 : 1.5;
+      if (action === 'PHILOSOPHY') return actor.philosophyTokens < 2 ? 2.8 : 1;
+      return 0;
+    case 'athens':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 10 : 0;
+      if (action === 'POLITICS') return 8 + (hasDevUnlocked(actor, 'athens-dev-2') ? 3 : 0);
+      if (action === 'LEGISLATION') return actor.handCards.length < 4 ? 5.5 : 2.5;
+      if (action === 'TRADE') return 2.5;
+      return 0;
+    case 'miletus':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 11 : 0;
+      if (action === 'TRADE') return 9 + (hasDevUnlocked(actor, 'miletus-dev-3') ? 4 : 0);
+      if (action === 'MILITARY') return knowledgeColorNeed(actor, 'RED') > 0 || knowledgeColorNeed(actor, 'GREEN') > 0 ? 5.2 : 2.4;
+      if (action === 'POLITICS') return playablePoliticsOpportunityScore(state, actor) > 8 ? 4.2 : 1.5;
+      if (action === 'PHILOSOPHY') return actor.philosophyTokens < 2 ? 3.2 : 1.1;
+      return 0;
+    case 'sparta':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 8 : 0;
+      if (action === 'MILITARY') return 8;
+      if (action === 'TRADE') return knowledgeColorNeed(actor, 'BLUE') > 0 ? 3.5 : 1.2;
+      return 0;
+    case 'corinth':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 10 : 0;
+      if (action === 'TRADE') return 8;
+      if (action === 'MILITARY') return 7.4;
+      if (action === 'PHILOSOPHY') return 2.2;
+      return 0;
+    case 'thebes':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 10 : 0;
+      if (action === 'TRADE') return 7.5;
+      if (action === 'MILITARY') return 8.8;
+      return 0;
+    case 'argos':
+      if (action === 'DEVELOPMENT') return needsDevelopment ? 9 : 0;
+      if (action === 'MILITARY') return 9.2;
+      if (action === 'TRADE') return 3.5;
+      return 0;
+    default:
+      return state.roundNumber <= 4 && action === 'DEVELOPMENT' && needsDevelopment ? 3 : 0;
+  }
+}
+
+function cityProgressPlanBonus(actor: PlayerState, track: ProgressTrackType): number {
+  switch (actor.cityId) {
+    case 'olympia':
+      return track === 'CULTURE' ? 8 : track === 'ECONOMY' ? 2 : 0.6;
+    case 'athens':
+      return track === 'ECONOMY' ? 4.5 : track === 'CULTURE' ? 1.8 : 1;
+    case 'miletus':
+      return track === 'ECONOMY' ? 9.5 : track === 'MILITARY' ? 2.6 : track === 'CULTURE' ? 2.1 : 0.8;
+    case 'sparta':
+      return track === 'MILITARY' ? 8 : track === 'ECONOMY' ? 2 : 0.6;
+    case 'corinth':
+      return track === 'ECONOMY' ? 5 : track === 'MILITARY' ? 5 : track === 'CULTURE' ? 3.2 : 0;
+    case 'thebes':
+      return track === 'MILITARY' ? 8.2 : track === 'ECONOMY' ? 4 : 1.4;
+    case 'argos':
+      return track === 'MILITARY' ? 9.2 : track === 'ECONOMY' ? 2.5 : 1;
+    default:
+      return 0;
+  }
+}
+
+function cityCardPlanBonus(actor: PlayerState, cardId: string): number {
+  switch (actor.cityId) {
+    case 'olympia':
+      return ['peripteros', 'stoa-poikile', 'persians', 'gradualism', 'reformists', 'oracle', 'founding-the-lyceum'].includes(cardId) ? 8 : 0;
+    case 'athens':
+      return ['council', 'extraordinary-collection', 'central-government', 'oracle', 'corinthian-columns', 'reformists', 'old-guard', 'diversification'].includes(cardId) ? 8.5 : 0;
+    case 'miletus':
+      return ['lighthouse', 'diolkos', 'public-market', 'bank', 'gold-reserve', 'constructing-the-mint', 'old-guard', 'foreign-supplies', 'power'].includes(cardId) ? 8.5 : 0;
+    case 'sparta':
+      return ['helepole', 'greek-fire', 'mercenary-recruitment', 'stadion', 'hall-of-statues'].includes(cardId) ? 7 : 0;
+    case 'corinth':
+      return ['corinthian-columns', 'hall-of-statues', 'contribution', 'scholarly-welcome', 'diversification', 'old-guard'].includes(cardId) ? 8 : 0;
+    case 'thebes':
+      return ['corinthian-columns', 'scholarly-welcome', 'helepole', 'hall-of-statues', 'reformists', 'old-guard'].includes(cardId) ? 8 : 0;
+    case 'argos':
+      return ['greek-fire', 'mercenary-recruitment', 'helepole', 'rivalry', 'stadion', 'hall-of-statues', 'old-guard'].includes(cardId) ? 8 : 0;
+    default:
+      return 0;
+  }
+}
+
+function cityKnowledgeColorPlanBonus(
+  actor: PlayerState,
+  color: KnowledgeColor,
+  tokenType: KnowledgeToken['tokenType'],
+): number {
+  const token: KnowledgeToken = { id: `virtual-${color}-${tokenType}`, color, tokenType };
+  return cityKnowledgeTokenBonus(actor, token) * 0.8 + minorKnowledgeValue(actor, color) * 0.2;
+}
+
 function endgameSuffixBonus(state: GameState, targetPlayerId: string): number {
   if (state.roundNumber < 6) return 0;
   const target = state.players.find(p => p.playerId === targetPlayerId);
@@ -3023,14 +3969,14 @@ function endgameSuffixBonus(state: GameState, targetPlayerId: string): number {
 }
 
 function candidateOutcomeScore(state: GameState, actorId: string, candidate: Candidate, scoringPlayerId: string): number {
-  const applied = applyMessage(state, actorId, candidate.message);
+  const applied = applyCandidate(state, actorId, candidate);
   if (!applied) return -10000;
   const immediateDelta = heuristicScore(applied, scoringPlayerId) - heuristicScore(state, scoringPlayerId);
   const raceDelta = targetAchievementRaceDelta(state, applied, scoringPlayerId);
   const eventDelta = eventCompetitionOutlookScore(applied, scoringPlayerId) - eventCompetitionOutlookScore(state, scoringPlayerId);
   if (candidate.message.type === 'ASSIGN_DICE') {
     return immediateDelta
-      + assignedActionPlanScore(applied, actorId, scoringPlayerId) * 0.85
+      + assignedActionPlanScore(applied, actorId, scoringPlayerId, candidate) * 0.85
       + diceAssignmentPressure(state, actorId, candidate, scoringPlayerId) * 4
       + raceDelta * 4
       + eventDelta * 3;
@@ -3039,7 +3985,7 @@ function candidateOutcomeScore(state: GameState, actorId: string, candidate: Can
 }
 
 function opponentCandidateScore(state: GameState, actorId: string, candidate: Candidate, targetPlayerId: string): number {
-  const applied = applyMessage(state, actorId, candidate.message);
+  const applied = applyCandidate(state, actorId, candidate);
   if (!applied) return -10000;
 
   const beforeActor = state.players.find(p => p.playerId === actorId);
@@ -3058,7 +4004,32 @@ function opponentCandidateScore(state: GameState, actorId: string, candidate: Ca
     + actorRaceDelta * 10
     - targetRaceDelta * 2
     + actorEventDelta * 9
-    - targetEventDelta * 3;
+    - targetEventDelta * 3
+    + tokenDenialScore(state, actorId, candidate, targetPlayerId) * 5;
+}
+
+function tokenDenialScore(state: GameState, actorId: string, candidate: Candidate, targetPlayerId: string): number {
+  if (actorId === targetPlayerId || candidate.message.type !== 'RESOLVE_ACTION' || candidate.message.actionType !== 'MILITARY') return 0;
+  const target = state.players.find(player => player.playerId === targetPlayerId);
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!target || !actor) return 0;
+
+  const tokenIds = [
+    candidate.message.choices.explorationTokenId,
+    candidate.message.choices.secondExplorationTokenId,
+  ].filter((id): id is string => typeof id === 'string');
+
+  return tokenIds.reduce((sum, tokenId) => {
+    const token = state.centralBoardTokens.find(candidateToken => candidateToken.id === tokenId && !candidateToken.explored);
+    if (!token) return sum;
+    const targetCanReachSoon = target.troopTrack + target.militaryTrack >= (token.militaryRequirement ?? 0)
+      || target.coins >= 6
+      || target.victoryPoints >= 5;
+    if (!targetCanReachSoon) return sum;
+    const valueToTarget = tokenValueForPlayer(token, target);
+    const valueToActor = tokenValueForPlayer(token, actor);
+    return sum + Math.max(0, valueToTarget - valueToActor * 0.35) * 0.22;
+  }, 0);
 }
 
 function diceAssignmentPressure(state: GameState, actorId: string, candidate: Candidate, focusPlayerId: string): number {
@@ -3129,6 +4100,7 @@ function virtualStateAfterAssignedActions(state: GameState, actorId: string, act
         break;
       }
       case 'DEVELOPMENT':
+        virtual = virtualUnlockNextDevelopment(virtual);
         if (virtual.cityId === 'argos' && virtual.developmentLevel === 1) {
           virtual = { ...virtual, citizenTrack: Math.min(15, virtual.citizenTrack + 5) };
         }
@@ -3145,7 +4117,60 @@ function virtualStateAfterAssignedActions(state: GameState, actorId: string, act
   };
 }
 
-function assignedActionPlanScore(state: GameState, actorId: string, scoringPlayerId: string): number {
+function virtualUnlockNextDevelopment(player: PlayerState): PlayerState {
+  const city = CITY_BY_ID.get(player.cityId);
+  const dev = city?.developments[player.developmentLevel];
+  if (!dev || player.coins < dev.drachmaCost) return player;
+  const pairs = knowledgeShortfall(player, dev.knowledgeRequirement);
+  if (pairs * 2 > player.philosophyTokens) return player;
+
+  let virtual: PlayerState = {
+    ...player,
+    coins: player.coins - dev.drachmaCost,
+    philosophyTokens: player.philosophyTokens - pairs * 2,
+    developmentLevel: Math.min(4, player.developmentLevel + 1),
+  };
+
+  switch (dev.id) {
+    case 'olympia-dev-3':
+      virtual = advanceTrack(virtual, 'CULTURE', Math.min(2, Math.max(0, 7 - virtual.cultureTrack)));
+      break;
+    case 'olympia-dev-4':
+      virtual = {
+        ...virtual,
+        victoryPoints: virtual.victoryPoints + virtual.cultureTrack * 3,
+        troopTrack: virtual.troopTrack + (hasDevUnlocked(virtual, 'olympia-dev-2') ? 3 : 0),
+        philosophyTokens: virtual.philosophyTokens + (hasDevUnlocked(virtual, 'olympia-dev-2') ? 3 : 0),
+      };
+      break;
+    case 'miletus-dev-2':
+      virtual = advanceTrack(advanceTrack(virtual, 'ECONOMY', 1), 'CULTURE', 1);
+      break;
+    case 'miletus-dev-4':
+      virtual = { ...virtual, victoryPoints: virtual.victoryPoints + 15 };
+      break;
+    case 'argos-dev-2':
+      virtual = { ...virtual, victoryPoints: virtual.victoryPoints + 4 };
+      break;
+    case 'argos-dev-3':
+      virtual = advanceTrack(virtual, 'MILITARY', 1);
+      break;
+    case 'argos-dev-4':
+      virtual = { ...virtual, gloryTrack: Math.min(10, virtual.gloryTrack + 2) };
+      break;
+    case 'corinth-dev-2':
+      virtual = {
+        ...virtual,
+        taxTrack: Math.min(10, virtual.taxTrack + virtual.knowledgeTokens.length),
+        philosophyTokens: virtual.philosophyTokens + virtual.knowledgeTokens.length,
+      };
+      break;
+  }
+
+  return virtual;
+}
+
+function assignedActionPlanScore(state: GameState, actorId: string, scoringPlayerId: string, candidate?: Candidate): number {
   const actor = state.players.find(p => p.playerId === actorId);
   if (!actor || !actor.actionSlots.some(slot => slot !== null && !slot.resolved)) return 0;
 
@@ -3162,12 +4187,18 @@ function assignedActionPlanScore(state: GameState, actorId: string, scoringPlaye
   };
   let current = staged;
   const before = heuristicScore(staged, scoringPlayerId);
+  let wastedActions = 0;
+  if (candidate) candidate.unusableActions = [];
 
   for (let step = 0; step < 4; step++) {
     const currentActor = current.players.find(p => p.playerId === actorId);
     if (!currentActor || !nextAction(currentActor)) break;
 
     const candidates = enumerateActionResolution(current, currentActor);
+    if (candidates.length === 0) {
+      wastedActions++;
+      candidate?.unusableActions?.push(nextAction(currentActor)!);
+    }
     const usable = candidates.length > 0
       ? candidates
       : fallbackCandidates(current, actorId, 'RESOLVE_ACTION');
@@ -3176,7 +4207,9 @@ function assignedActionPlanScore(state: GameState, actorId: string, scoringPlaye
     for (const actionCandidate of usable.slice(0, 8)) {
       const applied = applyMessage(current, actorId, actionCandidate.message);
       if (!applied) continue;
-      const score = heuristicScore(applied, scoringPlayerId) + actionCandidate.quickScore * 0.05;
+      const score = heuristicScore(applied, scoringPlayerId)
+        + actionCandidate.quickScore * 0.05
+        + cityStrategyCandidateBonus(current, actorId, actionCandidate) * 2.4;
       if (!best || score > best.score) {
         best = { state: applied, score };
       }
@@ -3186,7 +4219,14 @@ function assignedActionPlanScore(state: GameState, actorId: string, scoringPlaye
     current = best.state;
   }
 
-  return Math.max(0, heuristicScore(current, scoringPlayerId) - before);
+  return Math.max(0, heuristicScore(current, scoringPlayerId) - before) - wastedActions * 80;
+}
+
+function applyCandidate(state: GameState, actorId: string, candidate: Candidate): GameState | null {
+  if (candidate.outcome?.source === state && candidate.outcome.actorId === actorId) return candidate.outcome.state;
+  const applied = applyMessage(state, actorId, candidate.message);
+  candidate.outcome = { source: state, actorId, state: applied };
+  return applied;
 }
 
 function applyMessage(state: GameState, actorId: string, message: ClientMessage): GameState | null {
@@ -3206,6 +4246,122 @@ function applyMessage(state: GameState, actorId: string, message: ClientMessage)
   } catch {
     return null;
   }
+}
+
+function alignStateForValidation(
+  state: GameState,
+  actorId: string,
+  targetPlayerId: string,
+  decisionType: DecisionType | 'ACTIVATE_DEV',
+  round: number,
+  phase: GamePhase,
+): { ok: boolean; state: GameState } {
+  let current = state;
+  for (let step = 0; step < 80; step++) {
+    if (decisionType === 'ACTIVATE_DEV' && current.roundNumber === round && current.currentPhase === phase) {
+      return { ok: true, state: current };
+    }
+    const activation = chooseBestActivation(current, targetPlayerId);
+    if (activation && !current.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
+      current = applyMessage(current, activation.playerId, activation.candidate.message) ?? current;
+      continue;
+    }
+    const pending = current.pendingDecisions.find(decision =>
+      decision.playerId === actorId && decision.decisionType === decisionType);
+    if (pending && current.roundNumber === round && current.currentPhase === phase) return { ok: true, state: current };
+    if (current.pendingDecisions.some(decision => decision.playerId === actorId && decision.decisionType !== 'PHASE_DISPLAY')) {
+      return { ok: false, state: current };
+    }
+    if (
+      current.roundNumber > round
+      || (current.roundNumber === round && phaseIndex(current.currentPhase) > phaseIndex(phase))
+      || current.currentPhase === 'GAME_OVER'
+    ) {
+      return { ok: false, state: current };
+    }
+
+    const display = current.pendingDecisions.find(decision => decision.decisionType === 'PHASE_DISPLAY');
+    const otherPending = current.pendingDecisions.find(decision => decision.playerId !== actorId && decision.decisionType !== 'PHASE_DISPLAY');
+    const before = stateSignature(current);
+    current = display
+      ? autoResolve(current, display.playerId)
+      : otherPending
+        ? applyValidationOpponentMove(current, otherPending.playerId, otherPending.decisionType, targetPlayerId)
+        : advancePhase(current);
+    if (stateSignature(current) === before) return { ok: false, state: current };
+  }
+  return { ok: false, state: current };
+}
+
+function applyValidationOpponentMove(
+  state: GameState,
+  actorId: string,
+  decisionType: DecisionType,
+  targetPlayerId: string,
+): GameState {
+  const candidates = enumerateLightweightOpponentCandidates(state, actorId, decisionType);
+  const [choice] = orderOpponentCandidates(state, actorId, candidates, targetPlayerId);
+  if (choice) {
+    const applied = applyMessage(state, actorId, choice.message);
+    if (applied) return applied;
+  }
+  return autoResolve(state, actorId);
+}
+
+function applyEquivalentValidationMessage(
+  state: GameState,
+  actorId: string,
+  message: ClientMessage,
+): GameState | null {
+  if (message.type !== 'CHOOSE_TOKEN') return null;
+  const actor = state.players.find(player => player.playerId === actorId);
+  if (!actor) return null;
+
+  const desired = tokenIntentFromId(message.tokenId);
+  const replacement = actor.knowledgeTokens.find(token =>
+    (!desired.color || token.color === desired.color)
+    && (!desired.tokenType || token.tokenType === desired.tokenType));
+  if (!replacement) return null;
+
+  return applyMessage(state, actorId, { type: 'CHOOSE_TOKEN', tokenId: replacement.id });
+}
+
+function tokenIntentFromId(tokenId: string): { color: KnowledgeColor | null; tokenType: KnowledgeToken['tokenType'] | null } {
+  const normalized = tokenId.toLowerCase();
+  const color = normalized.includes('green')
+    ? 'GREEN'
+    : normalized.includes('blue')
+      ? 'BLUE'
+      : normalized.includes('red')
+        ? 'RED'
+        : null;
+  const tokenType = normalized.includes('minor')
+    ? 'MINOR'
+    : normalized.includes('major') || normalized.includes('persepolis')
+      ? 'MAJOR'
+      : null;
+  return { color, tokenType };
+}
+
+function validationResult(
+  valid: boolean,
+  state: GameState,
+  playerId: string,
+  executedMoves: number,
+  failedMoveIndex: number | null,
+  errors: string[],
+): LiveSolverLineValidation {
+  const projection = projectScores(state, playerId);
+  return {
+    valid,
+    finalScore: state.currentPhase === 'GAME_OVER'
+      ? projection.scores.find(score => score.playerId === playerId)?.projectedTotal ?? null
+      : null,
+    executedMoves,
+    failedMoveIndex,
+    errors,
+    finalState: state.currentPhase === 'GAME_OVER' ? state : undefined,
+  };
 }
 
 function autoResolve(state: GameState, actorId: string): GameState {
@@ -3312,35 +4468,121 @@ function scoreNode(node: SearchNode, targetPlayerId: string): SearchNode {
 }
 
 function heuristicScore(state: GameState, targetPlayerId: string): number {
-  const cacheKey = activeHeuristicCache
-    ? `${targetPlayerId}|${state.currentPhase === 'GAME_OVER' ? exactStateSignature(state) : stateSignature(state)}`
-    : null;
-  if (cacheKey) {
-    const cached = activeHeuristicCache?.get(cacheKey);
-    if (cached !== undefined) return cached;
-  }
+  const cached = activeHeuristicCache?.get(state)?.get(targetPlayerId);
+  if (cached !== undefined) return cached;
 
   let score: number;
   if (state.currentPhase === 'GAME_OVER') {
-    score = solvedStateScore(state, targetPlayerId);
-    if (cacheKey) activeHeuristicCache?.set(cacheKey, score);
+    score = solvedStateScore(state, targetPlayerId) * 2.35;
+    cacheHeuristic(state, targetPlayerId, score);
     return score;
   }
 
-  const target = state.players.find(p => p.playerId === targetPlayerId);
+  let target = state.players.find(p => p.playerId === targetPlayerId);
   if (!target) return -Infinity;
+  const submission = state.progressSubmissions?.[targetPlayerId];
+  if (submission) {
+    const projected = new ProgressPhaseManager().applySubmissionToPlayer(target, submission);
+    if (projected.ok) target = projected.value;
+    if (submission.skipped && hasCard(target, 'old-guard')) target = { ...target, victoryPoints: target.victoryPoints + 4 };
+  }
   const targetScore = roughPlayerScore(target, state);
   const phaseProgress = Math.max(0, PHASE_ORDER.indexOf(state.currentPhase));
   score = targetScore * 2.35
     + endgameSynergyScore(target, state) * 1.15
     + state.roundNumber * 0.05
     + phaseProgress * 0.01;
-  if (cacheKey) activeHeuristicCache?.set(cacheKey, score);
+  cacheHeuristic(state, targetPlayerId, score);
   return score;
+}
+
+function cacheHeuristic(state: GameState, playerId: string, value: number): void {
+  if (!activeHeuristicCache) return;
+  const values = activeHeuristicCache.get(state) ?? new Map<string, number>();
+  values.set(playerId, value);
+  activeHeuristicCache.set(state, values);
 }
 
 function solvedNodeScore(node: SearchNode, targetPlayerId: string): number {
   return solvedStateScore(node.state, targetPlayerId);
+}
+
+function lineSelectionScore(node: SearchNode, targetPlayerId: string): number {
+  return solvedNodeScore(node, targetPlayerId) * 1000 + lineFollowabilityScore(node.moves);
+}
+
+function lineFollowabilityScore(moves: LiveSolverMove[]): number {
+  return -moves.reduce((sum, move) => sum + moveFriction(move), 0);
+}
+
+function moveFriction(move: LiveSolverMove): number {
+  const message = move.message;
+  let friction = move.estimatedSeconds * 0.04 + 0.2;
+  if (!message) return friction;
+
+  switch (message.type) {
+    case 'ASSIGN_DICE': {
+      const citizenCost = message.assignments.reduce((sum, assignment) =>
+        sum + Math.max(0, ACTION_NUMBERS[assignment.actionType] - assignment.dieValue), 0);
+      friction += message.assignments.length * 0.45 + citizenCost * 0.75 + (message.philosophyTokensToSpend ?? 0) * 1.1;
+      break;
+    }
+    case 'RESOLVE_ACTION':
+      friction += resolveActionFriction(message);
+      break;
+    case 'PROGRESS_TRACK': {
+      const trackCount = 1 + (message.bonusTracks?.length ?? 0) + (message.extraTracks?.length ?? 0);
+      friction += trackCount * 0.65 + (message.extraTracks?.length ?? 0) * 0.75;
+      break;
+    }
+    case 'DISCARD_CARDS':
+      friction += Math.max(1, message.cardIds.length) * 0.8;
+      break;
+    case 'CLAIM_ACHIEVEMENT':
+    case 'EVENT_PROGRESS_TRACK':
+      friction += 0.35;
+      break;
+    case 'SKIP_PHASE':
+      friction -= 0.2;
+      break;
+    default:
+      break;
+  }
+
+  return friction;
+}
+
+function candidateFollowabilityScore(candidate: Candidate): number {
+  return -moveFriction({
+    round: 0,
+    phase: 'DICE',
+    playerId: '',
+    playerName: '',
+    decisionType: 'ROLL_DICE',
+    instruction: candidate.instruction,
+    detail: candidate.detail,
+    message: candidate.message,
+    estimatedSeconds: candidate.estimatedSeconds,
+  });
+}
+
+function resolveActionFriction(message: Extract<ClientMessage, { type: 'RESOLVE_ACTION' }>): number {
+  switch (message.actionType) {
+    case 'PHILOSOPHY':
+    case 'CULTURE':
+      return -0.15;
+    case 'TRADE':
+      return message.choices.buyMinorKnowledge ? 0.35 : 0.05;
+    case 'MILITARY':
+      return (message.choices.explorationTokenId ? 0.45 : 0.15)
+        + (message.choices.secondExplorationTokenId ? 0.75 : 0);
+    case 'LEGISLATION':
+      return 0.55;
+    case 'POLITICS':
+      return 0.85 + (message.choices.philosophyPairsToUse ?? 0) * 0.6;
+    case 'DEVELOPMENT':
+      return 0.9 + (message.choices.philosophyPairsToUse ?? 0) * 0.6;
+  }
 }
 
 function solvedStateScore(state: GameState, targetPlayerId: string): number {
@@ -3378,10 +4620,63 @@ function roughPlayerScore(player: PlayerState, state?: GameState): number {
     + player.taxTrack * (0.45 + remainingRounds * 0.22)
     + player.gloryTrack * (0.8 + expectedMajorUpside * 0.65)
     + player.troopTrack * 0.45
-    + player.knowledgeTokens.reduce((sum, token) => sum + tokenValue(token) * (token.tokenType === 'MAJOR' ? 0.42 : 0.24), 0)
+    + player.knowledgeTokens.reduce((sum, token) => sum + tokenValueForPlayer(token, player) * (token.tokenType === 'MAJOR' ? 0.42 : 0.24), 0)
     + player.handCards.reduce((sum, card) => sum + handCardPotential(card, player) * 0.04, 0)
+    + (state ? playablePoliticsOpportunityScore(state, player) * (state.roundNumber >= 6 ? 0.42 : 0.28) : 0)
+    + (state ? cityPlanScore(player, state) * 0.55 : 0)
     + (state ? endgameSynergyScore(player, state) * 0.35 : 0)
     - Math.max(0, player.handCards.length - 4) * 0.45;
+}
+
+function playablePoliticsOpportunityScore(state: GameState, player: PlayerState): number {
+  const candidates = enumeratePoliticsCards(state, player, 'Politics');
+  return candidates
+    .slice(0, 3)
+    .reduce((sum, candidate, index) =>
+      sum + Math.max(0, candidate.quickScore) * (index === 0 ? 1 : 0.5 / index), 0);
+}
+
+function cityPlanScore(player: PlayerState, state: GameState): number {
+  const remainingRounds = Math.max(1, 10 - state.roundNumber);
+  const nextDevReadiness = developmentReadinessScore(player);
+  switch (player.cityId) {
+    case 'olympia':
+      return player.developmentLevel * 3.5
+        + player.cultureTrack * 3.8
+        + nextDevReadiness
+        + (hasDevUnlocked(player, 'olympia-dev-2') ? remainingRounds * (3.2 + player.cultureTrack * 0.45) : 0)
+        + (hasDevUnlocked(player, 'olympia-dev-3') ? 12 + player.cultureTrack * 1.8 : 0)
+        + (hasDevUnlocked(player, 'olympia-dev-4') ? 18 : 0)
+        + player.knowledgeTokens.filter(token => token.color === 'GREEN').length * 2.2
+        + player.knowledgeTokens.filter(token => token.color === 'RED').length * 0.8
+        + (hasCardInHandOrPlay(player, 'peripteros') ? 5 : 0)
+        + (hasCardInHandOrPlay(player, 'stoa-poikile') ? 4 : 0)
+        + (hasCardInHandOrPlay(player, 'persians') ? 3 : 0);
+    case 'athens':
+      return player.developmentLevel * 3
+        + player.playedCards.length * (hasDevUnlocked(player, 'athens-dev-4') ? 3 : 1.2)
+        + player.handCards.length * (hasDevUnlocked(player, 'athens-dev-2') ? 1.4 : 0.5)
+        + nextDevReadiness;
+    case 'miletus':
+      return player.developmentLevel * 3
+        + player.economyTrack * 1.8
+        + (hasDevUnlocked(player, 'miletus-dev-3') ? remainingRounds * 2.2 : 0)
+        + nextDevReadiness;
+    case 'sparta': {
+      const blue = player.knowledgeTokens.filter(token => token.color === 'BLUE').length;
+      return player.developmentLevel * 3 + player.militaryTrack * 1.8 + blue * (hasDevUnlocked(player, 'sparta-dev-4') ? 4 : 1.1) + nextDevReadiness;
+    }
+    case 'corinth':
+      return player.developmentLevel * 3 + player.knowledgeTokens.length * (hasDevUnlocked(player, 'corinth-dev-4') ? 2 : 0.9) + nextDevReadiness;
+    case 'thebes': {
+      const minors = player.knowledgeTokens.filter(token => token.tokenType === 'MINOR').length;
+      return player.developmentLevel * 3 + minors * (hasDevUnlocked(player, 'thebes-dev-4') ? 3 : 1.2) + player.militaryTrack * 1.2 + nextDevReadiness;
+    }
+    case 'argos':
+      return player.developmentLevel * 3 + player.militaryTrack * 1.7 + player.gloryTrack * 1.2 + nextDevReadiness;
+    default:
+      return 0;
+  }
 }
 
 function endgameSynergyScore(player: PlayerState, state: GameState): number {
@@ -3410,6 +4705,7 @@ function endgameSynergyScore(player: PlayerState, state: GameState): number {
   score += player.gloryTrack * majors * 0.9;
   score += majors * 1.1 + minors * 0.3;
   score += calculateDevEndGameScore(player) * 0.6;
+  score += cityPlanScore(player, state) * 0.3;
   return score;
 }
 
@@ -3436,12 +4732,15 @@ function projectScores(state: GameState, targetPlayerId: string): Projection {
   const board = state.currentPhase === 'GAME_OVER' && state.finalScores
     ? state.finalScores
     : calculateFinalScores(state);
-  const scores = board.rankings.map(score => ({
-    playerId: score.playerId,
-    playerName: score.playerName,
-    projectedTotal: score.totalPoints,
-    rank: score.rank,
-  }));
+  const scores = board.rankings
+    .map(score => ({
+      playerId: score.playerId,
+      playerName: score.playerName,
+      projectedTotal: score.totalPoints,
+      rank: score.rank,
+    }))
+    .sort((a, b) => b.projectedTotal - a.projectedTotal)
+    .map((score, index) => ({ ...score, rank: index + 1 }));
   const target = scores.find(score => score.playerId === targetPlayerId);
   const bestOpponent = scores
     .filter(score => score.playerId !== targetPlayerId)
@@ -3621,70 +4920,7 @@ function rankAndPruneNodes(nodes: SearchNode[], limit: number, targetPlayerId: s
   }
 
   const sorted = Array.from(bySignature.values()).sort((a, b) => b.score - a.score);
-  const accepted: SearchNode[] = [];
-  const dominanceBuckets = new Map<string, SearchNode[]>();
-
-  for (const node of sorted) {
-    const key = dominanceKey(node.state, targetPlayerId);
-    const bucket = dominanceBuckets.get(key) ?? [];
-    if (bucket.some(existing => dominatesForTarget(existing.state, node.state, targetPlayerId))) continue;
-
-    dominanceBuckets.set(key, [...bucket, node].slice(0, 12));
-    accepted.push(node);
-    if (accepted.length >= limit * 2) break;
-  }
-
-  return diversify(accepted, limit);
-}
-
-function dominanceKey(state: GameState, targetPlayerId: string): string {
-  const target = state.players.find(player => player.playerId === targetPlayerId);
-  return JSON.stringify({
-    phase: state.currentPhase,
-    round: state.roundNumber,
-    pending: state.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}`),
-    target: target ? {
-      cityId: target.cityId,
-      developmentLevel: target.developmentLevel,
-      economyTrack: target.economyTrack,
-      cultureTrack: target.cultureTrack,
-      militaryTrack: target.militaryTrack,
-      handCards: target.handCards.map(card => card.id).sort(),
-      playedCards: target.playedCards.map(card => card.id).sort(),
-      knowledge: exactKnowledgeSignature(target.knowledgeTokens),
-      actionSlots: target.actionSlots.map(slot => slot ? `${slot.actionType}:${slot.resolved ? 1 : 0}` : '-'),
-    } : null,
-    event: state.currentEvent?.id ?? null,
-    achievements: state.availableAchievements.map(achievement => achievement.id),
-    deckTop: state.politicsDeck.slice(0, 3).map(card => card.id),
-    tokens: state.centralBoardTokens.filter(token => !token.explored).map(token => token.id).slice(0, 10),
-  });
-}
-
-function dominatesForTarget(a: GameState, b: GameState, targetPlayerId: string): boolean {
-  const left = a.players.find(player => player.playerId === targetPlayerId);
-  const right = b.players.find(player => player.playerId === targetPlayerId);
-  if (!left || !right) return false;
-  const leftValues = [
-    left.victoryPoints,
-    left.coins,
-    left.philosophyTokens,
-    left.taxTrack,
-    left.gloryTrack,
-    left.troopTrack,
-    left.citizenTrack,
-  ];
-  const rightValues = [
-    right.victoryPoints,
-    right.coins,
-    right.philosophyTokens,
-    right.taxTrack,
-    right.gloryTrack,
-    right.troopTrack,
-    right.citizenTrack,
-  ];
-  return leftValues.every((value, index) => value >= rightValues[index])
-    && leftValues.some((value, index) => value > rightValues[index]);
+  return diversifyByArchetype(sorted, limit, targetPlayerId);
 }
 
 function diversify(nodes: SearchNode[], limit: number): SearchNode[] {
@@ -3700,28 +4936,68 @@ function diversify(nodes: SearchNode[], limit: number): SearchNode[] {
   return selected;
 }
 
+function diversifyByArchetype(nodes: SearchNode[], limit: number, targetPlayerId: string): SearchNode[] {
+  const selected: SearchNode[] = [];
+  const seenStates = new Set<string>();
+  const archetypeCounts = new Map<string, number>();
+  const softCap = Math.max(3, Math.ceil(limit / 7));
+
+  for (const node of nodes) {
+    const stateKey = stateSignature(node.state);
+    if (seenStates.has(stateKey)) continue;
+    const archetype = lineArchetypeKey(node, targetPlayerId);
+    const count = archetypeCounts.get(archetype) ?? 0;
+    if (count >= softCap && selected.length < Math.ceil(limit * 0.7)) continue;
+    selected.push(node);
+    seenStates.add(stateKey);
+    archetypeCounts.set(archetype, count + 1);
+    if (selected.length >= limit) return selected;
+  }
+
+  for (const node of nodes) {
+    const stateKey = stateSignature(node.state);
+    if (seenStates.has(stateKey)) continue;
+    selected.push(node);
+    seenStates.add(stateKey);
+    if (selected.length >= limit) break;
+  }
+
+  return selected.length > 0 ? selected : diversify(nodes, limit);
+}
+
+function lineArchetypeKey(node: SearchNode, targetPlayerId: string): string {
+  const target = node.state.players.find(player => player.playerId === targetPlayerId);
+  const counts = new Map<string, number>();
+  for (const move of node.moves) {
+    const message = move.message;
+    if (!message) continue;
+    if (message.type === 'ASSIGN_DICE') {
+      for (const assignment of message.assignments) {
+        counts.set(assignment.actionType, (counts.get(assignment.actionType) ?? 0) + 1);
+      }
+    }
+    if (message.type === 'RESOLVE_ACTION') {
+      counts.set(message.actionType, (counts.get(message.actionType) ?? 0) + 2);
+      if (message.actionType === 'POLITICS' && message.choices.targetCardId) counts.set(`card:${message.choices.targetCardId}`, 3);
+    }
+    if (message.type === 'PROGRESS_TRACK') {
+      counts.set(`progress:${message.advancement.track}`, (counts.get(`progress:${message.advancement.track}`) ?? 0) + 2);
+      for (const track of message.extraTracks ?? []) counts.set(`progress:${track.track}`, (counts.get(`progress:${track.track}`) ?? 0) + 1);
+    }
+  }
+  const focus = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'open';
+  const developmentBand = target ? `dev${Math.min(4, target.developmentLevel)}` : 'dev?';
+  return `${target?.cityId ?? 'unknown'}|${developmentBand}|${focus}`;
+}
+
 function stateSignature(state: GameState): string {
-  return JSON.stringify({
-    phase: state.currentPhase,
-    round: state.roundNumber,
-    pending: state.pendingDecisions.map(d => `${d.playerId}:${d.decisionType}`),
-    progressSubmissions: progressSubmissionSignature(state),
-    players: state.players.map(p => [
-      p.playerId, p.cityId, p.developmentLevel, p.coins, p.victoryPoints, p.economyTrack, p.cultureTrack, p.militaryTrack,
-      p.taxTrack, p.gloryTrack, p.troopTrack, p.citizenTrack, p.philosophyTokens,
-      p.diceRoll?.join(',') ?? '',
-      p.actionSlots.map(s => s ? `${s.actionType}:${s.assignedDie}:${s.resolved ? 1 : 0}` : '-').join(','),
-      p.handCards.map(c => c.id).join(','),
-      p.playedCards.map(c => c.id).join(','),
-      p.knowledgeTokens.map(t => t.id).join(','),
-    ]),
-    deck: state.politicsDeck.slice(0, 4).map(c => c.id),
-    tokens: state.centralBoardTokens.filter(t => !t.explored).slice(0, 6).map(t => t.id),
-  });
+  return exactStateSignature(state);
 }
 
 function exactStateSignature(state: GameState): string {
   return JSON.stringify({
+    expansionChoices: state.expansionChoices,
+    suspendedDecisions: state.suspendedDecisions?.map(d => ({ playerId: d.playerId, decisionType: d.decisionType, options: d.options })),
     phase: state.currentPhase,
     round: state.roundNumber,
     progressSubmissions: progressSubmissionSignature(state),
@@ -3749,10 +5025,12 @@ function exactStateSignature(state: GameState): string {
       militaryTrack: player.militaryTrack,
       taxTrack: player.taxTrack,
       gloryTrack: player.gloryTrack,
+      pendingGloryGains: player.pendingGloryGains,
       troopTrack: player.troopTrack,
       citizenTrack: player.citizenTrack,
       philosophyTokens: player.philosophyTokens,
       diceRoll: player.diceRoll,
+      diceRollHistory: player.diceRollHistory,
       actionSlots: player.actionSlots.map(slot => slot
         ? {
             actionType: slot.actionType,
@@ -3942,20 +5220,53 @@ function actionPriority(state: GameState, actor: PlayerState, action: ActionType
       return 4 + Math.max(0, drawValue * 0.16 - handPenalty);
     }
     case 'CULTURE':
-      return 2 + actor.cultureTrack + actionTriggerValue(state, actor, 'CULTURE');
+      return 2 + actor.cultureTrack + actionTriggerValue(state, actor, 'CULTURE') + cityActionPriorityValue(state, actor, 'CULTURE');
     case 'TRADE':
-      return 4 + actor.economyTrack + tradeKnowledgeValue(actor);
+      return 4 + actor.economyTrack + tradeKnowledgeValue(actor) + cityActionPriorityValue(state, actor, 'TRADE');
     case 'MILITARY':
-      return 4 + actor.militaryTrack + bestExplorationValue(state, actor) * 0.45;
+      return 4 + actor.militaryTrack + bestExplorationValue(state, actor) * 0.45 + cityActionPriorityValue(state, actor, 'MILITARY');
     case 'POLITICS': {
-      const bestPlayable = enumeratePoliticsCards(state, actor, 'Politics')[0];
-      return bestPlayable ? 8 + bestPlayable.quickScore * 0.42 : 1 + actor.handCards.length * 0.4;
+      const playableCards = enumeratePoliticsCards(state, actor, 'Politics');
+      const bestPlayable = playableCards[0];
+      const portfolioValue = playableCards
+        .slice(0, 3)
+        .reduce((sum, cardCandidate, index) => sum + Math.max(0, cardCandidate.quickScore) * (index === 0 ? 1 : 0.45 / index), 0);
+      return bestPlayable
+        ? 24
+          + bestPlayable.quickScore * 1.45
+          + portfolioValue * 0.34
+          + Math.max(0, bestPlayable.quickScore - 10) * 0.7
+          + (state.roundNumber >= 6 ? 14 : 0)
+        : 1 + actor.handCards.length * 0.4;
     }
     case 'DEVELOPMENT': {
       const bestDevelopment = enumerateDevelopment(state, actor)[0];
-      return bestDevelopment ? 9 + bestDevelopment.quickScore * 0.35 : 1;
+      return bestDevelopment
+        ? 9 + bestDevelopment.quickScore * 0.35 + cityActionPriorityValue(state, actor, 'DEVELOPMENT')
+        : 1;
     }
   }
+}
+
+function cityActionPriorityValue(state: GameState, actor: PlayerState, action: ActionType): number {
+  const remainingRounds = Math.max(1, 10 - state.roundNumber);
+  if (actor.cityId === 'olympia') {
+    if (action === 'CULTURE') {
+      return 5.4
+        + (hasDevUnlocked(actor, 'olympia-dev-2') ? 9 : 0)
+        + (actor.cultureTrack >= 4 ? 3.5 : 0)
+        + (hasCardInHandOrPlay(actor, 'stoa-poikile') ? 1.4 : 0)
+        + (hasCardInHandOrPlay(actor, 'persians') ? 1.2 : 0);
+    }
+    if (action === 'DEVELOPMENT') return 5 + remainingRounds * 0.35 + developmentReadinessScore(actor) * 0.45;
+    if (action === 'TRADE') return Math.max(0, knowledgeColorNeed(actor, 'GREEN') * 0.3);
+    if (action === 'MILITARY' && hasDevUnlocked(actor, 'olympia-dev-2')) return -2.5;
+  }
+  if (actor.cityId === 'miletus' && action === 'TRADE') return 3 + (hasDevUnlocked(actor, 'miletus-dev-3') ? 3 : 0);
+  if (actor.cityId === 'athens' && (action === 'POLITICS' || action === 'DEVELOPMENT')) return 2.4 + actor.playedCards.length * 0.35;
+  if ((actor.cityId === 'sparta' || actor.cityId === 'argos' || actor.cityId === 'thebes') && action === 'MILITARY') return 2.5;
+  if (actor.cityId === 'corinth' && (action === 'TRADE' || action === 'MILITARY' || action === 'DEVELOPMENT')) return 1.6;
+  return 0;
 }
 
 function cardValue(card: PoliticsCard, player?: PlayerState, state?: GameState): number {
@@ -3982,20 +5293,20 @@ function politicsCardPlayerValue(
   remainingRounds: number,
 ): number {
   switch (card.id) {
-    case 'stoa-poikile': return Math.min(remainingRounds, 4) * 1.2;
+    case 'stoa-poikile': return Math.min(remainingRounds, 4) * 1.2 + (player.cityId === 'olympia' ? Math.min(remainingRounds, 5) * 1.2 + player.cultureTrack * 0.5 : 0);
     case 'amnesty-for-socrates': return Math.min(remainingRounds, 4) * 0.9;
-    case 'persians': return Math.min(remainingRounds, 4) * 1.1;
+    case 'persians': return Math.min(remainingRounds, 4) * 1.1 + (player.cityId === 'olympia' ? Math.min(remainingRounds, 5) * 1.1 : 0);
     case 'extraordinary-collection': return Math.min(player.handCards.length, remainingRounds) * 1.2;
     case 'diolkos': return Math.min(remainingRounds, 4) * 1.7;
     case 'corinthian-columns': return Math.max(3, knowledgeColorDemand(player) * 1.4);
     case 'foreign-supplies': return Math.min(remainingRounds, 4) * 1.1;
-    case 'gradualism': return Math.min(remainingRounds, 5) * 1.5;
+    case 'gradualism': return Math.min(remainingRounds, 5) * 1.5 + (player.cityId === 'olympia' || player.cityId === 'corinth' ? 4 : 0);
     case 'old-guard': return hasProgressPlan(player) ? 3 : Math.min(remainingRounds, 4) * 3.2;
-    case 'oracle': return Math.min(4 - player.developmentLevel, 3) * 3.5;
+    case 'oracle': return Math.min(4 - player.developmentLevel, 3) * 3.5 + (player.cityId === 'olympia' ? 5 : player.developmentLevel < 4 ? 2 : 0);
     case 'power': return state && state.players.some(p => p.playerId !== player.playerId && p.cultureTrack < player.cultureTrack) ? 4 : remainingRounds * 2.2;
     case 'public-market': return state && state.players.some(p => p.playerId !== player.playerId && p.economyTrack > player.economyTrack) ? 4 : remainingRounds * 1.8;
     case 'reformists': return Math.min(remainingRounds, 5) * 2.4;
-    case 'founding-the-lyceum': return Math.min(remainingRounds, 5) * 1.1;
+    case 'founding-the-lyceum': return Math.min(remainingRounds, 5) * 1.1 + (developmentReadinessScore(player) > 4 ? 3 : 0);
     case 'stadion': return remainingRounds * 0.9;
     case 'lighthouse': return Math.min(remainingRounds, 4) * 2.4;
     case 'helepole': return state ? Math.min(6, state.centralBoardTokens.filter(t => !t.explored && (t.skullValue ?? 0) > 0).length * 1.4) : 4;
@@ -4004,13 +5315,13 @@ function politicsCardPlayerValue(
     case 'rivalry': return state && state.players.filter(p => p.playerId !== player.playerId && p.isConnected).every(p => p.militaryTrack > player.militaryTrack)
       ? trackDeltaValue(player, 'MILITARY', 1)
       : 1;
-    case 'peripteros': return trackDeltaValue(player, 'CULTURE', 1);
+    case 'peripteros': return trackDeltaValue(player, 'CULTURE', 1) + (player.cityId === 'olympia' ? 8 + (player.cultureTrack >= 3 ? 2 : 0) : 0);
     case 'quarry': return taxGloryDeltaValue(player.taxTrack, 1);
     case 'contribution': return player.knowledgeTokens.filter(t => t.tokenType === 'MINOR').length * 0.7;
     case 'colossus-of-rhodes': return 10;
     case 'silver-mining': return taxGloryDeltaValue(player.taxTrack, 2);
     case 'scholarly-welcome': return 5 + Math.max(...rankedKnowledgeColors(player).map(color => knowledgeColorNeed(player, color)));
-    case 'tunnel-of-eupalinos': return 6;
+    case 'tunnel-of-eupalinos': return 7.5;
     case 'gifts-from-the-west': return 2.4;
     case 'council': return state
       ? state.politicsDeck.slice(0, 2).reduce((sum, deckCard) => sum + cardValue(deckCard, player) * 0.22, 6)
@@ -4107,7 +5418,7 @@ function bestExplorationValue(state: GameState, actor: PlayerState): number {
   const troopAfterGain = actor.troopTrack + actor.militaryTrack;
   return state.centralBoardTokens
     .filter(token => !token.explored && canExploreToken(actor, token, troopAfterGain))
-    .reduce((best, token) => Math.max(best, tokenValue(token)), 0);
+    .reduce((best, token) => Math.max(best, tokenValueForPlayer(token, actor)), 0);
 }
 
 function actionTriggerValue(state: GameState, actor: PlayerState, action: ActionType): number {
@@ -4189,6 +5500,46 @@ function tokenValue(token: KnowledgeToken): number {
     - (token.skullValue ?? 0) * 0.6;
 }
 
+function tokenValueForPlayer(token: KnowledgeToken, player: PlayerState): number {
+  return tokenValue(token)
+    + Math.min(14, knowledgeColorNeed(player, token.color) * 0.85)
+    + cityKnowledgeTokenBonus(player, token);
+}
+
+function cityKnowledgeTokenBonus(player: PlayerState, token: KnowledgeToken): number {
+  let bonus = 0;
+  if (player.cityId === 'olympia') {
+    if (token.color === 'GREEN') bonus += player.developmentLevel < 3 ? 7 : 4;
+    if (token.color === 'RED') bonus += player.developmentLevel < 4 ? 3 : 1;
+    if (token.color === 'BLUE') bonus += player.developmentLevel < 4 ? 1.5 : 0;
+    if (token.tokenType === 'MINOR') bonus += 1.5;
+  }
+  if (player.cityId === 'sparta' && token.color === 'BLUE') {
+    bonus += player.developmentLevel >= 3 ? 8 : 4;
+  }
+  if (player.cityId === 'thebes' && token.tokenType === 'MINOR') {
+    bonus += player.developmentLevel >= 3 ? 9 : 4.5;
+  }
+  if (player.cityId === 'corinth') {
+    bonus += player.developmentLevel >= 3 ? 6 : 3;
+  }
+  if (player.cityId === 'miletus') {
+    if (token.color === 'RED') bonus += player.developmentLevel < 4 ? 6 : 2;
+    if (token.color === 'GREEN') bonus += player.developmentLevel < 4 ? 3 : 1;
+    if (token.tokenType === 'MAJOR') bonus += hasDevUnlocked(player, 'miletus-dev-3') ? 2 : 0.8;
+  }
+  if (player.cityId === 'athens' && (token.color === 'GREEN' || token.color === 'RED')) {
+    bonus += player.developmentLevel < 2 ? 3 : 1;
+  }
+  if (player.cityId === 'argos' && token.color === 'BLUE') {
+    bonus += player.developmentLevel < 3 ? 5.5 : 1.4;
+  }
+  if (player.cityId === 'argos' && token.tokenType === 'MAJOR') {
+    bonus += player.gloryTrack * 0.7 + 1.8;
+  }
+  return bonus;
+}
+
 function canExploreToken(actor: PlayerState, token: KnowledgeToken, troopAfterGain: number): boolean {
   const requirement = token.militaryRequirement ?? 0;
   return troopAfterGain >= requirement;
@@ -4211,13 +5562,54 @@ function knowledgeCounts(player: PlayerState): Record<KnowledgeColor, number> {
 
 function rankedKnowledgeColors(player: PlayerState): KnowledgeColor[] {
   const counts = knowledgeCounts(player);
-  return (['GREEN', 'BLUE', 'RED'] as KnowledgeColor[])
+  return [...KNOWLEDGE_COLORS]
     .sort((a, b) => knowledgeColorNeed(player, b) - knowledgeColorNeed(player, a) || counts[a] - counts[b]);
 }
 
 function knowledgeColorNeed(player: PlayerState, color: KnowledgeColor): number {
   const field = color.toLowerCase() as 'green' | 'blue' | 'red';
-  return player.handCards.reduce((sum, card) => sum + Math.max(0, card.knowledgeRequirement[field] - knowledgeCounts(player)[color]), 0);
+  const counts = knowledgeCounts(player);
+  const cardNeed = player.handCards.reduce((sum, card) => sum + Math.max(0, card.knowledgeRequirement[field] - counts[color]), 0);
+  return cardNeed + developmentKnowledgeColorNeed(player, color, counts);
+}
+
+function developmentKnowledgeColorNeed(
+  player: PlayerState,
+  color: KnowledgeColor,
+  counts = knowledgeCounts(player),
+): number {
+  const city = CITY_BY_ID.get(player.cityId);
+  if (!city) return 0;
+  const field = color.toLowerCase() as 'green' | 'blue' | 'red';
+  const weights = player.cityId === 'olympia' ? [6, 3.4, 1.7] : [4.2, 2.2, 1.1];
+  return city.developments
+    .slice(player.developmentLevel, Math.min(city.developments.length, player.developmentLevel + 3))
+    .reduce((sum, dev, index) => {
+      const missing = Math.max(0, dev.knowledgeRequirement[field] - counts[color]);
+      if (missing <= 0) return sum;
+      return sum + missing * (weights[index] ?? 0.8);
+    }, 0);
+}
+
+function minorKnowledgeValue(player: PlayerState, color: KnowledgeColor): number {
+  const colorNeed = knowledgeColorNeed(player, color);
+  const developmentNeed = developmentKnowledgeColorNeed(player, color);
+  const cityBonus = cityKnowledgeTokenBonus(player, {
+    id: `virtual-${color.toLowerCase()}-minor`,
+    color,
+    tokenType: 'MINOR',
+  });
+  return 3 + colorNeed * 0.9 + developmentNeed * 0.8 + cityBonus;
+}
+
+function developmentReadinessScore(player: PlayerState): number {
+  const city = CITY_BY_ID.get(player.cityId);
+  const dev = city?.developments[player.developmentLevel];
+  if (!dev) return 0;
+  const missingKnowledge = knowledgeShortfall(player, dev.knowledgeRequirement);
+  const scrollCovered = Math.max(0, missingKnowledge * 2 - player.philosophyTokens);
+  const coinGap = Math.max(0, dev.drachmaCost - player.coins);
+  return Math.max(0, 12 - missingKnowledge * 2.5 - scrollCovered - coinGap * 1.5);
 }
 
 function progressCost(player: PlayerState, track: ProgressTrackType): number {
@@ -4303,7 +5695,12 @@ function progressValue(player: PlayerState, track: ProgressTrackType): number {
     track === 'CULTURE' && [3, 5, 6, 7].includes(next) ? 4 :
     track === 'MILITARY' && [2, 4, 6, 7].includes(next) ? 4 :
     0;
-  return 4 + milestone - progressCost(player, track) * 0.5;
+  return 4
+    + milestone
+    + trackDeltaValue(player, track, 1) * 0.75
+    + cityProgressValue(player, track, next)
+    - progressCost(player, track) * 0.5
+    - politicsCashReservePenalty(player, progressCost(player, track));
 }
 
 function eventProgressValue(player: PlayerState, track: ProgressTrackType, discount: number): number {
@@ -4313,11 +5710,64 @@ function eventProgressValue(player: PlayerState, track: ProgressTrackType, disco
     track === 'CULTURE' && [3, 5, 6, 7].includes(next) ? 4 :
     track === 'MILITARY' && [2, 4, 6, 7].includes(next) ? 4 :
     0;
-  return 4 + milestone - discountedProgressCost(player, track, discount) * 0.5;
+  return 4
+    + milestone
+    + trackDeltaValue(player, track, 1) * 0.75
+    + cityProgressValue(player, track, next)
+    - discountedProgressCost(player, track, discount) * 0.5
+    - politicsCashReservePenalty(player, discountedProgressCost(player, track, discount));
+}
+
+function politicsCashReservePenalty(player: PlayerState, spend: number): number {
+  if (spend <= 0 || player.handCards.length === 0) return 0;
+  const afterCoins = player.coins - spend;
+  const playableByKnowledge = player.handCards
+    .filter(card => knowledgeShortfall(player, card.knowledgeRequirement) * 2 <= player.philosophyTokens)
+    .filter(card => player.coins >= card.cost && afterCoins < card.cost)
+    .sort((a, b) => cardValue(b, player) - cardValue(a, player));
+  const blocked = playableByKnowledge[0];
+  if (!blocked) return 0;
+  const coinGap = Math.max(0, blocked.cost - afterCoins);
+  return Math.min(14, coinGap * 1.5 + Math.max(0, cardValue(blocked, player) - 8) * 0.28);
+}
+
+function cityProgressValue(player: PlayerState, track: ProgressTrackType, next: number): number {
+  switch (player.cityId) {
+    case 'olympia':
+      if (track !== 'CULTURE') return track === 'ECONOMY' && next <= 4 ? 0.8 : 0;
+      return 7.5
+        + next * 0.8
+        + (next >= 4 ? 5 : 0)
+        + (hasDevUnlocked(player, 'olympia-dev-2') ? 6 : 0)
+        + (player.developmentLevel < 3 ? 2.4 : 0)
+        + (hasCardInHandOrPlay(player, 'stoa-poikile') ? 1.5 : 0)
+        + (hasCardInHandOrPlay(player, 'persians') ? 1.2 : 0);
+    case 'miletus':
+      return track === 'ECONOMY'
+        ? 3.2 + (next >= 4 ? 2 : 0) + (hasDevUnlocked(player, 'miletus-dev-3') ? 1.5 : 0)
+        : player.developmentLevel <= 1 ? 1.2 : 0;
+    case 'sparta':
+      return track === 'MILITARY' ? 3.4 + (next >= 4 ? 1.6 : 0) : track === 'ECONOMY' && next <= 4 ? 1 : 0;
+    case 'argos':
+      return track === 'MILITARY' ? 3 + (next >= 4 ? 1.4 : 0) : track === 'ECONOMY' && next <= 4 ? 0.8 : 0;
+    case 'thebes':
+      return track === 'MILITARY' ? 2.8 + (next >= 4 ? 1.2 : 0) : track === 'ECONOMY' && next <= 4 ? 1 : 0;
+    case 'corinth':
+      return 1.5 + (hasDevUnlocked(player, 'corinth-dev-3') ? 1.2 : 0);
+    case 'athens':
+      return track === 'ECONOMY' ? 1.5 : track === 'CULTURE' && next >= 4 ? 1.2 : 0;
+    default:
+      return 0;
+  }
 }
 
 function hasCard(player: PlayerState, cardId: string): boolean {
   return player.playedCards.some(card => card.id === cardId);
+}
+
+function hasCardInHandOrPlay(player: PlayerState, cardId: string): boolean {
+  return player.playedCards.some(card => card.id === cardId)
+    || player.handCards.some(card => card.id === cardId);
 }
 
 function trackField(track: ProgressTrackType): 'economyTrack' | 'cultureTrack' | 'militaryTrack' {
@@ -4344,8 +5794,14 @@ function combinations<T>(items: T[], size: number): T[][] {
 }
 
 function tokenLabel(token: KnowledgeToken): string {
-  const special = token.isPersepolis ? ' Persepolis' : '';
-  return `${formatColor(token.color)} ${token.tokenType.toLowerCase()}${special}`;
+  const name = token.isPersepolis ? 'Persepolis' : `${formatColor(token.color)} ${token.tokenType.toLowerCase()}`;
+  const details = [
+    token.militaryRequirement !== undefined ? `requires ${token.militaryRequirement} troops` : null,
+    token.skullValue !== undefined ? `${token.skullValue} skulls` : null,
+    token.bonusVP ? `+${token.bonusVP} VP` : null,
+    token.bonusCoins ? `+${token.bonusCoins} drachma` : null,
+  ].filter(Boolean);
+  return details.length ? `${name} (${details.join(', ')})` : name;
 }
 
 function formatColor(color: KnowledgeColor): string {
@@ -4406,6 +5862,7 @@ function provenExactResult(
     completedLines: 1,
     computeMs: Date.now() - start,
     horizon: 'FULL_GAME',
+    verifiedFinalScore: solvedStateScore(exact.node.state, playerId),
     proofStatus: 'PROVEN_OPTIMAL',
     proofNodes: exact.nodes,
     proofReason: exact.reason,
@@ -4421,6 +5878,10 @@ function unavailableResult(requestId: string, playerId: string, start: number, m
 }
 
 export const __liveSolverInternals = {
+  chooseRolloutCandidate,
+  stateSignature,
+  rankAndPruneNodes,
+  heuristicScore,
   enumerateCandidates,
   enumerateExactCandidates,
   orderSearchCandidates,
@@ -4429,6 +5890,9 @@ export const __liveSolverInternals = {
   eventCompetitionOutlookScore,
   rankStrategyProfiles,
   strategyCandidateBonus,
+  cityStrategyCandidateBonus,
+  candidateFollowabilityScore,
   applyMessage,
+  autoResolve,
   chooseBestActivation,
 };

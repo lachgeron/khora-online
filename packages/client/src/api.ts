@@ -56,7 +56,7 @@ export async function getCities() {
 }
 
 /** Update lobby settings (e.g. recordStats toggle, draftMode). */
-export async function updateLobbySettings(lobbyId: string, settings: { recordStats?: boolean; draftMode?: string }) {
+export async function updateLobbySettings(lobbyId: string, settings: { recordStats?: boolean; draftMode?: string; includeExpansionCards?: boolean; requestingPlayerId?: string }) {
   const res = await fetch(`${BASE_URL}/lobbies/${lobbyId}/settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

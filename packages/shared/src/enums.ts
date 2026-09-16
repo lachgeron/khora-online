@@ -74,6 +74,7 @@ export type DraftMode = 'STANDARD' | 'PICK_BAN';
 
 /** Types of decisions a player can be prompted for. */
 export type DecisionType =
+  | 'EXPANSION_CHOICE'
   | 'SELECT_CITY'
   | 'DRAFT_CARD'
   | 'PICK_BAN_CARD'

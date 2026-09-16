@@ -1,0 +1,138 @@
+Khora Online server running on http://localhost:3001
+WebSocket endpoint: ws://localhost:3001/ws
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 60000ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-2-mtns6gb8)
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59679ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-2-mtns6gb8)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59233ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mtns5wmt)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59998ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mtns5wmt, DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 45361ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mtns5wmt, DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 48718ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mtns5wmt, DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 48070ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mtns5wmt, DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 46493ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mtns5wmt, DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 50378ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 14999ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 14999ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 9999ms (phase: DICE, decisions: ROLL_DICE@player-1-mtns5wmt, ROLL_DICE@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 1000ms (phase: DICE, decisions: ROLL_DICE@player-2-mtns6gb8)
+[TIMER] Normal timer expired for player-2-mtns6gb8 in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7, switching to time bank
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 119997ms (phase: DICE, decisions: ROLL_DICE@player-2-mtns6gb8)
+[TIMER] Deducted 18130ms from time bank for player-2-mtns6gb8 in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7 (101870ms remaining)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59999ms (phase: DICE, decisions: ASSIGN_DICE@player-1-mtns5wmt, ASSIGN_DICE@player-2-mtns6gb8)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5545ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[TIMER] Normal timer expired for player-2-mtns6gb8 in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7, switching to time bank
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 101867ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[WS] Player player-1-mtns5wmt disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-2-mtns6gb8 disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-1-mtns5wmt reconnected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15161ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-2-mtns6gb8 reconnected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15147ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 14150ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 14135ms (phase: DICE, decisions: ASSIGN_DICE@player-2-mtns6gb8)
+[TIMER] Time bank exhausted for player-2-mtns6gb8 in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7; flagging player
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 29999ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 7126ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 7112ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[TIMER] Normal timer expired for player-1-mtns5wmt in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7, switching to time bank
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 119997ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 97116ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 97102ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[TIMER] Deducted 48363ms from time bank for player-1-mtns5wmt in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7 (71637ms remaining)
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 59998ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 55469ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-2-mtns6gb8 connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 55455ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-1-mtns5wmt disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-2-mtns6gb8 disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-2-mtns6gb8 disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-1-mtns5wmt disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-1-mtns5wmt connected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[WS] Player player-1-mtns5wmt reconnected to game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 18514ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[TIMER] Normal timer expired for player-1-mtns5wmt in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7, switching to time bank
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 71635ms (phase: ACTIONS, decisions: RESOLVE_ACTION@player-1-mtns5wmt)
+[WS] Player player-1-mtns5wmt disconnected from game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Time bank exhausted for player-1-mtns5wmt in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7; flagging player
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7
+[TIMER] Setting timer for game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 973ddd08-d6c8-4a1d-8f5b-f729324e53f7

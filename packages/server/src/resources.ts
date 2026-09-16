@@ -44,6 +44,9 @@ export function trackField(track: TrackType): keyof PlayerState {
  * Automatically applies milestone rewards for Economy, Culture, and Military.
  */
 export function advanceTrack(player: PlayerState, track: TrackType, amount: number): PlayerState {
+  if (track === 'GLORY' && amount > 0 && player.playedCards.some(c => c.id === 'frescoes-by-polygnotus')) {
+    return { ...player, pendingGloryGains: (player.pendingGloryGains ?? 0) + amount };
+  }
   const field = trackField(track);
   const oldLevel = player[field] as number;
   let newLevel = oldLevel + amount;
@@ -104,7 +107,7 @@ function applyMilestone(p: PlayerState, m: Milestone): PlayerState {
   if (m.citizens) updated = { ...updated, citizenTrack: Math.min(updated.citizenTrack + m.citizens, MAX_CITIZEN_TRACK) };
   if (m.vp) updated = { ...updated, victoryPoints: updated.victoryPoints + m.vp };
   if (m.taxes) updated = { ...updated, taxTrack: Math.min(updated.taxTrack + m.taxes, MAX_TAX_GLORY_TRACK) };
-  if (m.glory) updated = { ...updated, gloryTrack: Math.min(updated.gloryTrack + m.glory, MAX_TAX_GLORY_TRACK) };
+  if (m.glory) updated = advanceTrack(updated, 'GLORY', m.glory);
   return updated;
 }
 

@@ -44,7 +44,7 @@ export class LegislationResolver implements ActionResolver {
     player = addCitizens(player, CITIZENS_GAINED);
 
     // Step 2: Draw 2 cards (or fewer if deck is small)
-    const drawCount = Math.min(CARDS_DRAWN, updatedState.politicsDeck.length);
+    const drawCount = Math.min(CARDS_DRAWN + (player.playedCards.some(c => c.id === 'ecclesia') ? 1 : 0), updatedState.politicsDeck.length);
     const { cards: drawnCards, updatedState: stateAfterDraw } = drawCards(updatedState, drawCount);
     updatedState = stateAfterDraw;
 

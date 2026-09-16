@@ -17,6 +17,7 @@ import type { GameState, PlayerState, ActionType, PoliticsCard, ActionChoices } 
 import { createMinorToken } from './knowledge-tokens';
 import { applyEffectToPlayer } from './effects';
 import { advanceTrack, MAX_TAX_GLORY_TRACK } from './resources';
+import { queueExpansionChoice } from './expansion-choices';
 
 // ─── ONGOING CARD TRIGGERS ───────────────────────────────────────────────────
 
@@ -44,6 +45,19 @@ function updatePlayer(state: GameState, playerId: string, fn: (p: PlayerState) =
 }
 
 export const ONGOING_HANDLERS: OngoingCardHandler[] = [
+  { cardId: 'histories-of-herodotus', trigger: { type: 'ON_ACTION', actionType: 'POLITICS' },
+    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, philosophyTokens: p.philosophyTokens + 1 })) },
+  { cardId: 'slaves-market', trigger: { type: 'ON_ACTION', actionType: 'MILITARY' },
+    apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, coins: p.coins + 1 })) },
+  { cardId: 'xenophons-memoirs', trigger: { type: 'ON_ACTION', actionType: 'PHILOSOPHY' },
+    apply: (s, pid) => updatePlayer(s, pid, p => advanceTrack(p, 'TROOP', 2)) },
+  { cardId: 'epidaurus', trigger: { type: 'ON_ACTION', actionType: 'CULTURE' },
+    apply: (s, pid) => queueExpansionChoice(s, { playerId: pid, cardId: 'epidaurus', kind: 'REWARD' }) },
+  { cardId: 'architect', trigger: { type: 'ON_ACTION', actionType: 'DEVELOPMENT' },
+    apply: (s, pid) => queueExpansionChoice(s, { playerId: pid, cardId: 'architect', kind: 'POLITICS', extraCost: 1 }) },
+  { cardId: 'enlistment', trigger: { type: 'ON_TAX_PHASE' },
+    apply: (s, pid) => s.players.find(p => p.playerId === pid)!.citizenTrack > 0
+      ? queueExpansionChoice(s, { playerId: pid, cardId: 'enlistment', kind: 'ENLIST' }) : s },
   // Stoa Poikile: +2 Drachma on culture action
   { cardId: 'stoa-poikile', trigger: { type: 'ON_ACTION', actionType: 'CULTURE' },
     apply: (s, pid) => updatePlayer(s, pid, p => ({ ...p, coins: p.coins + 2 })) },
@@ -206,6 +220,14 @@ export function applyImmediateCardEffect(
 }
 
 const IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId: string, choices?: ActionChoices) => GameState> = {
+  'helots': (s, pid) => updatePlayer(s, pid, p => ({ ...p, coins: p.coins + p.gloryTrack * 3, gloryTrack: 0 })),
+  'trade-agreement': (s, pid) => ({ ...s, players: s.players.map(p => ({ ...p, coins: p.coins + (p.playerId === pid ? 5 : 2) })) }),
+  'heraclides': (s, pid) => s.players.find(p => p.playerId === pid)!.knowledgeTokens.some(t => t.tokenType === 'MINOR')
+    ? queueExpansionChoice(s, { playerId: pid, cardId: 'heraclides', kind: 'TOKEN' }) : s,
+  'demagorgy': (s, pid) => queueExpansionChoice(s, { playerId: pid, cardId: 'demagorgy', kind: 'COINS' }),
+  'mausoleum-of-halikarnassos': (s, pid) => s.politicsDeck.length > 0
+    ? queueExpansionChoice(s, { playerId: pid, cardId: 'mausoleum-of-halikarnassos', kind: 'DRAW', cards: s.politicsDeck.slice(-5) })
+    : queueExpansionChoice(s, { playerId: pid, cardId: 'mausoleum-of-halikarnassos', kind: 'POLITICS' }),
   // Gifts from the West: gain 3 Drachma
   'gifts-from-the-west': (s, pid) => updatePlayer(s, pid, p => ({ ...p, coins: p.coins + 3 })),
 

@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-05T02:41:04.008Z",
+  "options": {
+    "bookPath": "C:\\Users\\User\\Documents\\KHORA\\packages\\client\\public\\live-solver-reference-lines.json",
+    "snapshotPath": null,
+    "cities": [
+      "olympia"
+    ],
+    "seeds": [
+      1
+    ],
+    "budgets": [
+      5000,
+      30000
+    ],
+    "referenceLineWeight": 32
+  },
+  "sourceBook": {
+    "lineCount": 328,
+    "bestScore": 110,
+    "bestByCity": {
+      "olympia": 110,
+      "miletus": 109,
+      "argos": 106,
+      "thebes": 90,
+      "sparta": 87,
+      "athens": 85,
+      "corinth": 83
+    }
+  },
+  "rows": [
+    {
+      "suite": "city-open",
+      "cityId": "olympia",
+      "seed": 1,
+      "budgetMs": 5000,
+      "score": 34,
+      "target": 100,
+      "gap": -66,
+      "valid": true,
+      "horizon": "FULL_GAME",
+      "completedLines": 4,
+      "searchedNodes": 977,
+      "elapsedMs": 5495,
+      "failedMoveIndex": null,
+      "validationErrors": [],
+      "firstMoves": [
+        "Roll dice",
+        "Assign 1 to Legislation and 4 to Politics",
+        "Legislation: keep Oracle",
+        "Politics: play Tunnel of Eupalinos",
+        "Advance Culture",
+        "Roll dice",
+        "Assign 2 to Trade and 4 to Military",
+        "Trade for drachma"
+      ]
+    },
+    {
+      "suite": "city-open",
+      "cityId": "olympia",
+      "seed": 1,
+      "budgetMs": 30000,
+      "score": 58,
+      "target": 100,
+      "gap": -42,
+      "valid": true,
+      "horizon": "FULL_GAME",
+      "completedLines": 29,
+      "searchedNodes": 10428,
+      "elapsedMs": 30374,
+      "failedMoveIndex": null,
+      "validationErrors": [],
+      "firstMoves": [
+        "Roll dice",
+        "Assign 1 to Trade and 4 to Military",
+        "Trade for drachma",
+        "Military without exploring",
+        "Advance Military",
+        "Roll dice",
+        "Assign 2 to Trade and 4 to Military",
+        "Trade for drachma"
+      ]
+    }
+  ],
+  "summary": {
+    "allValid": true,
+    "targetRowsMet": 0,
+    "targetRows": 2,
+    "bestByCity": {
+      "olympia": 58
+    }
+  }
+}

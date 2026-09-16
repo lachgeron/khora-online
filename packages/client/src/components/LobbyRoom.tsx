@@ -8,6 +8,10 @@ export interface LobbyRoomProps {
   hostPlayerId: string;
   recordStats: boolean;
   draftMode: DraftMode;
+  includeExpansionCards: boolean;
+  settingsSaving: boolean;
+  error: string | null;
+  onToggleExpansionCards: (value: boolean) => void;
   onToggleRecordStats: (value: boolean) => void;
   onChangeDraftMode: (mode: DraftMode) => void;
   onStartGame: () => void;
@@ -15,7 +19,7 @@ export interface LobbyRoomProps {
 }
 
 export const LobbyRoom: React.FC<LobbyRoomProps> = ({
-  players, currentPlayerId, hostPlayerId, recordStats, draftMode, onToggleRecordStats, onChangeDraftMode, onStartGame, onBack,
+  players, currentPlayerId, hostPlayerId, recordStats, draftMode, includeExpansionCards, settingsSaving, error, onToggleExpansionCards, onToggleRecordStats, onChangeDraftMode, onStartGame, onBack,
 }) => {
   const isHost = currentPlayerId === hostPlayerId;
 
@@ -79,10 +83,18 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
           </div>
         </div>
 
+        <label className="flex items-center justify-center gap-2 mb-4 select-none">
+          <input type="checkbox" checked={includeExpansionCards}
+            disabled={!isHost || settingsSaving}
+            onChange={e => onToggleExpansionCards(e.target.checked)}
+            className="w-4 h-4 accent-gold rounded" />
+          <span className="text-sm text-sand-600">Include expansion cards (21 cards)</span>
+        </label>
+        {error && <p role="alert" className="text-sm text-crimson mb-3">{error}</p>}
         {isHost && (
           <button
             onClick={onStartGame}
-            disabled={players.length < 2}
+            disabled={players.length < 2 || settingsSaving}
             className="w-full px-4 py-3 bg-gold text-sand-900 rounded-lg font-semibold text-sm hover:bg-gold-dim disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Start Game ({players.length}/4 players)

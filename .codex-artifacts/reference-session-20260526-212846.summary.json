@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "stamp": "20260526-212846",
+  "startedAt": "2026-05-26T11:28:46.084Z",
+  "endedAt": "2026-05-26T11:28:51.883Z",
+  "durationMs": 20000,
+  "configuredPassBudgetMs": 5000,
+  "finalPassBudgetMs": 5000,
+  "heapMb": 8192,
+  "commandDefaults": [
+    "--reference-weight",
+    "28"
+  ],
+  "forwardedSearchArgs": [
+    "--out",
+    ".codex-artifacts/session-smoke-book.json",
+    "--runtime-out",
+    ".codex-artifacts/session-smoke-runtime.json",
+    "--keep",
+    "5",
+    "--keep-per-city",
+    "2",
+    "--runtime-lines",
+    "5",
+    "--reference-limit",
+    "5",
+    "--completion",
+    "20",
+    "--max-plies",
+    "200",
+    "--max-decision-plies",
+    "500",
+    "--run-name",
+    "reference-session-20260526-212846"
+  ],
+  "passes": [
+    {
+      "pass": 1,
+      "startedAt": "2026-05-26T11:28:46.085Z",
+      "endedAt": "2026-05-26T11:28:47.217Z",
+      "durationMs": 1132,
+      "passBudgetMs": 5000,
+      "exitCode": 1,
+      "signal": null,
+      "success": false,
+      "reducedNextBudget": true
+    },
+    {
+      "pass": 2,
+      "startedAt": "2026-05-26T11:28:47.218Z",
+      "endedAt": "2026-05-26T11:28:48.218Z",
+      "durationMs": 1000,
+      "passBudgetMs": 5000,
+      "exitCode": 1,
+      "signal": null,
+      "success": false,
+      "reducedNextBudget": true
+    },
+    {
+      "pass": 3,
+      "startedAt": "2026-05-26T11:28:48.220Z",
+      "endedAt": "2026-05-26T11:28:49.743Z",
+      "durationMs": 1523,
+      "passBudgetMs": 5000,
+      "exitCode": 1,
+      "signal": null,
+      "success": false,
+      "reducedNextBudget": true
+    },
+    {
+      "pass": 4,
+      "startedAt": "2026-05-26T11:28:49.745Z",
+      "endedAt": "2026-05-26T11:28:50.696Z",
+      "durationMs": 951,
+      "passBudgetMs": 5000,
+      "exitCode": 1,
+      "signal": null,
+      "success": false,
+      "reducedNextBudget": true
+    },
+    {
+      "pass": 5,
+      "startedAt": "2026-05-26T11:28:50.698Z",
+      "endedAt": "2026-05-26T11:28:51.881Z",
+      "durationMs": 1183,
+      "passBudgetMs": 5000,
+      "exitCode": 1,
+      "signal": null,
+      "success": false,
+      "reducedNextBudget": true
+    }
+  ],
+  "book": null,
+  "benchmark": {
+    "ran": false,
+    "exitCode": null,
+    "reportPath": null
+  }
+}

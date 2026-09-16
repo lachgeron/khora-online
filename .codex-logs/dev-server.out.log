@@ -1,0 +1,278 @@
+
+> khora-online@0.0.1 dev:server
+> npm run start --workspace=packages/server
+
+
+> @khora/server@0.0.1 start
+> tsx src/main.ts
+
+Khora Online server running on http://localhost:3001
+WebSocket endpoint: ws://localhost:3001/ws
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 60000ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[WS] Player player-1-mpky4o14 connected to game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59991ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[WS] Player player-1-mpky4o14 connected to game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 19922ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[WS] Player player-2-mpky4yjr connected to game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 19920ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[WS] Player player-3-mpky5040 connected to game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 19918ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[WS] Player player-4-mpky51o7 connected to game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 19916ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-1-mpky4o14)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59998ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-3-mpky5040)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59999ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59998ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-2-mpky4yjr)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mpky4o14, DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59996ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59994ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59998ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mpky4o14, DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59996ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59993ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mpky4o14, DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59993ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mpky4o14, DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59993ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59998ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-1-mpky4o14, DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-2-mpky4yjr, DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-3-mpky5040, DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 59993ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-4-mpky51o7)
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 14999ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-4-mpky51o7 disconnected from game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[WS] Player player-3-mpky5040 disconnected from game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[WS] Player player-2-mpky4yjr disconnected from game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[WS] Player player-1-mpky4o14 disconnected from game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 9999ms (phase: DICE, decisions: ROLL_DICE@player-1-mpky4o14)
+[TIMER] Normal timer expired for player-1-mpky4o14 in game 087d0195-4b56-4f04-bb13-2a410e5ab53e, switching to time bank
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 119999ms (phase: DICE, decisions: ROLL_DICE@player-1-mpky4o14)
+[WS] Player player-1-mpky4o14 disconnected from game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Time bank exhausted for player-1-mpky4o14 in game 087d0195-4b56-4f04-bb13-2a410e5ab53e; flagging player
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 60000ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[WS] Player player-5-mpkzfvrq connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59992ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Normal timer expired for player-8-mpkzg9yi in game 3f7d15f3-be89-4934-a0df-f9e420ac9194, switching to time bank
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 119999ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-7-mpkzg8e7 connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 94764ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[WS] Player player-6-mpkzg6tg connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 94763ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[WS] Player player-8-mpkzg9yi connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 94761ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-8-mpkzg9yi)
+[TIMER] Deducted 25241ms from time bank for player-8-mpkzg9yi in game 3f7d15f3-be89-4934-a0df-f9e420ac9194 (94759ms remaining)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59998ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-5-mpkzfvrq)
+[WS] Player player-7-mpkzg8e7 disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59999ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-6-mpkzg6tg)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-7-mpkzg8e7 connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-7-mpkzg8e7 reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 36534ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-6-mpkzg6tg)
+[WS] Player player-6-mpkzg6tg connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 36532ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-6-mpkzg6tg)
+[WS] Player player-8-mpkzg9yi connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 36530ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-6-mpkzg6tg)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59999ms (phase: CITY_SELECTION, decisions: SELECT_CITY@player-7-mpkzg8e7)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59994ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq)
+[WS] Player player-7-mpkzg8e7 disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 60000ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 37209ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-6-mpkzg6tg connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 7714ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[WS] Player player-7-mpkzg8e7 connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-7-mpkzg8e7 reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 7712ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[WS] Player player-8-mpkzg9yi connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 7710ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 7709ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 7707ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59995ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59994ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq)
+[WS] Player player-6-mpkzg6tg disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-7-mpkzg8e7 disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 60000ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 50042ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-6-mpkzg6tg connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 29492ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[WS] Player player-7-mpkzg8e7 connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-7-mpkzg8e7 reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 29491ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[WS] Player player-8-mpkzg9yi connected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi reconnected to game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 29488ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 29487ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 29485ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59999ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-6-mpkzg6tg, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59997ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-7-mpkzg8e7, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59996ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq, DRAFT_CARD@player-8-mpkzg9yi)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 59994ms (phase: DRAFT_POLITICS, decisions: DRAFT_CARD@player-5-mpkzfvrq)
+[WS] Player player-7-mpkzg8e7 disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-8-mpkzg9yi disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[WS] Player player-6-mpkzg6tg disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 10000ms (phase: DICE, decisions: ROLL_DICE@player-5-mpkzfvrq)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Normal timer expired for player-5-mpkzfvrq in game 3f7d15f3-be89-4934-a0df-f9e420ac9194, switching to time bank
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 119998ms (phase: DICE, decisions: ROLL_DICE@player-5-mpkzfvrq)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[TIMER] Setting timer for game 087d0195-4b56-4f04-bb13-2a410e5ab53e: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 087d0195-4b56-4f04-bb13-2a410e5ab53e
+[STATS] Recorded game with 4 players
+[TIMER] Time bank exhausted for player-5-mpkzfvrq in game 3f7d15f3-be89-4934-a0df-f9e420ac9194; flagging player
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 4999ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 14999ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[WS] Player player-5-mpkzfvrq disconnected from game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: OMEN, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: TAXATION, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 5000ms (phase: ACTIONS, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[TIMER] Setting timer for game 3f7d15f3-be89-4934-a0df-f9e420ac9194: 15000ms (phase: GLORY, decisions: PHASE_DISPLAY@__display__)
+[TIMER] Auto-resolving PHASE_DISPLAY for __display__ in game 3f7d15f3-be89-4934-a0df-f9e420ac9194
+[STATS] Recorded game with 4 players

@@ -20,7 +20,15 @@ import { buildLiveSolverSnapshot } from './live-solver-snapshot';
  * Extracts public fields from a PlayerState.
  * Track levels, card counts, development level, VP visible to all.
  */
-export function buildPublicPlayerState(player: PlayerState): PublicPlayerState {
+export function shouldHideActionAssignments(state: GameState): boolean {
+  return state.currentPhase === 'DICE'
+    && state.pendingDecisions.some(decision => decision.decisionType === 'ASSIGN_DICE');
+}
+
+export function buildPublicPlayerState(
+  player: PlayerState,
+  options: { hideActionSlots?: boolean } = {},
+): PublicPlayerState {
   return {
     playerId: player.playerId,
     playerName: player.playerName,
@@ -42,9 +50,11 @@ export function buildPublicPlayerState(player: PlayerState): PublicPlayerState {
     developmentLevel: player.developmentLevel,
     victoryPoints: player.victoryPoints,
     diceRoll: player.diceRoll,
-    actionSlots: player.actionSlots
-      .filter((s): s is NonNullable<typeof s> => s !== null)
-      .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
+    actionSlots: options.hideActionSlots
+      ? []
+      : player.actionSlots
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .map(s => ({ actionType: s.actionType, resolved: s.resolved })),
     isConnected: player.isConnected,
     hasFlagged: player.hasFlagged,
     timeBankMs: player.timeBankMs,
@@ -79,6 +89,7 @@ export function buildPublicGameState(state: GameState): PublicGameState {
   const cityDraft = state.draftState?.cityDraft ?? null;
   const politicsDraft = state.draftState?.politicsDraft ?? null;
   const pickBanDraft = state.draftState?.pickBanDraft ?? null;
+  const hideActionSlots = shouldHideActionAssignments(state);
 
   return {
     roundNumber: state.roundNumber,
@@ -95,7 +106,10 @@ export function buildPublicGameState(state: GameState): PublicGameState {
       const effectiveTimeBankMs = pending
         ? Math.min(player.timeBankMs, Math.max(0, pending.timeoutAt - Date.now()))
         : player.timeBankMs;
-      return buildPublicPlayerState({ ...player, timeBankMs: effectiveTimeBankMs });
+      return buildPublicPlayerState(
+        { ...player, timeBankMs: effectiveTimeBankMs },
+        { hideActionSlots },
+      );
     }),
     gameLog: state.gameLog,
     pendingDecisions: state.pendingDecisions.map((d) => ({
@@ -168,7 +182,7 @@ export function getStateForPlayer(
       const lowest = Math.min(...unresolved.map(s => ACTION_NUMBERS[s.actionType]));
       const nextAction = unresolved.find(s => ACTION_NUMBERS[s.actionType] === lowest);
       if (nextAction?.actionType === 'LEGISLATION' && state.politicsDeck.length > 0) {
-        legislationDraw = state.politicsDeck.slice(0, Math.min(2, state.politicsDeck.length));
+        legislationDraw = state.politicsDeck.slice(0, player.playedCards.some(c => c.id === 'ecclesia') ? 3 : 2);
       }
     }
   }
@@ -179,7 +193,7 @@ export function getStateForPlayer(
       d => d.playerId === playerId && d.decisionType === 'CONQUEST_ACTION',
     );
     if (hasConquestDecision) {
-      legislationDraw = state.politicsDeck.slice(0, Math.min(2, state.politicsDeck.length));
+      legislationDraw = state.politicsDeck.slice(0, player.playedCards.some(c => c.id === 'ecclesia') ? 3 : 2);
     }
   }
 
@@ -190,7 +204,12 @@ export function getStateForPlayer(
         draftPack,
         draftedCards,
         legislationDraw,
-        liveSolverSnapshot: buildLiveSolverSnapshot(state),
+        expansionChoice: state.expansionChoices?.[0]?.playerId === playerId ? state.expansionChoices[0] : null,
+        nextActionType: (state.pendingDecisions.find(d => d.playerId === playerId && d.decisionType === 'RESOLVE_ACTION')?.options as { actionType?: import('@khora/shared').ActionType } | null)?.actionType,
+        liveSolverSnapshot: buildLiveSolverSnapshot(state, {
+          viewerPlayerId: playerId,
+          hideUnrevealedActionSlots: shouldHideActionAssignments(state),
+        }),
       }
     : {
         coins: 0,

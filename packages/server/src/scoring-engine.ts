@@ -55,7 +55,9 @@ export function calculateFinalScores(state: GameState): FinalScoreBoard {
     let politicsCardPoints = 0;
     for (const card of player.playedCards) {
       if (card.type === 'END_GAME' && card.endGameScoring !== null) {
-        const pts = card.endGameScoring.calculate(player);
+        const pts = card.id === 'favour-of-the-gods'
+          ? state.players.filter(p => p.playerId !== player.playerId && p.gloryTrack > player.gloryTrack).length * 5
+          : card.endGameScoring.calculate(player);
         politicsCardPoints += pts;
         if (pts > 0) {
           detailedSources.push({ label: `${card.name}: ${card.endGameScoring.description}`, points: pts });
@@ -78,11 +80,18 @@ export function calculateFinalScores(state: GameState): FinalScoreBoard {
       detailedSources.push({ label: `Glory (${player.gloryTrack}) × Major tokens (${majorKnowledgeCount})`, points: gloryKnowledgePoints });
     }
 
-    const totalPoints =
+    let totalPoints =
       player.victoryPoints +
       developmentPoints +
       politicsCardPoints +
       gloryKnowledgePoints;
+
+    if (player.playedCards.some(card => card.id === 'hades')) {
+      const bonus = Math.floor(totalPoints / 10);
+      politicsCardPoints += bonus;
+      totalPoints += bonus;
+      detailedSources.push({ label: 'Hades: 1 VP per 10 final VP', points: bonus });
+    }
 
     return {
       playerId: player.playerId,

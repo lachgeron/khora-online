@@ -174,7 +174,7 @@ export class PickBanDraftPhaseManager implements PhaseManager {
 
   private advanceTurn(draft: PickBanDraftState): PickBanDraftState {
     const playerCount = draft.turnOrder.length;
-    let nextIndex = (draft.currentTurnIndex + 1) % playerCount;
+    const nextIndex = (draft.currentTurnIndex + 1) % playerCount;
 
     // Check if we need to transition from BAN to PICK phase
     if (draft.phase === 'BAN') {

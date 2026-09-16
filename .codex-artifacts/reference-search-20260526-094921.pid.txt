@@ -1,0 +1,9 @@
+﻿{
+    "outLog":  "C:\\Users\\User\\Documents\\KHORA\\.codex-logs\\reference-search-20260526-094921.out.log",
+    "stamp":  "20260526-094921",
+    "command":  "npm run reference:search -- --budget 10m --keep 700 --keep-per-city 80 --runtime-lines 420 --reference-weight 28 --reference-limit 180 --run-name overnight-20260526-094921",
+    "npmPid":  2468,
+    "runnerPid":  33384,
+    "errLog":  "C:\\Users\\User\\Documents\\KHORA\\.codex-logs\\reference-search-20260526-094921.err.log",
+    "startedAt":  "2026-05-26T09:49:21.9397743+10:00"
+}

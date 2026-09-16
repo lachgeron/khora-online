@@ -77,6 +77,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
     }
 
     // --- Second military action ---
+    state = applyOngoingEffects(state, pid, { type: 'ON_ACTION', actionType: 'MILITARY' });
     // Gain troops = militaryTrack again
     state = updatePlayer(state, pid, p => ({
       ...p, troopTrack: p.troopTrack + p.militaryTrack,
@@ -95,7 +96,7 @@ export const DEV_IMMEDIATE_HANDLERS: Record<string, (state: GameState, playerId:
       }
     }
 
-    return state;
+    return applyOngoingEffects(state, pid, { type: 'ON_ACTION', actionType: 'MILITARY' });
   },
 
   // Olympia dev 4: Take 3 culture actions (resolved separately).

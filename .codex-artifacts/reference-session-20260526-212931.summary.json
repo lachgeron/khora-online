@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "stamp": "20260526-212931",
+  "startedAt": "2026-05-26T11:29:31.448Z",
+  "endedAt": "2026-05-26T11:29:54.607Z",
+  "durationMs": 20000,
+  "configuredPassBudgetMs": 5000,
+  "finalPassBudgetMs": 5000,
+  "heapMb": 8192,
+  "commandDefaults": [
+    "--reference-weight",
+    "28"
+  ],
+  "forwardedSearchArgs": [
+    "--out",
+    ".codex-artifacts/session-smoke-book.json",
+    "--runtime-out",
+    ".codex-artifacts/session-smoke-runtime.json",
+    "--keep",
+    "5",
+    "--keep-per-city",
+    "2",
+    "--runtime-lines",
+    "5",
+    "--reference-limit",
+    "5",
+    "--completion",
+    "20",
+    "--plies",
+    "200",
+    "--run-name",
+    "reference-session-20260526-212931"
+  ],
+  "passes": [
+    {
+      "pass": 1,
+      "startedAt": "2026-05-26T11:29:31.450Z",
+      "endedAt": "2026-05-26T11:29:39.948Z",
+      "durationMs": 8498,
+      "passBudgetMs": 5000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 2,
+      "startedAt": "2026-05-26T11:29:39.953Z",
+      "endedAt": "2026-05-26T11:29:48.133Z",
+      "durationMs": 8180,
+      "passBudgetMs": 5000,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    },
+    {
+      "pass": 3,
+      "startedAt": "2026-05-26T11:29:48.136Z",
+      "endedAt": "2026-05-26T11:29:54.603Z",
+      "durationMs": 6467,
+      "passBudgetMs": 3312,
+      "exitCode": 0,
+      "signal": null,
+      "success": true,
+      "reducedNextBudget": false
+    }
+  ],
+  "book": {
+    "path": "C:\\Users\\User\\Documents\\KHORA\\.codex-artifacts\\session-smoke-book.json",
+    "updatedAt": "2026-05-26T11:29:54.530Z",
+    "records": 3,
+    "lines": 0,
+    "bestScore": 38,
+    "bestByCity": {
+      "sparta": 38,
+      "argos": 18,
+      "athens": 11
+    }
+  },
+  "benchmark": {
+    "ran": false,
+    "exitCode": null,
+    "reportPath": null
+  }
+}

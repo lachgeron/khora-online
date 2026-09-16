@@ -8,18 +8,29 @@ import type {
 } from '@khora/shared';
 import {
   ALL_POLITICS_CARDS,
+  EXPANSION_POLITICS_CARDS,
   FINAL_EVENT,
   RANDOM_EVENTS,
   STARTING_EVENT,
   getAllAchievements,
 } from './game-data';
 
-export function buildLiveSolverSnapshot(state: GameState): LiveSolverSnapshot {
+interface LiveSolverSnapshotOptions {
+  viewerPlayerId?: string;
+  hideUnrevealedActionSlots?: boolean;
+}
+
+export function buildLiveSolverSnapshot(
+  state: GameState,
+  options: LiveSolverSnapshotOptions = {},
+): LiveSolverSnapshot {
   return {
     gameId: state.gameId,
+    expansionChoices: state.expansionChoices?.map(choice => ({ ...choice, cards: choice.cards?.map(card => ({ ...card })) })),
+    suspendedDecisions: state.suspendedDecisions?.map(decision => ({ ...decision })),
     roundNumber: state.roundNumber,
     currentPhase: state.currentPhase,
-    players: state.players.map(playerToSnapshot),
+    players: state.players.map(player => playerToSnapshot(player, options)),
     predeterminedDice: state.predeterminedDice,
     eventDeckIds: state.eventDeck.map(event => event.id),
     currentEventId: state.currentEvent?.id ?? null,
@@ -34,6 +45,7 @@ export function buildLiveSolverSnapshot(state: GameState): LiveSolverSnapshot {
     turnOrder: [...state.turnOrder],
     gameLog: state.gameLog.map(entry => ({ ...entry, details: { ...entry.details } })),
     pendingDecisions: state.pendingDecisions.map(decision => ({ ...decision })),
+    progressSubmissions: cloneProgressSubmissions(state.progressSubmissions),
     disconnectedPlayerIds: Array.from(state.disconnectedPlayers.keys()),
     draftMode: state.draftMode,
     finalScores: state.finalScores,
@@ -43,12 +55,14 @@ export function buildLiveSolverSnapshot(state: GameState): LiveSolverSnapshot {
 }
 
 export function gameStateFromLiveSolverSnapshot(snapshot: LiveSolverSnapshot): GameState {
-  const politicsById = new Map<string, PoliticsCard>(ALL_POLITICS_CARDS.map(card => [card.id, card]));
+  const politicsById = new Map<string, PoliticsCard>([...ALL_POLITICS_CARDS, ...EXPANSION_POLITICS_CARDS].map(card => [card.id, card]));
   const eventsById = new Map([STARTING_EVENT, ...RANDOM_EVENTS, FINAL_EVENT].map(event => [event.id, event]));
   const achievementsById = new Map(getAllAchievements().map(achievement => [achievement.id, achievement]));
 
   return {
     gameId: snapshot.gameId,
+    expansionChoices: snapshot.expansionChoices?.map(choice => ({ ...choice, cards: choice.cards?.map(card => politicsById.get(card.id) ?? card) })),
+    suspendedDecisions: snapshot.suspendedDecisions?.map(decision => ({ ...decision })),
     roundNumber: snapshot.roundNumber,
     currentPhase: snapshot.currentPhase,
     players: snapshot.players.map(player => playerFromSnapshot(player, politicsById)),
@@ -72,6 +86,7 @@ export function gameStateFromLiveSolverSnapshot(snapshot: LiveSolverSnapshot): G
     turnOrder: [...snapshot.turnOrder],
     gameLog: snapshot.gameLog.map(entry => ({ ...entry, details: { ...entry.details } })),
     pendingDecisions: snapshot.pendingDecisions.map(decision => ({ ...decision })),
+    progressSubmissions: cloneProgressSubmissions(snapshot.progressSubmissions),
     disconnectedPlayers: new Map(snapshot.disconnectedPlayerIds.map(playerId => [
       playerId,
       { disconnectedAt: snapshot.updatedAt },
@@ -84,9 +99,16 @@ export function gameStateFromLiveSolverSnapshot(snapshot: LiveSolverSnapshot): G
   };
 }
 
-function playerToSnapshot(player: PlayerState): LiveSolverPlayerSnapshot {
+function playerToSnapshot(
+  player: PlayerState,
+  options: LiveSolverSnapshotOptions = {},
+): LiveSolverPlayerSnapshot {
+  const hideActionSlots = options.hideUnrevealedActionSlots
+    && player.playerId !== options.viewerPlayerId;
+
   return {
     playerId: player.playerId,
+    pendingGloryGains: player.pendingGloryGains,
     playerName: player.playerName,
     cityId: player.cityId,
     coins: player.coins,
@@ -104,7 +126,9 @@ function playerToSnapshot(player: PlayerState): LiveSolverPlayerSnapshot {
     developmentLevel: player.developmentLevel,
     diceRoll: player.diceRoll ? [...player.diceRoll] : null,
     diceRollHistory: [...(player.diceRollHistory ?? [])],
-    actionSlots: player.actionSlots.map(slot => slot ? { ...slot } : null) as PlayerState['actionSlots'],
+    actionSlots: hideActionSlots
+      ? [null, null, null]
+      : player.actionSlots.map(slot => slot ? { ...slot } : null) as PlayerState['actionSlots'],
     victoryPoints: player.victoryPoints,
     isConnected: player.isConnected,
     hasFlagged: player.hasFlagged,
@@ -118,6 +142,7 @@ function playerFromSnapshot(
 ): PlayerState {
   return {
     playerId: snapshot.playerId,
+    pendingGloryGains: snapshot.pendingGloryGains,
     playerName: snapshot.playerName,
     cityId: snapshot.cityId,
     coins: snapshot.coins,
@@ -150,4 +175,14 @@ function clonePredeterminedDice(
     round,
     Object.fromEntries(Object.entries(playerDice).map(([playerId, dice]) => [playerId, [...dice]])),
   ]));
+}
+
+function cloneProgressSubmissions(submissions: GameState['progressSubmissions']): GameState['progressSubmissions'] {
+  if (!submissions) return undefined;
+  return Object.fromEntries(Object.entries(submissions).map(([id, submission]) => [id, {
+    ...submission,
+    advancement: submission.advancement ? { ...submission.advancement } : undefined,
+    extraTracks: submission.extraTracks?.map(track => ({ ...track })),
+    bonusTracks: submission.bonusTracks?.map(track => ({ ...track })),
+  }]));
 }

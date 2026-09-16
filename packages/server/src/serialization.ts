@@ -6,6 +6,7 @@
  */
 
 import type { GameState } from '@khora/shared';
+import { ALL_POLITICS_CARDS, EXPANSION_POLITICS_CARDS } from './game-data';
 
 interface SerializedGameState {
   [key: string]: unknown;
@@ -31,7 +32,10 @@ export function serializeGameState(state: GameState): string {
  * Reconstructs Maps from arrays of [key, value] pairs.
  */
 export function deserializeGameState(json: string): GameState {
-  const parsed = JSON.parse(json);
+  const cardsById = new Map([...ALL_POLITICS_CARDS, ...EXPANSION_POLITICS_CARDS].map(card => [card.id, card]));
+  // Restore scoring functions in decks, hands, draft packs and pending card choices.
+  const parsed = JSON.parse(json, (_key, value) => value && typeof value === 'object' && value.knowledgeRequirement
+    ? cardsById.get(value.id) ?? value : value);
   return {
     ...parsed,
     claimedAchievements: new Map(parsed.claimedAchievements),

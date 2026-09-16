@@ -30,6 +30,7 @@ export type PredeterminedDiceSchedule = Record<number, Record<string, number[]>>
 
 /** Complete state for one player. */
 export interface PlayerState {
+  pendingGloryGains?: number;
   playerId: string;
   playerName: string;
   cityId: string;
@@ -88,6 +89,7 @@ export interface EventCard {
 
 /** A politics card that can be played from hand. */
 export interface PoliticsCard {
+  expansion?: boolean;
   id: string;
   name: string;
   description: string;                     // Human-readable card text
@@ -163,6 +165,8 @@ export interface DraftState {
 
 /** The complete authoritative game state. */
 export interface GameState {
+  expansionChoices?: ExpansionChoice[];
+  suspendedDecisions?: PendingDecision[];
   gameId: string;
   roundNumber: number;           // 1–9
   currentPhase: GamePhase;
@@ -185,4 +189,14 @@ export interface GameState {
   finalScores: FinalScoreBoard | null; // Set during FINAL_SCORING, displayed in GAME_OVER
   createdAt: number;             // Unix timestamp
   updatedAt: number;
+}
+
+/** A card effect awaiting its owner's choice before ordinary play resumes. */
+export interface ExpansionChoice {
+  playerId: string;
+  cardId: string;
+  kind: 'TOKEN' | 'COINS' | 'DRAW' | 'POLITICS' | 'ENLIST' | 'REWARD' | 'GLORY';
+  amount?: number;
+  extraCost?: number;
+  cards?: PoliticsCard[];
 }

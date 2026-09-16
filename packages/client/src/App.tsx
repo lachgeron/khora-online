@@ -20,6 +20,7 @@ import { PickBanDraft } from './components/PickBanDraft';
 import { GameBoard } from './components/GameBoard';
 import { DicePhase } from './components/DicePhase';
 import { ActionPhase } from './components/ActionPhase';
+import { ExpansionChoicePanel } from './components/ExpansionChoicePanel';
 import { ActionOverview } from './components/ActionOverview';
 import { WaitingPanel } from './components/WaitingPanel';
 import { ProgressPhase } from './components/ProgressPhase';
@@ -84,6 +85,8 @@ export const App: React.FC = () => {
   const [gameId, setGameId] = useState<string | null>(null);
   const [recordStats, setRecordStats] = useState(true);
   const [draftMode, setDraftMode] = useState<DraftMode>('STANDARD');
+  const [includeExpansionCards, setIncludeExpansionCards] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
     useGameSocket(gameId, currentPlayerId);
@@ -99,10 +102,11 @@ export const App: React.FC = () => {
   useLobbyPolling(
     screen === 'LOBBY' ? lobbyId : null,
     2000,
-    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats, draftMode: lobbyDraftMode }) => {
+    ({ players, started, gameId: detectedGameId, recordStats: lobbyRecordStats, draftMode: lobbyDraftMode, includeExpansionCards: lobbyExpansion }) => {
       setLobbyPlayers(players);
       setRecordStats(lobbyRecordStats);
       setDraftMode(lobbyDraftMode);
+      if (!settingsSaving) setIncludeExpansionCards(lobbyExpansion);
       if (started && detectedGameId && !gameId) {
         setGameId(detectedGameId);
         setScreen('GAME');
@@ -115,6 +119,7 @@ export const App: React.FC = () => {
       const data = await createLobby(playerName);
       if (data.code) { setLobbyError(data.message); return; }
       setLobbyId(data.lobbyId);
+      setIncludeExpansionCards(false);
       setHostPlayerId(data.hostPlayerId);
       setCurrentPlayerId(data.hostPlayerId);
       setLobbyPlayers([{ playerId: data.hostPlayerId, playerName }]);
@@ -168,6 +173,17 @@ export const App: React.FC = () => {
     if (lobbyId) {
       await updateLobbySettings(lobbyId, { draftMode: mode });
     }
+  };
+
+  const handleToggleExpansionCards = async (value: boolean) => {
+    setSettingsSaving(true);
+    setLobbyError(null);
+    try {
+      const data = await updateLobbySettings(lobbyId, { includeExpansionCards: value, requestingPlayerId: currentPlayerId });
+      if (data.code) { setLobbyError(data.message); return; }
+      setIncludeExpansionCards(data.includeExpansionCards);
+    } catch { setLobbyError('Could not save expansion card setting. Please try again.'); }
+    finally { setSettingsSaving(false); }
   };
 
   useEffect(() => {
@@ -238,6 +254,9 @@ export const App: React.FC = () => {
   return (
     <div>
       <TimeBankDangerOverlay active={showTimeBankDanger} remainingSeconds={timeBankRemainingSeconds} />
+      {privateState?.expansionChoice && <ExpansionChoicePanel
+        privateState={privateState} player={currentPlayer} sendMessage={sendMessage}
+        timeoutAt={gameState?.pendingDecisions.find(d => d.playerId === currentPlayerId && d.decisionType === 'EXPANSION_CHOICE')?.timeoutAt} />}
 
       {screen === 'NAME' && (
         HOME_SCREEN_SUSPENDED ? <SuspendedHomeScreen /> : <div className="flex items-center justify-center min-h-screen">
@@ -293,6 +312,10 @@ export const App: React.FC = () => {
           hostPlayerId={hostPlayerId}
           recordStats={recordStats}
           draftMode={draftMode}
+          includeExpansionCards={includeExpansionCards}
+          settingsSaving={settingsSaving}
+          error={lobbyError}
+          onToggleExpansionCards={handleToggleExpansionCards}
           onToggleRecordStats={handleToggleRecordStats}
           onChangeDraftMode={handleChangeDraftMode}
           onStartGame={handleStartGame}
@@ -342,7 +365,7 @@ export const App: React.FC = () => {
         }
 
         return (
-        <div className="grid grid-cols-[320px_1fr_280px] grid-rows-[auto_1fr_auto] gap-3 max-w-[1440px] mx-auto p-3 min-h-screen">
+        <div className={`grid grid-cols-[320px_1fr_280px] grid-rows-[auto_1fr_auto] gap-3 max-w-[1440px] mx-auto p-3 min-h-screen ${liveSolver.enabled ? 'min-[1100px]:grid-cols-[240px_minmax(0,1fr)] min-[1100px]:mr-[430px]' : ''}`}>
 
           {gameState.currentPhase === 'CITY_SELECTION' && gameState.cityDraft && (
             <CitySelection
@@ -413,6 +436,7 @@ export const App: React.FC = () => {
               statusText={statusText}
               isMyTurn={isMyTurn}
               onActivateDev={(devId) => sendMessage({ type: 'ACTIVATE_DEV', devId })}
+              solverOpen={liveSolver.enabled}
             >
               {gameState.currentPhase === 'OMEN' && gameState.currentEvent && (
                 <div className="py-6">
@@ -508,7 +532,7 @@ export const App: React.FC = () => {
                 );
                 const nextSlot = hasPendingDecision
                   ? (privateState.actionSlots
-                      .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
+                      .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved && (!privateState.nextActionType || s.actionType === privateState.nextActionType))
                       .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType])[0] ?? null)
                   : null;
 
@@ -618,6 +642,9 @@ export const App: React.FC = () => {
         <LiveSolverPanel
           pending={liveSolver.pending}
           result={liveSolver.result}
+          currentRound={gameState?.roundNumber ?? null}
+          currentPhase={gameState?.currentPhase ?? null}
+          currentDecisionType={gameState?.pendingDecisions.find(decision => decision.playerId === currentPlayerId)?.decisionType ?? null}
           onRefresh={liveSolver.requestNow}
           onClose={liveSolver.toggle}
         />

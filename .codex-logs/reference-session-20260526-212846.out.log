@@ -1,0 +1,35 @@
+
+[session] pass=1 started=2026-05-26T11:28:46.085Z budget=5s
+[session] command=npm run reference:search -- --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+> khora-online@0.0.1 reference:search
+> tsx packages/server/src/offline-reference-search.ts --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+
+[session] pass=2 started=2026-05-26T11:28:47.218Z budget=5s
+[session] command=npm run reference:search -- --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+> khora-online@0.0.1 reference:search
+> tsx packages/server/src/offline-reference-search.ts --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+
+[session] pass=3 started=2026-05-26T11:28:48.220Z budget=5s
+[session] command=npm run reference:search -- --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+> khora-online@0.0.1 reference:search
+> tsx packages/server/src/offline-reference-search.ts --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+
+[session] pass=4 started=2026-05-26T11:28:49.745Z budget=5s
+[session] command=npm run reference:search -- --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+> khora-online@0.0.1 reference:search
+> tsx packages/server/src/offline-reference-search.ts --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+
+[session] pass=5 started=2026-05-26T11:28:50.698Z budget=5s
+[session] command=npm run reference:search -- --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+
+> khora-online@0.0.1 reference:search
+> tsx packages/server/src/offline-reference-search.ts --reference-weight 28 --out .codex-artifacts/session-smoke-book.json --runtime-out .codex-artifacts/session-smoke-runtime.json --keep 5 --keep-per-city 2 --runtime-lines 5 --reference-limit 5 --completion 20 --max-plies 200 --max-decision-plies 500 --run-name reference-session-20260526-212846 --iterations 1 --budget 5s
+

@@ -1,0 +1,1713 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T11:29:54.532Z",
+  "sourceBook": {
+    "generatedAt": "2026-05-26T11:29:32.664Z",
+    "updatedAt": "2026-05-26T11:29:54.530Z",
+    "runName": "reference-session-20260526-212931",
+    "totals": {
+      "iterations": 3,
+      "searchedNodes": 12127,
+      "completedLines": 24,
+      "computeMs": 19591
+    },
+    "recordCount": 3,
+    "bestScore": 38
+  },
+  "lines": [
+    {
+      "score": 38,
+      "projectedMargin": -15,
+      "scenarioKey": "1f8qhbk",
+      "cityId": "sparta",
+      "tags": [
+        "achievement",
+        "achievement:glory",
+        "achievement:tax",
+        "card:corinthian-columns",
+        "card:diversification",
+        "card:hall-of-statues",
+        "card:proskenion",
+        "card:tunnel-of-eupalinos",
+        "development",
+        "legislation",
+        "military",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy",
+        "progress:military",
+        "strategy:diversification",
+        "strategy:proskenion",
+        "token:explore"
+      ],
+      "moves": [
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "POLITICS",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 5
+              }
+            ]
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {}
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "corinthian-columns"
+            }
+          }
+        },
+        {
+          "round": 1,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "MILITARY"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-minor-blue-3-12"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACHIEVEMENT",
+          "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+          "message": {
+            "type": "CLAIM_ACHIEVEMENT",
+            "achievementId": "",
+            "trackChoice": "TAX"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "MILITARY",
+                "dieValue": 1
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "LEGISLATION",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "hall-of-statues"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-blue-8-20"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "GLORY",
+          "decisionType": "RISE_OF_PERSIA_PROGRESS",
+          "message": {
+            "type": "EVENT_PROGRESS_TRACK",
+            "track": "MILITARY"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 5
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 4
+              }
+            ]
+          }
+        },
+        {
+          "round": 4,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-minor-red-5-5"
+            }
+          }
+        },
+        {
+          "round": 4,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "DEVELOPMENT",
+            "choices": {}
+          }
+        },
+        {
+          "round": 4,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 5
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 5,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-blue-7-19"
+            }
+          }
+        },
+        {
+          "round": 5,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "CULTURE"
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 5
+              }
+            ]
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-green-6-29"
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "DEVELOPMENT",
+            "choices": {
+              "spartaMilitaryTokenIds": [
+                "board-major-blue-6-18",
+                "board-major-blue-6-17"
+              ]
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "GLORY",
+          "decisionType": "ORACLE_CHOOSE_TOKEN",
+          "message": {
+            "type": "CHOOSE_TOKEN",
+            "tokenId": "board-minor-blue-3-12"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACHIEVEMENT",
+          "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+          "message": {
+            "type": "CLAIM_ACHIEVEMENT",
+            "achievementId": "",
+            "trackChoice": "GLORY"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 3
+              }
+            ],
+            "philosophyTokensToSpend": 1
+          }
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "hall-of-statues"
+            }
+          }
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "POLITICS",
+                "dieValue": 3
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "LEGISLATION",
+                "dieValue": 2
+              }
+            ],
+            "philosophyTokensToSpend": 1
+          }
+        },
+        {
+          "round": 8,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "diversification"
+            }
+          }
+        },
+        {
+          "round": 8,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "tunnel-of-eupalinos"
+            }
+          }
+        },
+        {
+          "round": 8,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "POLITICS",
+                "dieValue": 3
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "LEGISLATION",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "proskenion"
+            }
+          }
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "diversification"
+            }
+          }
+        },
+        {
+          "round": 9,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        }
+      ]
+    },
+    {
+      "score": 18,
+      "projectedMargin": -31,
+      "scenarioKey": "dkbbct",
+      "cityId": "argos",
+      "tags": [
+        "card:contribution",
+        "card:hall-of-statues",
+        "card:lighthouse",
+        "development",
+        "legislation",
+        "military",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy",
+        "progress:military",
+        "token:explore"
+      ],
+      "moves": [
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 3
+              }
+            ]
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-minor-blue-3-13"
+            }
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 1,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "MILITARY"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "LEGISLATION",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "lighthouse"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "MILITARY"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 5
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-minor-blue-3-12"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "DEVELOPMENT",
+            "choices": {
+              "argosDevReward": "vp"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "GLORY",
+          "decisionType": "MILITARY_VICTORY_PROGRESS",
+          "message": {
+            "type": "EVENT_PROGRESS_TRACK",
+            "track": "ECONOMY"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 2
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 2
+              }
+            ]
+          }
+        },
+        {
+          "round": 4,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-red-5-6"
+            }
+          }
+        },
+        {
+          "round": 4,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "DEVELOPMENT",
+            "choices": {}
+          }
+        },
+        {
+          "round": 4,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 5
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 2
+              }
+            ]
+          }
+        },
+        {
+          "round": 5,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-blue-5-16"
+            }
+          }
+        },
+        {
+          "round": 5,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "CULTURE"
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "MILITARY",
+                "dieValue": 4
+              }
+            ]
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "MILITARY",
+            "choices": {
+              "explorationTokenId": "board-major-green-6-29"
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "LEGISLATION",
+                "dieValue": 2
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "PHILOSOPHY",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": null
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "contribution"
+            }
+          }
+        },
+        {
+          "round": 7,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 1
+              }
+            ],
+            "philosophyTokensToSpend": 1
+          }
+        },
+        {
+          "round": 8,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "contribution"
+            }
+          }
+        },
+        {
+          "round": 8,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "GLORY",
+          "decisionType": "ORACLE_CHOOSE_TOKEN",
+          "message": {
+            "type": "CHOOSE_TOKEN",
+            "tokenId": "board-minor-blue-3-12"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 1
+              }
+            ],
+            "philosophyTokensToSpend": 1
+          }
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "hall-of-statues"
+            }
+          }
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        }
+      ]
+    },
+    {
+      "score": 11,
+      "projectedMargin": -65,
+      "scenarioKey": "1gskmnp",
+      "cityId": "athens",
+      "tags": [
+        "achievement",
+        "achievement:tax",
+        "card:central-government",
+        "card:extraordinary-collection",
+        "card:gifts-from-the-west",
+        "card:rivalry",
+        "card:tunnel-of-eupalinos",
+        "legislation",
+        "politics",
+        "progress",
+        "progress:culture",
+        "progress:economy"
+      ],
+      "moves": [
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 1,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 1
+              }
+            ],
+            "philosophyTokensToSpend": 1
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "tunnel-of-eupalinos"
+            }
+          }
+        },
+        {
+          "round": 1,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 1,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 2
+              }
+            ],
+            "philosophyTokensToSpend": 2
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "gifts-from-the-west"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 2,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 2,
+          "phase": "GLORY",
+          "decisionType": "RISE_OF_PERSIA_PROGRESS",
+          "message": {
+            "type": "EVENT_PROGRESS_TRACK",
+            "track": "MILITARY"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 5
+              }
+            ]
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "POLITICS",
+            "choices": {
+              "targetCardId": "rivalry"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 3,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "CULTURE"
+            }
+          }
+        },
+        {
+          "round": 3,
+          "phase": "ACHIEVEMENT",
+          "decisionType": "ACHIEVEMENT_TRACK_CHOICE",
+          "message": {
+            "type": "CLAIM_ACHIEVEMENT",
+            "achievementId": "",
+            "trackChoice": "TAX"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 2
+              }
+            ]
+          }
+        },
+        {
+          "round": 4,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 4,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 6
+              }
+            ]
+          }
+        },
+        {
+          "round": 5,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 5,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 6
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 4
+              }
+            ]
+          }
+        },
+        {
+          "round": 6,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 6,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "LEGISLATION",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "extraordinary-collection"
+            }
+          }
+        },
+        {
+          "round": 7,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 7,
+          "phase": "GLORY",
+          "decisionType": "THIRTY_TYRANTS_DISCARD",
+          "message": {
+            "type": "DISCARD_CARDS",
+            "cardIds": [
+              "silver-mining",
+              "extraordinary-collection"
+            ]
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "DEVELOPMENT",
+                "dieValue": 4
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "POLITICS",
+                "dieValue": 4
+              }
+            ]
+          }
+        },
+        {
+          "round": 8,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "SKIP_PHASE"
+          }
+        },
+        {
+          "round": 8,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ROLL_DICE",
+          "message": {
+            "type": "ROLL_DICE"
+          }
+        },
+        {
+          "round": 9,
+          "phase": "DICE",
+          "decisionType": "ASSIGN_DICE",
+          "message": {
+            "type": "ASSIGN_DICE",
+            "assignments": [
+              {
+                "slotIndex": 0,
+                "actionType": "LEGISLATION",
+                "dieValue": 1
+              },
+              {
+                "slotIndex": 1,
+                "actionType": "PHILOSOPHY",
+                "dieValue": 1
+              }
+            ]
+          }
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": null
+        },
+        {
+          "round": 9,
+          "phase": "ACTIONS",
+          "decisionType": "RESOLVE_ACTION",
+          "message": {
+            "type": "RESOLVE_ACTION",
+            "actionType": "LEGISLATION",
+            "choices": {
+              "targetCardId": "central-government"
+            }
+          }
+        },
+        {
+          "round": 9,
+          "phase": "PROGRESS",
+          "decisionType": "PROGRESS_TRACK",
+          "message": {
+            "type": "PROGRESS_TRACK",
+            "advancement": {
+              "track": "ECONOMY"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

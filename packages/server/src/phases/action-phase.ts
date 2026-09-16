@@ -21,6 +21,7 @@ import { applyOngoingEffects } from '../card-handlers';
 import { applyOngoingDevEffects } from '../city-dev-handlers';
 import { appendLogEntry, logPlayerDiff } from '../game-log';
 import { capTroops } from '../resources';
+import { hasExpansionChoices } from '../expansion-choices';
 
 /** Per-action timeout durations in milliseconds. */
 const ACTION_TIMEOUTS: Record<string, number> = {
@@ -76,9 +77,7 @@ export class ActionPhaseManager implements PhaseManager {
       // Check if the current action can be skipped
       const player = state.players.find(p => p.playerId === playerId);
       if (player) {
-        const unresolvedSlots = player.actionSlots
-          .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved);
-        const lowestCost = Math.min(...unresolvedSlots.map(s => ACTION_NUMBERS[s.actionType]));
+        const lowestCost = ACTION_NUMBERS[this.getNextSlot(state, playerId)!.actionType];
         const nextAction = ACTION_BY_NUMBER[lowestCost];
         if (nextAction && NO_SKIP_ACTIONS.has(nextAction)) {
           return {
@@ -120,9 +119,8 @@ export class ActionPhaseManager implements PhaseManager {
     // Enforce ascending cost order within the player's own actions
     const player = state.players.find(p => p.playerId === playerId);
     if (player) {
-      const unresolvedSlots = player.actionSlots
-        .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved);
-      const lowestCost = Math.min(...unresolvedSlots.map(s => ACTION_NUMBERS[s.actionType]));
+      const nextSlot = this.getNextSlot(state, playerId);
+      const lowestCost = nextSlot ? ACTION_NUMBERS[nextSlot.actionType] : Infinity;
       if (ACTION_NUMBERS[decision.actionType] !== lowestCost) {
         return {
           ok: false,
@@ -194,6 +192,7 @@ export class ActionPhaseManager implements PhaseManager {
   }
 
   isComplete(state: GameState): boolean {
+    if (hasExpansionChoices(state)) return false;
     // Not complete while a display pause is active
     if (state.pendingDecisions.some(d => d.decisionType === 'PHASE_DISPLAY')) {
       return false;
@@ -214,7 +213,7 @@ export class ActionPhaseManager implements PhaseManager {
       }
       return cleared;
     }
-    let updatedState = this.autoResolveSingleAction(state, playerId);
+    const updatedState = this.autoResolveSingleAction(state, playerId);
     return this.buildPendingForActivePlayer(updatedState);
   }
 
@@ -232,7 +231,7 @@ export class ActionPhaseManager implements PhaseManager {
 
     if (unresolvedSlots.length === 0) return state;
 
-    const slot = unresolvedSlots[0];
+    const slot = this.getNextSlot(state, playerId)!;
     const playerBefore = updatedState.players.find(p => p.playerId === playerId);
 
     const resolver = this.resolvers.get(slot.actionType);
@@ -287,6 +286,7 @@ export class ActionPhaseManager implements PhaseManager {
       const player = updatedState.players.find(p => p.playerId === playerId);
       if (!player || !this.hasUnresolvedActions(player.actionSlots)) break;
       updatedState = this.autoResolveSingleAction(updatedState, playerId);
+      if (hasExpansionChoices(updatedState)) break;
     }
     return updatedState;
   }
@@ -302,6 +302,8 @@ export class ActionPhaseManager implements PhaseManager {
    * has unresolved actions, or null if everyone is done.
    */
   private getActivePlayerId(state: GameState): string | null {
+    const priority = this.priorityMilitaryPlayer(state);
+    if (priority) return priority;
     for (const pid of state.turnOrder) {
       const player = state.players.find(p => p.playerId === pid);
       if (player && player.isConnected && !player.hasFlagged && this.hasUnresolvedActions(player.actionSlots)) {
@@ -311,11 +313,31 @@ export class ActionPhaseManager implements PhaseManager {
     return null;
   }
 
+  /** Interrupt an ordinary military action for Rhodes, then Strategist. */
+  private priorityMilitaryPlayer(state: GameState): string | null {
+    const ordered = state.turnOrder.map(id => state.players.find(p => p.playerId === id)!)
+      .filter(p => p && p.isConnected && !p.hasFlagged);
+    const regular = ordered.find(p => this.hasUnresolvedActions(p.actionSlots));
+    const next = regular?.actionSlots.filter(s => s && !s.resolved)
+      .sort((a, b) => ACTION_NUMBERS[a!.actionType] - ACTION_NUMBERS[b!.actionType])[0];
+    if (next?.actionType !== 'MILITARY') return null;
+    const candidates = ordered.filter(p => p.actionSlots.some(s => s?.actionType === 'MILITARY' && !s.resolved));
+    return candidates.find(p => p.cityId === 'rhodes')?.playerId
+      ?? candidates.find(p => p.playedCards.some(c => c.id === 'strategist'))?.playerId ?? null;
+  }
+
+  private getNextSlot(state: GameState, playerId: string) {
+    const slots = state.players.find(p => p.playerId === playerId)?.actionSlots.filter(s => s && !s.resolved) ?? [];
+    if (this.priorityMilitaryPlayer(state) === playerId) return slots.find(s => s!.actionType === 'MILITARY');
+    return slots.sort((a, b) => ACTION_NUMBERS[a!.actionType] - ACTION_NUMBERS[b!.actionType])[0];
+  }
+
   /**
    * Creates a pending decision for only the current active player
    * (first in turn order with unresolved actions).
    */
   private buildPendingForActivePlayer(state: GameState): GameState {
+    if (hasExpansionChoices(state)) return state;
     const activeId = this.getActivePlayerId(state);
     if (!activeId) {
       // All actions resolved — cap troops at 15 for all players.
@@ -345,9 +367,12 @@ export class ActionPhaseManager implements PhaseManager {
         .filter((s): s is NonNullable<typeof s> => s !== null && !s.resolved)
         .sort((a, b) => ACTION_NUMBERS[a.actionType] - ACTION_NUMBERS[b.actionType]);
 
+      const nextSlot = this.getNextSlot(state, activeId);
+      if (nextSlot) unresolvedSlots.sort((a, b) => Number(b === nextSlot) - Number(a === nextSlot));
+
       // Auto-resolve Philosophy and Culture immediately with a 5s display pause
       if (unresolvedSlots.length > 0 && AUTO_RESOLVE_ACTIONS.has(unresolvedSlots[0].actionType)) {
-        let updatedState = this.autoResolveSingleAction(state, activeId);
+        const updatedState = this.autoResolveSingleAction(state, activeId);
         const now = Date.now();
         return {
           ...updatedState,
@@ -372,7 +397,7 @@ export class ActionPhaseManager implements PhaseManager {
           playerId: activeId,
           decisionType: 'RESOLVE_ACTION' as const,
           timeoutAt: now + timeout,
-          options: null as unknown,
+          options: { actionType: unresolvedSlots[0]?.actionType },
         }],
       };
     }

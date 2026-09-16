@@ -22,6 +22,7 @@ import { getStateForPlayer } from '../visibility';
 
 /** Represents a single player's WebSocket connection. */
 interface PlayerConnection {
+  connectionId: string;
   gameId: string;
   playerId: string;
   send: (msg: ServerMessage) => void;
@@ -49,12 +50,13 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 30_000; // 30 seconds
  * - Monitors heartbeats to detect stale connections
  */
 export class WebSocketGateway {
-  /** gameId → (playerId → connection) */
-  private connections = new Map<string, Map<string, PlayerConnection>>();
+  /** gameId → (playerId → connections) */
+  private connections = new Map<string, Map<string, PlayerConnection[]>>();
 
   private messageHandler: MessageHandler | null = null;
   private disconnectHandler: DisconnectHandler | null = null;
   private heartbeatTimeoutMs: number;
+  private nextConnectionId = 1;
 
   constructor(options?: { heartbeatTimeoutMs?: number }) {
     this.heartbeatTimeoutMs = options?.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
@@ -79,34 +81,52 @@ export class WebSocketGateway {
     gameId: string,
     playerId: string,
     send: (msg: ServerMessage) => void,
-  ): void {
+  ): string {
     let gameConns = this.connections.get(gameId);
     if (!gameConns) {
       gameConns = new Map();
       this.connections.set(gameId, gameConns);
     }
 
-    gameConns.set(playerId, {
+    const connectionId = `${Date.now().toString(36)}-${this.nextConnectionId++}`;
+    const playerConns = gameConns.get(playerId) ?? [];
+    playerConns.push({
+      connectionId,
       gameId,
       playerId,
       send,
       lastHeartbeat: Date.now(),
     });
+    gameConns.set(playerId, playerConns);
+    return connectionId;
   }
 
   /**
    * Remove a player connection from a game.
    * Cleans up the game entry if no connections remain.
+   *
+   * Returns true when that player still has at least one active connection.
    */
-  removeConnection(gameId: string, playerId: string): void {
+  removeConnection(gameId: string, playerId: string, connectionId?: string): boolean {
     const gameConns = this.connections.get(gameId);
-    if (!gameConns) return;
+    if (!gameConns) return false;
+
+    const playerConns = gameConns.get(playerId) ?? [];
+    const remaining = connectionId
+      ? playerConns.filter(conn => conn.connectionId !== connectionId)
+      : [];
+
+    if (remaining.length > 0) {
+      gameConns.set(playerId, remaining);
+      return true;
+    }
 
     gameConns.delete(playerId);
 
     if (gameConns.size === 0) {
       this.connections.delete(gameId);
     }
+    return false;
   }
 
   /**
@@ -119,14 +139,16 @@ export class WebSocketGateway {
     const gameConns = this.connections.get(gameId);
     if (!gameConns) return;
 
-    for (const [playerId, conn] of gameConns) {
+    for (const [playerId, playerConns] of gameConns) {
       const filtered = getStateForPlayer(state, playerId);
       const message: ServerMessage = {
         type: 'GAME_STATE_UPDATE',
         state: filtered.public,
         privateState: filtered.private,
       };
-      conn.send(message);
+      for (const conn of playerConns) {
+        conn.send(message);
+      }
     }
   }
 
@@ -144,10 +166,12 @@ export class WebSocketGateway {
     const gameConns = this.connections.get(gameId);
     if (!gameConns) return;
 
-    const conn = gameConns.get(playerId);
-    if (!conn) return;
+    const playerConns = gameConns.get(playerId);
+    if (!playerConns) return;
 
-    conn.send(message);
+    for (const conn of playerConns) {
+      conn.send(message);
+    }
   }
 
   /**
@@ -160,12 +184,18 @@ export class WebSocketGateway {
     gameId: string,
     playerId: string,
     message: ClientMessage,
+    connectionId?: string,
   ): void {
     // Update heartbeat on any message
     const gameConns = this.connections.get(gameId);
-    const conn = gameConns?.get(playerId);
-    if (conn) {
-      conn.lastHeartbeat = Date.now();
+    const playerConns = gameConns?.get(playerId);
+    if (playerConns) {
+      const now = Date.now();
+      for (const conn of playerConns) {
+        if (!connectionId || conn.connectionId === connectionId) {
+          conn.lastHeartbeat = now;
+        }
+      }
     }
 
     // Heartbeat messages don't need further processing
@@ -195,22 +225,24 @@ export class WebSocketGateway {
    *
    * Returns the list of [gameId, playerId] pairs that were expired.
    */
-  checkHeartbeats(): Array<{ gameId: string; playerId: string }> {
+  checkHeartbeats(): Array<{ gameId: string; playerId: string; connectionId: string }> {
     const now = Date.now();
-    const expired: Array<{ gameId: string; playerId: string }> = [];
+    const expired: Array<{ gameId: string; playerId: string; connectionId: string }> = [];
 
     for (const [gameId, gameConns] of this.connections) {
-      for (const [playerId, conn] of gameConns) {
-        if (now - conn.lastHeartbeat > this.heartbeatTimeoutMs) {
-          expired.push({ gameId, playerId });
+      for (const [playerId, playerConns] of gameConns) {
+        for (const conn of playerConns) {
+          if (now - conn.lastHeartbeat > this.heartbeatTimeoutMs) {
+            expired.push({ gameId, playerId, connectionId: conn.connectionId });
+          }
         }
       }
     }
 
     // Notify disconnect handler and remove stale connections
-    for (const { gameId, playerId } of expired) {
-      this.removeConnection(gameId, playerId);
-      if (this.disconnectHandler) {
+    for (const { gameId, playerId, connectionId } of expired) {
+      const stillConnected = this.removeConnection(gameId, playerId, connectionId);
+      if (!stillConnected && this.disconnectHandler) {
         this.disconnectHandler(gameId, playerId);
       }
     }
@@ -237,6 +269,7 @@ export class WebSocketGateway {
 
   /** Get the last heartbeat timestamp for a player. Returns 0 if not connected. */
   getLastHeartbeat(gameId: string, playerId: string): number {
-    return this.connections.get(gameId)?.get(playerId)?.lastHeartbeat ?? 0;
+    const playerConns = this.connections.get(gameId)?.get(playerId) ?? [];
+    return playerConns.reduce((latest, conn) => Math.max(latest, conn.lastHeartbeat), 0);
   }
 }

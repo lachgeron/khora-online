@@ -440,7 +440,7 @@ export const ActionPhase: React.FC<ActionPhaseProps> = ({
       {actionType === 'LEGISLATION' && (
         <div className="space-y-4">
           <div className="rounded-lg bg-sky-50 border border-sky-200 p-3">
-            <p className="text-sm text-sky-800 font-medium">Gain 3 citizens + draw 2 cards (keep 1)</p>
+            <p className="text-sm text-sky-800 font-medium">Gain 3 citizens + draw {playedCards?.some(c => c.id === 'ecclesia') ? 3 : 2} cards (keep 1)</p>
           </div>
 
           {legislationDraw && legislationDraw.length > 0 ? (

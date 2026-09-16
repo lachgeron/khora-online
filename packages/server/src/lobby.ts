@@ -16,6 +16,7 @@ export interface Lobby {
   started: boolean;
   recordStats: boolean;
   draftMode: DraftMode;
+  includeExpansionCards: boolean;
   createdAt: number;
 }
 
@@ -69,6 +70,7 @@ export class LobbyManager {
       started: false,
       recordStats: true,
       draftMode: 'STANDARD',
+      includeExpansionCards: false,
       createdAt: Date.now(),
     };
 

@@ -47,6 +47,7 @@ export class GameServer {
       cityCards?: CityCard[];
       eventCards?: EventCard[];
       politicsDeck?: PoliticsCard[];
+      includeExpansionCards?: boolean;
       achievements?: AchievementToken[];
       centralBoardTokens?: KnowledgeToken[];
     },
@@ -75,7 +76,7 @@ export class GameServer {
       players,
       cities,
       options?.eventCards ?? makeDefaultEventDeck(),
-      options?.politicsDeck ?? makeDefaultPoliticsDeck(),
+      options?.politicsDeck ?? makeDefaultPoliticsDeck(options?.includeExpansionCards),
       options?.achievements ?? makeDefaultAchievements(),
       options?.centralBoardTokens ?? [],
     );
@@ -165,8 +166,8 @@ export function makeDefaultEventDeck(): EventCard[] {
   return buildEventDeck();
 }
 
-export function makeDefaultPoliticsDeck(): PoliticsCard[] {
-  return buildPoliticsDeck();
+export function makeDefaultPoliticsDeck(includeExpansionCards = false): PoliticsCard[] {
+  return buildPoliticsDeck(includeExpansionCards);
 }
 
 export function makeDefaultAchievements(): AchievementToken[] {

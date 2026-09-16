@@ -11,6 +11,7 @@ export interface NotificationProps {
 }
 
 const DECISION_LABELS: Record<DecisionType, string> = {
+  EXPANSION_CHOICE: 'Resolve your expansion card',
   SELECT_CITY: 'select a city',
   DRAFT_CARD: 'draft a politics card',
   PICK_BAN_CARD: 'pick or ban a card',

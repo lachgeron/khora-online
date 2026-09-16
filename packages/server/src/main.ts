@@ -11,7 +11,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { ClientMessage, GameState, ServerMessage } from '@khora/shared';
 import { activateDev } from './city-dev-handlers';
 import { RANDOM_EVENTS, STARTING_EVENT, FINAL_EVENT } from './game-data';
-import { LobbyManager, generatePlayerId } from './lobby';
+import { LobbyManager } from './lobby';
 import { RestApiHandler } from './api/rest-api';
 import { WebSocketGateway } from './api/websocket-gateway';
 import { GameEngine } from './game-engine';
@@ -212,13 +212,18 @@ app.patch('/api/lobbies/:lobbyId/settings', (req, res) => {
   const lobby = lobbyManager.getLobby(req.params.lobbyId);
   if (!lobby) return res.status(404).json({ code: 'LOBBY_NOT_FOUND', message: 'Lobby not found' });
   if (lobby.started) return res.status(400).json({ code: 'LOBBY_ALREADY_STARTED', message: 'Lobby already started' });
+  if ('includeExpansionCards' in req.body) {
+    if (req.body.requestingPlayerId !== lobby.hostPlayerId) return res.status(403).json({ code: 'NOT_HOST', message: 'Only the host can change expansion cards.' });
+    if (typeof req.body.includeExpansionCards !== 'boolean') return res.status(400).json({ code: 'INVALID_REQUEST', message: 'includeExpansionCards must be a boolean.' });
+    lobby.includeExpansionCards = req.body.includeExpansionCards;
+  }
   if (typeof req.body.recordStats === 'boolean') {
     lobby.recordStats = req.body.recordStats;
   }
   if (req.body.draftMode === 'STANDARD' || req.body.draftMode === 'PICK_BAN') {
     lobby.draftMode = req.body.draftMode;
   }
-  res.json({ recordStats: lobby.recordStats, draftMode: lobby.draftMode });
+  res.json({ recordStats: lobby.recordStats, draftMode: lobby.draftMode, includeExpansionCards: lobby.includeExpansionCards });
 });
 
 // POST /api/lobbies/:lobbyId/start — start game
@@ -234,7 +239,7 @@ app.post('/api/lobbies/:lobbyId/start', (req, res) => {
   const draftMode = lobby?.draftMode ?? 'STANDARD';
 
   const gameEngine = new GameEngine(draftMode);
-  const state = gameEngine.initializeGame(players, cities, makeDefaultEventDeck(), makeDefaultPoliticsDeck(), makeDefaultAchievements(), makeDefaultCentralBoardTokens(), draftMode);
+  const state = gameEngine.initializeGame(players, cities, makeDefaultEventDeck(), makeDefaultPoliticsDeck(lobby?.includeExpansionCards), makeDefaultAchievements(), makeDefaultCentralBoardTokens(), draftMode);
 
   games.set(state.gameId, state);
   engines.set(state.gameId, gameEngine);
@@ -301,8 +306,8 @@ app.get('/api/stats', (_req, res) => {
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-// Track raw WS connections: ws → { gameId, playerId }
-const wsClients = new Map<WebSocket, { gameId: string; playerId: string }>();
+// Track raw WS connections: ws → gateway connection metadata.
+const wsClients = new Map<WebSocket, { gameId: string; playerId: string; connectionId: string }>();
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url ?? '', `http://localhost:${PORT}`);
@@ -320,14 +325,14 @@ wss.on('connection', (ws, req) => {
   }
 
   console.log(`[WS] Player ${playerId} connected to game ${gameId}`);
-  wsClients.set(ws, { gameId, playerId });
 
   // Register in gateway
-  wsGateway.addConnection(gameId, playerId, (msg: ServerMessage) => {
+  const connectionId = wsGateway.addConnection(gameId, playerId, (msg: ServerMessage) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(msg));
     }
   });
+  wsClients.set(ws, { gameId, playerId, connectionId });
 
   // Handle reconnection: if this player was disconnected, mark them reconnected
   let state = games.get(gameId)!;
@@ -351,7 +356,7 @@ wss.on('connection', (ws, req) => {
       if (!gameEngine) return;
 
       if (message.type === 'HEARTBEAT') {
-        wsGateway.handleMessage(gameId, playerId, message);
+        wsGateway.handleMessage(gameId, playerId, message, connectionId);
         return;
       }
 
@@ -557,11 +562,15 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
+    const meta = wsClients.get(ws);
+    if (!meta) return;
+
     console.log(`[WS] Player ${playerId} disconnected from game ${gameId}`);
     wsClients.delete(ws);
-    wsGateway.removeConnection(gameId, playerId);
+    const stillConnected = wsGateway.removeConnection(gameId, playerId, meta.connectionId);
 
-    // Mark player as disconnected in game state
+    // Mark player as disconnected only after their last tab/socket closes.
+    if (stillConnected) return;
     const currentState = games.get(gameId);
     if (currentState && currentState.currentPhase !== 'GAME_OVER') {
       const updatedState = handleDisconnect(currentState, playerId);
@@ -581,17 +590,28 @@ wsGateway.onDisconnect((gameId, playerId) => {
     wsGateway.broadcastToGame(gameId, updatedState);
   }
   // Also close the raw WS connection if it still exists
-  for (const [ws, meta] of wsClients) {
+  for (const [ws, meta] of Array.from(wsClients)) {
     if (meta.gameId === gameId && meta.playerId === playerId) {
       wsClients.delete(ws);
       try { ws.close(); } catch { /* already closed */ }
-      break;
     }
   }
 });
 
 setInterval(() => {
-  wsGateway.checkHeartbeats();
+  const expired = wsGateway.checkHeartbeats();
+  for (const stale of expired) {
+    for (const [ws, meta] of Array.from(wsClients)) {
+      if (
+        meta.gameId === stale.gameId
+        && meta.playerId === stale.playerId
+        && meta.connectionId === stale.connectionId
+      ) {
+        wsClients.delete(ws);
+        try { ws.close(); } catch { /* already closed */ }
+      }
+    }
+  }
 }, 15_000);
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -10,6 +10,7 @@ import type {
   DiceAssignment,
   FinalScoreBoard,
   GameLogEntry,
+  ProgressSubmission,
   TrackAdvancement,
 } from './types';
 
@@ -18,6 +19,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
+  | { type: 'RESOLVE_EXPANSION'; value?: string; amount?: number; choices?: ActionChoices }
   | { type: 'SELECT_CITY'; cityId: string }
   | { type: 'DRAFT_CARD'; cardId: string }
   | { type: 'PICK_BAN_CARD'; cardId: string; action: 'BAN' | 'PICK' }
@@ -136,6 +138,8 @@ export interface PublicPlayerState {
 
 /** Private info sent only to the owning player. */
 export interface PrivatePlayerState {
+  nextActionType?: ActionType;
+  expansionChoice?: import('./models').ExpansionChoice | null;
   coins: number;
   philosophyTokens: number;
   knowledgeTokens: KnowledgeToken[];
@@ -152,6 +156,7 @@ export interface PrivatePlayerState {
 }
 
 export interface LiveSolverPlayerSnapshot {
+  pendingGloryGains?: number;
   playerId: string;
   playerName: string;
   cityId: string;
@@ -178,6 +183,8 @@ export interface LiveSolverPlayerSnapshot {
 }
 
 export interface LiveSolverSnapshot {
+  expansionChoices?: import('./models').ExpansionChoice[];
+  suspendedDecisions?: import('./types').PendingDecision[];
   gameId: string;
   roundNumber: number;
   currentPhase: GamePhase;
@@ -193,6 +200,7 @@ export interface LiveSolverSnapshot {
   turnOrder: string[];
   gameLog: GameLogEntry[];
   pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number; options: unknown; usingTimeBank?: boolean }[];
+  progressSubmissions?: Record<string, ProgressSubmission>;
   disconnectedPlayerIds: string[];
   draftMode: DraftMode;
   finalScores: FinalScoreBoard | null;
@@ -269,6 +277,7 @@ export interface LiveSolverResult {
   completedLines: number;
   computeMs: number;
   horizon: 'FULL_GAME' | 'PARTIAL';
+  verifiedFinalScore?: number;
   proofStatus: 'PROVEN_OPTIMAL' | 'UNPROVEN';
   proofNodes: number;
   proofReason: string;
