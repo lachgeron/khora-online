@@ -186,6 +186,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Fly checks readiness without reading or changing any game state.
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // GET /api/games — list all available games (lobbies + in-progress with open seats)
 app.get('/api/games', (_req, res) => {
   res.json(restApi.listGames(games, lobbyGameIds));
@@ -616,6 +621,6 @@ setInterval(() => {
 }, 15_000);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Khora Online server running on http://localhost:${PORT}`);
-  console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
+  console.log(`Khora Online server listening on 0.0.0.0:${PORT}`);
+  console.log(`WebSocket endpoint: ws://0.0.0.0:${PORT}/ws`);
 });

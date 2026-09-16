@@ -15,4 +15,4 @@ COPY packages/server/ packages/server/
 COPY tsconfig.json ./
 
 EXPOSE 3001
-CMD ["npx", "tsx", "packages/server/src/main.ts"]
+CMD ["node", "--import", "tsx", "packages/server/src/main.ts"]
