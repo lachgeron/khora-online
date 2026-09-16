@@ -634,9 +634,8 @@ export const App: React.FC = () => {
         />
       )}
 
-      {screen === 'GAME' && gameState && currentPlayerId && (
-        solver.enabled ? <ScoreSolverPanel result={solver.result} playerId={currentPlayerId} connected={connected} onClose={() => solver.setEnabled(false)} onRefresh={solver.refreshNow} />
-          : <button type="button" onClick={() => solver.setEnabled(true)} className="fixed bottom-4 right-4 z-40 rounded-lg bg-sand-900 text-sand-50 px-4 py-2 shadow-lg">Score solver</button>
+      {screen === 'GAME' && gameState && currentPlayerId && solver.enabled && (
+        <ScoreSolverPanel result={solver.result} playerId={currentPlayerId} connected={connected} onClose={() => solver.setEnabled(false)} onRefresh={solver.refreshNow} />
       )}
     </div>
   );

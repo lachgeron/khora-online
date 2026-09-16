@@ -21,6 +21,12 @@ Future city offers and the initial politics draft shuffle are generated on deman
 
 The interface always says that optimality is unproven. This is a first playable implementation; playing strength requires further benchmarking against stronger searches and real positions. It does not enumerate every possible continuation within a live timer, infer an opponent's personal tendencies, or guarantee opponents choose the projected moves.
 
+## Deployment
+
+The Vercel client and Fly game server must both be deployed for this feature. The client requests `SOLVER_SNAPSHOT_REQUEST`; older servers cannot provide the full position. If no matching snapshot arrives within five seconds, the panel reports the missing response instead of waiting indefinitely. Refresh retries the request.
+
+From the repository root, sign in with `fly auth login` and deploy with `fly deploy --app khora-server`. Deploy between games: active game state is held in server memory and does not survive a server restart. Deploy the client through its existing Vercel workflow.
+
 ## Validation
 
 Tests verify snapshot function restoration, position identity, immutability, reproducible transitions, score-only selection for every acting player, a known endgame choice, optional final development activations, expansion choice kinds, progress combinations, both draft modes, and four-player continuations for all seven cities. Complete projected paths are replayed through the engine and their final scores checked. Timing tests exercise first results and full-path generation on the development machine; browser and device speeds vary.
