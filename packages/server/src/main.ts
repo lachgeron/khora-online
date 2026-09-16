@@ -17,6 +17,7 @@ import { WebSocketGateway } from './api/websocket-gateway';
 import { GameEngine } from './game-engine';
 import { handleDisconnect, handleReconnect } from './disconnection';
 import { loadStats, recordGame } from './stats';
+import { solverSnapshot } from './score-solver/simulation';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
@@ -360,11 +361,10 @@ wss.on('connection', (ws, req) => {
         return;
       }
 
-      if (message.type === 'LIVE_SOLVER_REQUEST') {
+      if (message.type === 'SOLVER_SNAPSHOT_REQUEST') {
         wsGateway.sendToPlayer(gameId, playerId, {
-          type: 'ERROR',
-          code: 'SOLVER_CLIENT_ONLY',
-          message: 'Live solver now runs locally in the browser.',
+          type: 'SOLVER_SNAPSHOT', requestId: message.requestId,
+          stateJson: solverSnapshot(currentState),
         });
         return;
       }
@@ -489,7 +489,8 @@ wss.on('connection', (ws, req) => {
         if (newOrder.length === currentState.eventDeck.length) {
           const updatedState = { ...currentState, eventDeck: newOrder, updatedAt: Date.now() };
           games.set(gameId, updatedState);
-          // No broadcast needed — event deck is not visible to players until revealed
+          // Invalidate full-information analysis after changing the future event order.
+          wsGateway.broadcastToGame(gameId, updatedState);
         }
         return;
       }

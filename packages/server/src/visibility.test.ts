@@ -48,11 +48,9 @@ describe('dice assignment visibility', () => {
 
     const bobView = getStateForPlayer(state, 'player-2');
     expect(bobView.public.players.find(player => player.playerId === 'player-1')?.actionSlots).toEqual([]);
-    expect(bobView.private.liveSolverSnapshot?.players.find(player => player.playerId === 'player-1')?.actionSlots).toEqual([null, null, null]);
 
     const aliceView = getStateForPlayer(state, 'player-1');
     expect(aliceView.private.actionSlots[0]?.actionType).toBe('POLITICS');
-    expect(aliceView.private.liveSolverSnapshot?.players.find(player => player.playerId === 'player-1')?.actionSlots[0]?.actionType).toBe('POLITICS');
   });
 
   it('reveals assigned actions once all dice assignments are submitted', () => {

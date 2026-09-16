@@ -1,4 +1,0 @@
-
-> khora-online@0.0.1 reference:search
-> tsx packages/server/src/offline-reference-search.ts -- --budget 10m --keep 700 --keep-per-city 80 --runtime-lines 420 --reference-weight 28 --reference-limit 180 --run-name overnight-20260526-094841
-

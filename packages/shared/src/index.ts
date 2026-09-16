@@ -8,4 +8,5 @@ export * from './effects';
 export * from './models';
 export * from './types';
 export * from './messages';
+export * from './score-solver';
 export * from './arbitraries';

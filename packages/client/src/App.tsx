@@ -33,8 +33,8 @@ import { AdminSwapModal } from './components/AdminSwapModal';
 import { AdminEventModal } from './components/AdminEventModal';
 import { useAdminMode } from './useAdminMode';
 import { StatsPage } from './components/StatsPage';
-import { LiveSolverPanel } from './live-solver/LiveSolverPanel';
-import { useLiveSolverMode } from './live-solver/useLiveSolverMode';
+import { ScoreSolverPanel } from './score-solver/ScoreSolverPanel';
+import { useScoreSolver } from './score-solver/useScoreSolver';
 
 type Screen = 'NAME' | 'BROWSE' | 'LOBBY' | 'GAME' | 'STATS';
 
@@ -88,16 +88,12 @@ export const App: React.FC = () => {
   const [includeExpansionCards, setIncludeExpansionCards] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
-  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents } =
+  const { gameState, privateState, finalScores, connected, error: wsError, sendMessage, adminDeckCards, adminEventCards, adminUnusedEvents, solverSnapshot } =
     useGameSocket(gameId, currentPlayerId);
 
+  const solver = useScoreSolver({ gameId: screen === 'GAME' ? gameId : null, playerId: currentPlayerId, connected, gameState, privateState, snapshot: solverSnapshot, sendMessage });
+
   const { adminPanel, deactivateAdmin } = useAdminMode();
-  const liveSolver = useLiveSolverMode({
-    connected,
-    currentPlayerId,
-    gameState,
-    privateState,
-  });
 
   useLobbyPolling(
     screen === 'LOBBY' ? lobbyId : null,
@@ -252,7 +248,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div>
+    <div className={screen === 'GAME' && solver.enabled ? 'min-[1100px]:pr-[424px]' : ''}>
       <TimeBankDangerOverlay active={showTimeBankDanger} remainingSeconds={timeBankRemainingSeconds} />
       {privateState?.expansionChoice && <ExpansionChoicePanel
         privateState={privateState} player={currentPlayer} sendMessage={sendMessage}
@@ -365,7 +361,7 @@ export const App: React.FC = () => {
         }
 
         return (
-        <div className={`grid grid-cols-[320px_1fr_280px] grid-rows-[auto_1fr_auto] gap-3 max-w-[1440px] mx-auto p-3 min-h-screen ${liveSolver.enabled ? 'min-[1100px]:grid-cols-[240px_minmax(0,1fr)] min-[1100px]:mr-[430px]' : ''}`}>
+        <div className={`grid grid-cols-[320px_1fr_280px] grid-rows-[auto_1fr_auto] gap-3 max-w-[1440px] mx-auto p-3 min-h-screen ${solver.enabled ? 'min-[1100px]:grid-cols-[220px_minmax(0,1fr)]' : ''}`}>
 
           {gameState.currentPhase === 'CITY_SELECTION' && gameState.cityDraft && (
             <CitySelection
@@ -436,7 +432,7 @@ export const App: React.FC = () => {
               statusText={statusText}
               isMyTurn={isMyTurn}
               onActivateDev={(devId) => sendMessage({ type: 'ACTIVATE_DEV', devId })}
-              solverOpen={liveSolver.enabled}
+              compact={solver.enabled}
             >
               {gameState.currentPhase === 'OMEN' && gameState.currentEvent && (
                 <div className="py-6">
@@ -638,16 +634,9 @@ export const App: React.FC = () => {
         />
       )}
 
-      {liveSolver.enabled && (
-        <LiveSolverPanel
-          pending={liveSolver.pending}
-          result={liveSolver.result}
-          currentRound={gameState?.roundNumber ?? null}
-          currentPhase={gameState?.currentPhase ?? null}
-          currentDecisionType={gameState?.pendingDecisions.find(decision => decision.playerId === currentPlayerId)?.decisionType ?? null}
-          onRefresh={liveSolver.requestNow}
-          onClose={liveSolver.toggle}
-        />
+      {screen === 'GAME' && gameState && currentPlayerId && (
+        solver.enabled ? <ScoreSolverPanel result={solver.result} playerId={currentPlayerId} connected={connected} onClose={() => solver.setEnabled(false)} onRefresh={solver.refreshNow} />
+          : <button type="button" onClick={() => solver.setEnabled(true)} className="fixed bottom-4 right-4 z-40 rounded-lg bg-sand-900 text-sand-50 px-4 py-2 shadow-lg">Score solver</button>
       )}
     </div>
   );

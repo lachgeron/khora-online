@@ -18,8 +18,6 @@ import { advanceTrack } from './resources';
 import { createMinorToken } from './knowledge-tokens';
 import { getStateForPlayer } from './visibility';
 import { serializeGameState, deserializeGameState } from './serialization';
-import { buildLiveSolverSnapshot, gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
-import { __liveSolverInternals } from './live-solver';
 import { DEV_IMMEDIATE_HANDLERS } from './city-dev-handlers';
 
 const card = (id: string) => [...ALL_POLITICS_CARDS, ...EXPANSION_POLITICS_CARDS].find(c => c.id === id)!;
@@ -200,16 +198,6 @@ describe('expansion scoring and recovery', () => {
     const culture = makeTestGameState({ players: [richPlayer({ cityId: 'olympia', playedCards: [card('epidaurus')] })] });
     expect(DEV_IMMEDIATE_HANDLERS['olympia-dev-4'](culture, 'player-1').expansionChoices).toHaveLength(3);
   });
-  it('the solver can enumerate and apply every Demagorgy spending option', () => {
-    const state = prepareExpansionChoices({ ...play('demagorgy'), currentPhase: 'TAXATION', pendingDecisions: [{ playerId: '__display__', decisionType: 'PHASE_DISPLAY', timeoutAt: Date.now() + 15000, options: null }] });
-    const candidates = __liveSolverInternals.enumerateExactCandidates(state, 'player-1', 'EXPANSION_CHOICE');
-    expect(candidates).toHaveLength(4);
-    for (const candidate of candidates) {
-      const applied = __liveSolverInternals.applyMessage(state, 'player-1', candidate.message);
-      expect(applied).not.toBeNull();
-      expect(applied!.expansionChoices).toEqual([]);
-    }
-  });
   it('scores yellow cards, scrolls, strictly greater Glory and Hades after all other sources', () => {
     const player = richPlayer({ victoryPoints: 19, coins: 4, philosophyTokens: 2, gloryTrack: 3,
       playedCards: ['palestra', 'great-library', 'favour-of-the-gods', 'hades', 'bank', 'the-seven-wonders', 'tracian-mercenaries'].map(card),
@@ -221,13 +209,10 @@ describe('expansion scoring and recovery', () => {
     expect(score.breakdown.politicsCardPoints).toBe(25);
     expect(calculateFinalScores(deserializeGameState(serializeGameState(state)))).toEqual(calculateFinalScores(state));
   });
-  it('only exposes a Mausoleum choice to its owner and preserves expansion cards through snapshots', () => {
+  it('only exposes a Mausoleum choice to its owner', () => {
     const state = prepareExpansionChoices(play('mausoleum-of-halikarnassos'));
     expect(getStateForPlayer(state, 'player-1').private.expansionChoice?.cards).toHaveLength(5);
     expect(getStateForPlayer(state, 'player-2').private.expansionChoice).toBeNull();
-    const restored = gameStateFromLiveSolverSnapshot(buildLiveSolverSnapshot(state));
-    expect(restored.players[0].playedCards[0].id).toBe('mausoleum-of-halikarnassos');
-    expect(restored.expansionChoices).toEqual(state.expansionChoices);
   });
   it('timeouts decline an optional card effect and restore the phase timer', () => {
     const state = prepareExpansionChoices({ ...play('demagorgy'), currentPhase: 'TAXATION', pendingDecisions: [{ playerId: '__display__', decisionType: 'PHASE_DISPLAY', timeoutAt: Date.now() + 15000, options: null }] });

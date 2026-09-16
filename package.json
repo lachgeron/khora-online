@@ -10,11 +10,7 @@
     "test": "vitest --run --passWithNoTests",
     "lint": "eslint packages/*/src/**/*.ts",
     "dev:server": "npm run start --workspace=packages/server",
-    "dev:client": "npm run dev --workspace=packages/client",
-    "reference:search": "tsx packages/server/src/offline-reference-search.ts",
-    "reference:session": "tsx packages/server/src/offline-reference-session.ts",
-    "reference:validate": "tsx packages/server/src/live-solver-reference-validate.ts --",
-    "solver:benchmark": "tsx packages/server/src/live-solver-benchmark.ts"
+    "dev:client": "npm run dev --workspace=packages/client"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",

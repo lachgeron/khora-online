@@ -40,7 +40,6 @@ import { calculateFinalScores } from './scoring-engine';
 import { applyDevelopmentEffect } from './city-abilities';
 import { getAllCityCards } from './game-data';
 import { appendLogEntry } from './game-log';
-import { buildLiveSolverSnapshot } from './live-solver-snapshot';
 import { shouldHideActionAssignments } from './visibility';
 import { hasExpansionChoices, prepareExpansionChoices, restoreExpansionDecisions } from './expansion-choices';
 import { resolveExpansionChoice, autoResolveExpansionChoice } from './expansion-resolver';
@@ -515,10 +514,6 @@ export class GameEngine {
           legislationDraw: null,
           expansionChoice: state.expansionChoices?.[0]?.playerId === playerId ? state.expansionChoices[0] : null,
           nextActionType: (state.pendingDecisions.find(d => d.playerId === playerId && d.decisionType === 'RESOLVE_ACTION')?.options as { actionType?: import('@khora/shared').ActionType } | null)?.actionType,
-          liveSolverSnapshot: buildLiveSolverSnapshot(state, {
-            viewerPlayerId: playerId,
-            hideUnrevealedActionSlots: shouldHideActionAssignments(state),
-          }),
         }
       : {
           coins: 0,
@@ -532,7 +527,6 @@ export class GameEngine {
           draftPack: null,
           draftedCards: null,
           legislationDraw: null,
-          liveSolverSnapshot: null,
         };
 
     return { public: publicState, private: privateState };

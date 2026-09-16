@@ -17,10 +17,10 @@ export interface GameBoardProps {
   isMyTurn?: boolean;
   children?: React.ReactNode;
   onActivateDev?: (devId: string) => void;
-  solverOpen?: boolean;
+  compact?: boolean;
 }
 
-export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, currentPlayerId, statusText, isMyTurn, children, onActivateDev, solverOpen = false }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, currentPlayerId, statusText, isMyTurn, children, onActivateDev, compact = false }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState(currentPlayerId);
   const [openPanel, setOpenPanel] = useState<'vp' | 'tracks' | 'knowledge' | null>(null);
   const me = gameState.players.find(p => p.playerId === currentPlayerId);
@@ -139,7 +139,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, privateState, c
       </div>
 
       {/* ── Right sidebar: Event, Players, Achievements ── */}
-      <div className={`row-span-2 flex flex-col gap-3 overflow-y-auto ${solverOpen ? 'min-[1100px]:col-start-2 min-[1100px]:row-span-1' : ''}`}>
+      <div className={`row-span-2 flex flex-col gap-3 overflow-y-auto ${compact ? 'min-[1100px]:col-start-2 min-[1100px]:row-span-1' : ''}`}>
         {/* Event — hidden during OMEN so the announcement's layoutId animates here on phase change */}
         {gameState.currentEvent && gameState.currentPhase !== 'OMEN' && gameState.currentPhase !== 'GLORY' && (
           <motion.div

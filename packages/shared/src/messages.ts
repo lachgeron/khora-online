@@ -2,15 +2,14 @@
  * Client <-> Server message types and visibility-filtered state for Khora Online.
  */
 
-import type { ActionType, DecisionType, DraftMode, GamePhase, KnowledgeColor, ProgressTrackType } from './enums';
+import type { ActionType, DecisionType, DraftMode, GamePhase, ProgressTrackType } from './enums';
 import type { KnowledgeToken } from './effects';
-import type { ActionSlot, ActionSlotTuple, AchievementToken, CityCard, EventCard, PickBanDraftState, PoliticsCard, PredeterminedDiceSchedule } from './models';
+import type { ActionSlotTuple, AchievementToken, CityCard, EventCard, PoliticsCard } from './models';
 import type {
   ActionChoices,
   DiceAssignment,
   FinalScoreBoard,
   GameLogEntry,
-  ProgressSubmission,
   TrackAdvancement,
 } from './types';
 
@@ -40,7 +39,7 @@ export type ClientMessage =
   | { type: 'ADMIN_SWAP_CARD'; handCardId: string; deckCardId: string }
   | { type: 'ADMIN_REQUEST_EVENTS' }
   | { type: 'ADMIN_REORDER_EVENTS'; eventOrder: string[] }
-  | { type: 'LIVE_SOLVER_REQUEST'; requestId: string; options?: LiveSolverRequestOptions };
+  | { type: 'SOLVER_SNAPSHOT_REQUEST'; requestId: string };
 
 // ---------------------------------------------------------------------------
 // Server -> Client
@@ -57,7 +56,7 @@ export type ServerMessage =
   | { type: 'ERROR'; code: string; message: string }
   | { type: 'ADMIN_DECK_RESPONSE'; deckCards: PoliticsCard[] }
   | { type: 'ADMIN_EVENTS_RESPONSE'; eventCards: EventCard[]; unusedEvents: EventCard[] }
-  | { type: 'LIVE_SOLVER_RESULT'; result: LiveSolverResult };
+  | { type: 'SOLVER_SNAPSHOT'; requestId: string; stateJson: string };
 
 // ---------------------------------------------------------------------------
 // Visibility-filtered state
@@ -152,134 +151,4 @@ export interface PrivatePlayerState {
   draftPack: PoliticsCard[] | null;       // Current pack of cards during DRAFT_POLITICS
   draftedCards: PoliticsCard[] | null;    // Cards already drafted during DRAFT_POLITICS
   legislationDraw: PoliticsCard[] | null; // Top 2 cards peeked for legislation action choice
-  liveSolverSnapshot: LiveSolverSnapshot | null; // Full debug snapshot used by the local live solver.
-}
-
-export interface LiveSolverPlayerSnapshot {
-  pendingGloryGains?: number;
-  playerId: string;
-  playerName: string;
-  cityId: string;
-  coins: number;
-  economyTrack: number;
-  cultureTrack: number;
-  militaryTrack: number;
-  taxTrack: number;
-  gloryTrack: number;
-  troopTrack: number;
-  citizenTrack: number;
-  philosophyTokens: number;
-  knowledgeTokens: KnowledgeToken[];
-  handCardIds: string[];
-  playedCardIds: string[];
-  developmentLevel: number;
-  diceRoll: number[] | null;
-  diceRollHistory: number[];
-  actionSlots: ActionSlotTuple;
-  victoryPoints: number;
-  isConnected: boolean;
-  hasFlagged: boolean;
-  timeBankMs: number;
-}
-
-export interface LiveSolverSnapshot {
-  expansionChoices?: import('./models').ExpansionChoice[];
-  suspendedDecisions?: import('./types').PendingDecision[];
-  gameId: string;
-  roundNumber: number;
-  currentPhase: GamePhase;
-  players: LiveSolverPlayerSnapshot[];
-  predeterminedDice: PredeterminedDiceSchedule;
-  eventDeckIds: string[];
-  currentEventId: string | null;
-  politicsDeckIds: string[];
-  centralBoardTokens: KnowledgeToken[];
-  availableAchievementIds: string[];
-  claimedAchievementIds: Record<string, string[]>;
-  startPlayerId: string;
-  turnOrder: string[];
-  gameLog: GameLogEntry[];
-  pendingDecisions: { playerId: string; decisionType: DecisionType; timeoutAt: number; options: unknown; usingTimeBank?: boolean }[];
-  progressSubmissions?: Record<string, ProgressSubmission>;
-  disconnectedPlayerIds: string[];
-  draftMode: DraftMode;
-  finalScores: FinalScoreBoard | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface LiveSolverRequestOptions {
-  timeBudgetMs?: number;
-  beamWidth?: number;
-  targetBranches?: number;
-  opponentBranches?: number;
-  completionWidth?: number;
-  maxDecisionPlies?: number;
-  exactTimeBudgetMs?: number;
-  exactNodeLimit?: number;
-  progressIntervalMs?: number;
-  skipExactSearch?: boolean;
-  referenceLines?: LiveSolverReferenceLine[];
-  referenceLineWeight?: number;
-}
-
-export interface LiveSolverReferenceMove {
-  round: number;
-  phase: GamePhase;
-  decisionType: DecisionType | 'ACTIVATE_DEV';
-  message: ClientMessage | null;
-}
-
-export interface LiveSolverReferenceLine {
-  score: number;
-  projectedMargin: number | null;
-  scenarioKey?: string;
-  cityId?: string;
-  tags?: string[];
-  moves: LiveSolverReferenceMove[];
-}
-
-export interface LiveSolverScoreProjection {
-  playerId: string;
-  playerName: string;
-  projectedTotal: number;
-  rank: number;
-}
-
-export interface LiveSolverMove {
-  round: number;
-  phase: GamePhase;
-  playerId: string;
-  playerName: string;
-  decisionType: DecisionType | 'ACTIVATE_DEV';
-  instruction: string;
-  detail: string;
-  message: ClientMessage | null;
-  estimatedSeconds: number;
-}
-
-export interface LiveSolverRoundPlan {
-  round: number;
-  moves: LiveSolverMove[];
-}
-
-export interface LiveSolverResult {
-  requestId: string;
-  playerId: string;
-  generatedAt: number;
-  status: 'READY' | 'UNAVAILABLE' | 'ERROR';
-  message: string;
-  currentMove: LiveSolverMove | null;
-  rounds: LiveSolverRoundPlan[];
-  projections: LiveSolverScoreProjection[];
-  projectedMargin: number | null;
-  searchedNodes: number;
-  completedLines: number;
-  computeMs: number;
-  horizon: 'FULL_GAME' | 'PARTIAL';
-  verifiedFinalScore?: number;
-  proofStatus: 'PROVEN_OPTIMAL' | 'UNPROVEN';
-  proofNodes: number;
-  proofReason: string;
-  opponentModel: 'MAXIMIZE_MARGIN_AGAINST_ADVERSARIAL_FIELD' | 'LIGHTWEIGHT_ACHIEVEMENT_EVENT_FIELD';
 }

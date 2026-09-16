@@ -3,5 +3,6 @@
  * action resolvers, scoring engine, and networking for
  * Khora: Rise of an Empire.
  */
-export { buildReferenceLinePreview, runLiveSolver, validateLiveSolverLine, createLiveSolverSearchSession } from './live-solver';
-export { buildLiveSolverSnapshot, gameStateFromLiveSolverSnapshot } from './live-solver-snapshot';
+// Browser-safe analysis entry points; do not export the HTTP server here.
+export { ScoreSearch } from './score-solver/search';
+export { restoreSolverSnapshot } from './score-solver/simulation';
