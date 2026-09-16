@@ -1,0 +1,1667 @@
+{
+  "date": "2026-09-16",
+  "acceptedArenaVariant": "narrow",
+  "notes": "Sequential local runs. Actual arena final scores; opening scores are conditional projections. See the accompanying Markdown report for variant definitions and limitations.",
+  "arena": {
+    "before": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 65,
+        "opponentScore": 40,
+        "searches": 44,
+        "fallbacks": 0,
+        "trials": 24107,
+        "searchMs": 8812,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 51,
+        "opponentScore": 46,
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 20733,
+        "searchMs": 7810,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 59,
+        "opponentScore": 43,
+        "searches": 40,
+        "fallbacks": 0,
+        "trials": 6423,
+        "searchMs": 8013,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 50,
+        "opponentScore": 63,
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 21835,
+        "searchMs": 8212,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 52,
+        "opponentScore": 58,
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 7788,
+        "searchMs": 7815,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 62,
+        "opponentScore": 44,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 44142,
+        "searchMs": 8414,
+        "maxSearchMs": 202
+      }
+    ],
+    "after": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 63,
+        "opponentScore": 39,
+        "searches": 47,
+        "fallbacks": 0,
+        "trials": 10493,
+        "searchMs": 9407,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 81,
+        "opponentScore": 41,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 35259,
+        "searchMs": 8405,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 62,
+        "opponentScore": 43,
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 16394,
+        "searchMs": 7810,
+        "maxSearchMs": 206
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 69,
+        "opponentScore": 63,
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 16110,
+        "searchMs": 9012,
+        "maxSearchMs": 208
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 76,
+        "opponentScore": 48,
+        "searches": 52,
+        "fallbacks": 0,
+        "trials": 47694,
+        "searchMs": 10404,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 62,
+        "opponentScore": 44,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 43943,
+        "searchMs": 8404,
+        "maxSearchMs": 201
+      }
+    ],
+    "greedy": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 51,
+        "opponentScore": 40,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 49,
+        "opponentScore": 46,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 34,
+        "opponentScore": 64,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 23,
+        "opponentScore": 67,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 39,
+        "opponentScore": 55,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 0,
+        "opponentStrategy": 0,
+        "score": 52,
+        "opponentScore": 44,
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      }
+    ],
+    "combos": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 55,
+        "opponentScore": 49,
+        "searches": 47,
+        "fallbacks": 0,
+        "trials": 23197,
+        "searchMs": 9410,
+        "maxSearchMs": 202
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 64,
+        "opponentScore": 51,
+        "searches": 48,
+        "fallbacks": 0,
+        "trials": 27673,
+        "searchMs": 9617,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 50,
+        "opponentScore": 52,
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 11547,
+        "searchMs": 7805,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 59,
+        "opponentScore": 63,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 12285,
+        "searchMs": 8409,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 60,
+        "opponentScore": 38,
+        "searches": 44,
+        "fallbacks": 0,
+        "trials": 7416,
+        "searchMs": 8815,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 63,
+        "opponentScore": 41,
+        "searches": 49,
+        "fallbacks": 0,
+        "trials": 14787,
+        "searchMs": 9816,
+        "maxSearchMs": 204
+      }
+    ],
+    "selective": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 52,
+        "opponentScore": 57,
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 22934,
+        "searchMs": 8612,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 70,
+        "opponentScore": 41,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 32822,
+        "searchMs": 8419,
+        "maxSearchMs": 204
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 59,
+        "opponentScore": 47,
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 12208,
+        "searchMs": 8217,
+        "maxSearchMs": 205
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 69,
+        "opponentScore": 63,
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 12313,
+        "searchMs": 9024,
+        "maxSearchMs": 205
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 67,
+        "opponentScore": 39,
+        "searches": 55,
+        "fallbacks": 0,
+        "trials": 53480,
+        "searchMs": 11025,
+        "maxSearchMs": 204
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 62,
+        "opponentScore": 44,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 45209,
+        "searchMs": 8414,
+        "maxSearchMs": 204
+      }
+    ],
+    "final": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 71,
+        "opponentScore": 40,
+        "searches": 46,
+        "fallbacks": 0,
+        "trials": 1484,
+        "searchMs": 9006,
+        "maxSearchMs": 202
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 73,
+        "opponentScore": 41,
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1040,
+        "searchMs": 7403,
+        "maxSearchMs": 200
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 56,
+        "opponentScore": 43,
+        "searches": 40,
+        "fallbacks": 0,
+        "trials": 2421,
+        "searchMs": 7786,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 54,
+        "opponentScore": 63,
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 2114,
+        "searchMs": 8608,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 83,
+        "opponentScore": 48,
+        "searches": 52,
+        "fallbacks": 0,
+        "trials": 1047,
+        "searchMs": 9806,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "score": 62,
+        "opponentScore": 44,
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 1355,
+        "searchMs": 7813,
+        "maxSearchMs": 201
+      }
+    ],
+    "cached": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 71,
+        "opponentScore": 40,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 40
+          }
+        ],
+        "searches": 46,
+        "fallbacks": 0,
+        "trials": 1370,
+        "searchMs": 9008,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 73,
+        "opponentScore": 41,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 41
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1078,
+        "searchMs": 7462,
+        "maxSearchMs": 243
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 58,
+        "opponentScore": 43,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 43
+          }
+        ],
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 2304,
+        "searchMs": 7557,
+        "maxSearchMs": 211
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 62,
+        "opponentScore": 63,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 63
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 1264,
+        "searchMs": 8035,
+        "maxSearchMs": 203
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 69,
+        "opponentScore": 48,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 48
+          }
+        ],
+        "searches": 50,
+        "fallbacks": 0,
+        "trials": 1222,
+        "searchMs": 9833,
+        "maxSearchMs": 229
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 70,
+        "opponentScore": 44,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 44
+          }
+        ],
+        "searches": 44,
+        "fallbacks": 0,
+        "trials": 1224,
+        "searchMs": 8246,
+        "maxSearchMs": 229
+      }
+    ],
+    "continuation": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 62,
+        "opponentScore": 49,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 49
+          }
+        ],
+        "searches": 44,
+        "fallbacks": 0,
+        "trials": 1146,
+        "searchMs": 8439,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 73,
+        "opponentScore": 41,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 41
+          }
+        ],
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 1144,
+        "searchMs": 7605,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 64,
+        "opponentScore": 43,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 43
+          }
+        ],
+        "searches": 39,
+        "fallbacks": 0,
+        "trials": 1454,
+        "searchMs": 7479,
+        "maxSearchMs": 202
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 62,
+        "opponentScore": 63,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 63
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 1141,
+        "searchMs": 8128,
+        "maxSearchMs": 245
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 55,
+        "opponentScore": 50,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 50
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 2842,
+        "searchMs": 8054,
+        "maxSearchMs": 205
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 62,
+        "opponentScore": 44,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 44
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1105,
+        "searchMs": 7450,
+        "maxSearchMs": 234
+      }
+    ],
+    "narrow": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 72,
+        "opponentScore": 49,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 49
+          }
+        ],
+        "searches": 51,
+        "fallbacks": 0,
+        "trials": 2228,
+        "searchMs": 9660,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 81,
+        "opponentScore": 41,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 41
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 1665,
+        "searchMs": 8043,
+        "maxSearchMs": 210
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 66,
+        "opponentScore": 66,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 66
+          }
+        ],
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 1726,
+        "searchMs": 8825,
+        "maxSearchMs": 215
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 73,
+        "opponentScore": 63,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 63
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 2242,
+        "searchMs": 8319,
+        "maxSearchMs": 223
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 67,
+        "opponentScore": 52,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 52
+          }
+        ],
+        "searches": 52,
+        "fallbacks": 0,
+        "trials": 2633,
+        "searchMs": 9847,
+        "maxSearchMs": 209
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 72,
+        "opponentScore": 40,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 40
+          }
+        ],
+        "searches": 56,
+        "fallbacks": 0,
+        "trials": 2769,
+        "searchMs": 9006,
+        "maxSearchMs": 201
+      }
+    ],
+    "holdout": [
+      {
+        "city": "athens",
+        "seed": 6,
+        "budgetMs": 500,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 79,
+        "opponentScore": 48,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 62
+          },
+          {
+            "playerId": "player-2",
+            "score": 48
+          },
+          {
+            "playerId": "player-4",
+            "score": 40
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 2080,
+        "searchMs": 21049,
+        "maxSearchMs": 516
+      },
+      {
+        "city": "corinth",
+        "seed": 6,
+        "budgetMs": 500,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 63,
+        "opponentScore": 52,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 62
+          },
+          {
+            "playerId": "player-4",
+            "score": 58
+          },
+          {
+            "playerId": "player-2",
+            "score": 52
+          }
+        ],
+        "searches": 43,
+        "fallbacks": 0,
+        "trials": 2008,
+        "searchMs": 21028,
+        "maxSearchMs": 507
+      },
+      {
+        "city": "miletus",
+        "seed": 6,
+        "budgetMs": 500,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 69,
+        "opponentScore": 57,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 70
+          },
+          {
+            "playerId": "player-2",
+            "score": 57
+          },
+          {
+            "playerId": "player-4",
+            "score": 31
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1785,
+        "searchMs": 20047,
+        "maxSearchMs": 540
+      },
+      {
+        "city": "argos",
+        "seed": 6,
+        "budgetMs": 500,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 40,
+        "opponentScore": 56,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 63
+          },
+          {
+            "playerId": "player-2",
+            "score": 56
+          },
+          {
+            "playerId": "player-4",
+            "score": 31
+          }
+        ],
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 2663,
+        "searchMs": 20510,
+        "maxSearchMs": 500
+      }
+    ],
+    "holdout-greedy": [
+      {
+        "city": "athens",
+        "seed": 6,
+        "budgetMs": 0,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 38,
+        "opponentScore": 51,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 72
+          },
+          {
+            "playerId": "player-2",
+            "score": 51
+          },
+          {
+            "playerId": "player-4",
+            "score": 38
+          }
+        ],
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "corinth",
+        "seed": 6,
+        "budgetMs": 0,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 44,
+        "opponentScore": 61,
+        "opponentScores": [
+          {
+            "playerId": "player-4",
+            "score": 61
+          },
+          {
+            "playerId": "player-2",
+            "score": 61
+          },
+          {
+            "playerId": "player-3",
+            "score": 50
+          }
+        ],
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "miletus",
+        "seed": 6,
+        "budgetMs": 0,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 50,
+        "opponentScore": 51,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 64
+          },
+          {
+            "playerId": "player-2",
+            "score": 51
+          },
+          {
+            "playerId": "player-4",
+            "score": 40
+          }
+        ],
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      },
+      {
+        "city": "argos",
+        "seed": 6,
+        "budgetMs": 0,
+        "opponentStrategy": 2,
+        "playerCount": 4,
+        "score": 33,
+        "opponentScore": 47,
+        "opponentScores": [
+          {
+            "playerId": "player-3",
+            "score": 67
+          },
+          {
+            "playerId": "player-2",
+            "score": 47
+          },
+          {
+            "playerId": "player-4",
+            "score": 39
+          }
+        ],
+        "searches": 0,
+        "fallbacks": 0,
+        "trials": 0,
+        "searchMs": 0,
+        "maxSearchMs": 0
+      }
+    ],
+    "funding": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 64,
+        "opponentScore": 40,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 40
+          }
+        ],
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 2116,
+        "searchMs": 8808,
+        "maxSearchMs": 202
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 84,
+        "opponentScore": 33,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 33
+          }
+        ],
+        "searches": 46,
+        "fallbacks": 0,
+        "trials": 1647,
+        "searchMs": 8643,
+        "maxSearchMs": 204
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 66,
+        "opponentScore": 66,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 66
+          }
+        ],
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 1625,
+        "searchMs": 8829,
+        "maxSearchMs": 207
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 75,
+        "opponentScore": 63,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 63
+          }
+        ],
+        "searches": 45,
+        "fallbacks": 0,
+        "trials": 1802,
+        "searchMs": 8406,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 87,
+        "opponentScore": 47,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 47
+          }
+        ],
+        "searches": 56,
+        "fallbacks": 0,
+        "trials": 2011,
+        "searchMs": 10816,
+        "maxSearchMs": 205
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 62,
+        "opponentScore": 44,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 44
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1140,
+        "searchMs": 7642,
+        "maxSearchMs": 207
+      }
+    ],
+    "strategy-order": [
+      {
+        "city": "athens",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 66,
+        "opponentScore": 49,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 49
+          }
+        ],
+        "searches": 46,
+        "fallbacks": 0,
+        "trials": 1675,
+        "searchMs": 8666,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "athens",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 65,
+        "opponentScore": 49,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 49
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1568,
+        "searchMs": 7809,
+        "maxSearchMs": 202
+      },
+      {
+        "city": "sparta",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 70,
+        "opponentScore": 55,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 55
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1427,
+        "searchMs": 8010,
+        "maxSearchMs": 205
+      },
+      {
+        "city": "sparta",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 63,
+        "opponentScore": 71,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 71
+          }
+        ],
+        "searches": 41,
+        "fallbacks": 0,
+        "trials": 1399,
+        "searchMs": 7824,
+        "maxSearchMs": 213
+      },
+      {
+        "city": "thebes",
+        "seed": 4,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 67,
+        "opponentScore": 52,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 52
+          }
+        ],
+        "searches": 47,
+        "fallbacks": 0,
+        "trials": 2643,
+        "searchMs": 9218,
+        "maxSearchMs": 201
+      },
+      {
+        "city": "thebes",
+        "seed": 5,
+        "budgetMs": 200,
+        "opponentStrategy": 0,
+        "playerCount": 2,
+        "score": 60,
+        "opponentScore": 44,
+        "opponentScores": [
+          {
+            "playerId": "player-2",
+            "score": 44
+          }
+        ],
+        "searches": 42,
+        "fallbacks": 0,
+        "trials": 1256,
+        "searchMs": 7822,
+        "maxSearchMs": 207
+      }
+    ]
+  },
+  "openings": [
+    {
+      "checkpoints": [
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 81,
+          "score": 47,
+          "trials": 1,
+          "moves": 387,
+          "immediate": "5 → Trade, 6 → Politics"
+        },
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 5081,
+          "score": 76,
+          "trials": 195,
+          "moves": 57636,
+          "immediate": "5 → Trade, 6 → Politics; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 10081,
+          "score": 76,
+          "trials": 368,
+          "moves": 109635,
+          "immediate": "5 → Trade, 6 → Politics; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 15081,
+          "score": 75,
+          "trials": 560,
+          "moves": 167472,
+          "immediate": "5 → Trade, 6 → Politics; spend 1 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 20082,
+          "score": 76,
+          "trials": 710,
+          "moves": 212062,
+          "immediate": "5 → Culture, 6 → Trade; spend 3 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 1,
+          "ms": 25082,
+          "score": 76,
+          "trials": 906,
+          "moves": 270679,
+          "immediate": "5 → Culture, 6 → Trade; spend 3 scroll(s) for citizens"
+        }
+      ],
+      "final": {
+        "city": "athens",
+        "seed": 1,
+        "score": 82,
+        "trials": 1098,
+        "moves": 329203,
+        "path": [
+          "R1: 5 → Trade, 6 → Military; spend 3 scroll(s) for citizens",
+          "R1: Trade",
+          "R1: Military",
+          "R1: Advance Military",
+          "R1: Achievement: +1 Tax",
+          "R2: Roll dice",
+          "R2: 1 → Military, 3 → Politics",
+          "R2: Military: Explore Red minor (3 troops, 0 skulls)",
+          "R2: Politics: Rivalry",
+          "R2: Advance Military",
+          "R3: Roll dice",
+          "R3: 1 → Legislation, 6 → Military",
+          "R3: Skip / automatically resolve remaining actions",
+          "R3: Advance Culture",
+          "R3: Achievement: +1 Tax",
+          "R4: Roll dice",
+          "R4: 1 → Culture, 3 → Military",
+          "R4: Military: Explore Green major (6 troops, 3 skulls, +2 VP)",
+          "R4: Advance Economy",
+          "R4: Give up Red minor (3 troops, 0 skulls)",
+          "R5: Roll dice",
+          "R5: 4 → Military, 5 → Development",
+          "R5: Military: Explore Blue major (8 troops, 7 skulls, +3 VP, +3 coins)",
+          "R5: Development: Spend 2 scrolls for knowledge",
+          "R5: Advance Economy → Culture; spend 1 scroll(s)",
+          "R6: Roll dice",
+          "R6: 5 → Politics, 3 → Military",
+          "R6: Military: Explore Green major (9 troops, 8 skulls, +6 VP)",
+          "R6: Politics: Peripteros",
+          "R6: Advance Economy",
+          "R6: Achievement: +1 Glory",
+          "R7: Roll dice",
+          "R7: 3 → Military, 3 → Politics, 1 → Culture",
+          "R7: Military: Explore Green major (5 troops, 4 skulls, +2 VP)",
+          "R7: Politics: Archives",
+          "R7: Decline / skip",
+          "R7: Achievement: +1 Glory",
+          "R8: Roll dice",
+          "R8: 4 → Military, 4 → Politics, 1 → Culture",
+          "R8: Military: Explore Red major (5 troops, 4 skulls, +2 coins)",
+          "R8: Politics: Colossus of Rhodes",
+          "R8: Advance Economy",
+          "R9: Roll dice",
+          "R9: 3 → Military, 5 → Politics, 2 → Culture",
+          "R9: Military: Explore Green minor (4 troops, 2 skulls, +2 VP)",
+          "R9: Politics: Corinthian Columns",
+          "R9: Advance Economy → Economy; spend 1 scroll(s)"
+        ]
+      }
+    },
+    {
+      "checkpoints": [
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 85,
+          "score": 42,
+          "trials": 1,
+          "moves": 417,
+          "immediate": "6 → Philosophy, 5 → Trade"
+        },
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 5085,
+          "score": 79,
+          "trials": 206,
+          "moves": 58664,
+          "immediate": "6 → Development, 5 → Philosophy"
+        },
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 10085,
+          "score": 64,
+          "trials": 401,
+          "moves": 115378,
+          "immediate": "6 → Philosophy, 5 → Military; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 15086,
+          "score": 68,
+          "trials": 609,
+          "moves": 175792,
+          "immediate": "6 → Legislation, 5 → Military; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 20086,
+          "score": 76,
+          "trials": 801,
+          "moves": 233375,
+          "immediate": "6 → Trade, 5 → Military; spend 3 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 2,
+          "ms": 25086,
+          "score": 76,
+          "trials": 998,
+          "moves": 292262,
+          "immediate": "6 → Trade, 5 → Military; spend 3 scroll(s) for citizens"
+        }
+      ],
+      "final": {
+        "city": "athens",
+        "seed": 2,
+        "score": 68,
+        "trials": 1198,
+        "moves": 351682,
+        "path": [
+          "R1: 6 → Legislation, 5 → Military; spend 2 scroll(s) for citizens",
+          "R1: Skip / automatically resolve remaining actions",
+          "R1: Advance Culture → Military; spend 1 scroll(s)",
+          "R1: Achievement: +1 Tax",
+          "R2: Roll dice",
+          "R2: 1 → Culture, 6 → Military",
+          "R2: Military: Explore Red minor (3 troops, 0 skulls)",
+          "R2: Advance Economy",
+          "R3: Roll dice",
+          "R3: 6 → Military, 1 → Culture",
+          "R3: Military: Explore Green minor (5 troops, 1 skulls, +2 VP)",
+          "R3: Decline / skip",
+          "R4: Roll dice",
+          "R4: 4 → Military, 4 → Development",
+          "R4: Military: Explore Blue minor (4 troops, 2 skulls, +1 VP, +1 coins)",
+          "R4: Development",
+          "R4: Advance Military",
+          "R4: Give up Red minor (3 troops, 0 skulls)",
+          "R5: Roll dice",
+          "R5: 5 → Politics, 1 → Military",
+          "R5: Military: Explore Green major (6 troops, 3 skulls, +2 VP)",
+          "R5: Politics: Greek Fire",
+          "R5: Advance Economy",
+          "R5: Achievement: +1 Tax",
+          "R6: Roll dice",
+          "R6: 3 → Military, 1 → Politics",
+          "R6: Military: Explore Blue major (9 troops, 9 skulls, +4 VP, +4 coins)",
+          "R6: Politics: Tunnel of Eupalinos",
+          "R6: Advance Economy",
+          "R6: Achievement: +1 Glory",
+          "R7: Roll dice",
+          "R7: 1 → Military, 6 → Politics",
+          "R7: Military: Explore Green major (5 troops, 4 skulls, +2 VP)",
+          "R7: Politics: Helepole",
+          "R7: Advance Military",
+          "R7: Achievement: +1 Glory",
+          "R8: Roll dice",
+          "R8: 4 → Military, 4 → Politics",
+          "R8: Military: Explore Red major (5 troops, 4 skulls, +2 coins)",
+          "R8: Politics: Council",
+          "R8: Advance Culture → Culture; spend 1 scroll(s)",
+          "R8: Decline / skip",
+          "R9: Roll dice",
+          "R9: 1 → Culture, 3 → Military, 6 → Politics",
+          "R9: Military: Explore Blue major (6 troops, 5 skulls, +1 VP, +2 coins)",
+          "R9: Politics: Proskenion",
+          "R9: Advance Economy"
+        ]
+      }
+    },
+    {
+      "checkpoints": [
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 79,
+          "score": 46,
+          "trials": 1,
+          "moves": 390,
+          "immediate": "1 → Legislation, 3 → Development"
+        },
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 5079,
+          "score": 77,
+          "trials": 213,
+          "moves": 60020,
+          "immediate": "1 → Politics, 3 → Development; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 10079,
+          "score": 77,
+          "trials": 437,
+          "moves": 121924,
+          "immediate": "1 → Politics, 3 → Development; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 15079,
+          "score": 77,
+          "trials": 646,
+          "moves": 179586,
+          "immediate": "1 → Politics, 3 → Development; spend 2 scroll(s) for citizens"
+        },
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 20079,
+          "score": 82,
+          "trials": 861,
+          "moves": 239909,
+          "immediate": "1 → Culture, 3 → Trade"
+        },
+        {
+          "city": "athens",
+          "seed": 3,
+          "ms": 25079,
+          "score": 82,
+          "trials": 1084,
+          "moves": 302252,
+          "immediate": "1 → Culture, 3 → Trade"
+        }
+      ],
+      "final": {
+        "city": "athens",
+        "seed": 3,
+        "score": 82,
+        "trials": 1298,
+        "moves": 361213,
+        "path": [
+          "R1: 1 → Culture, 3 → Trade",
+          "R1: Trade",
+          "R1: Advance Culture → Military → Military; spend 2 scroll(s)",
+          "R2: Roll dice",
+          "R2: 1 → Legislation, 2 → Military",
+          "R2: Skip / automatically resolve remaining actions",
+          "R2: Decline / skip",
+          "R3: Roll dice",
+          "R3: 5 → Military, 1 → Culture",
+          "R3: Military: Explore Green minor (5 troops, 1 skulls, +2 VP)",
+          "R3: Decline / skip",
+          "R4: Roll dice",
+          "R4: 2 → Military, 6 → Development; spend 1 scroll(s) for citizens",
+          "R4: Military: Explore Red minor (5 troops, 1 skulls, +2 coins)",
+          "R4: Development",
+          "R4: Advance Economy",
+          "R4: Give up Green minor (5 troops, 1 skulls, +2 VP)",
+          "R4: Achievement: +1 Glory",
+          "R5: Roll dice",
+          "R5: 6 → Politics, 3 → Military",
+          "R5: Military: Explore Blue major (9 troops, 9 skulls, +4 VP, +4 coins)",
+          "R5: Politics: Silver Mining",
+          "R5: Advance Economy",
+          "R6: Roll dice",
+          "R6: 1 → Military, 5 → Politics",
+          "R6: Military: Explore Green minor (4 troops, 2 skulls, +2 VP)",
+          "R6: Politics: Old Guard",
+          "R6: Advance Culture",
+          "R7: Roll dice",
+          "R7: 4 → Military, 3 → Politics; spend 1 scroll(s) for citizens",
+          "R7: Military: Explore Green major (5 troops, 4 skulls, +2 VP)",
+          "R7: Politics: Rivalry",
+          "R7: Advance Culture",
+          "R7: Achievement: +1 Glory",
+          "R8: Roll dice",
+          "R8: 5 → Military, 5 → Politics, 2 → Culture",
+          "R8: Military: Explore Blue major (5 troops, 3 skulls, +1 VP, +1 coins)",
+          "R8: Politics: Diversification",
+          "R8: Advance Economy",
+          "R8: Achievement: +1 Glory",
+          "R9: Roll dice",
+          "R9: 5 → Culture, 6 → Politics, 4 → Military",
+          "R9: Military: Explore Blue major (6 troops, 5 skulls, +1 VP, +2 coins)",
+          "R9: Politics: Bank; Spend 2 scrolls for knowledge",
+          "R9: Decline / skip"
+        ]
+      }
+    }
+  ]
+}

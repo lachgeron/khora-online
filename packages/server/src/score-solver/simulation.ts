@@ -2,7 +2,7 @@ import type { ClientMessage, GameState } from '@khora/shared';
 import { GameEngine } from '../game-engine';
 import { activateDev, getActivatableDevs } from '../city-dev-handlers';
 import { serializeGameState, deserializeGameState } from '../serialization';
-import { ALL_CITIES, getAllAchievements, STARTING_EVENT, FINAL_EVENT, RANDOM_EVENTS } from '../game-data';
+import { ALL_CITIES, ALL_POLITICS_CARDS, EXPANSION_POLITICS_CARDS, getAllAchievements, STARTING_EVENT, FINAL_EVENT, RANDOM_EVENTS } from '../game-data';
 
 /** Full-information payload, requested explicitly by the analysis panel. */
 export function solverSnapshot(state: GameState): string {
@@ -38,16 +38,68 @@ export function restoreSolverSnapshot(json: string): GameState {
 }
 
 const identities = new WeakMap<GameState, string>();
+const assetKeys = new WeakMap<object, string>();
+const definitions = new Map<string, string>();
+const assetLists = new WeakMap<object, string[]>();
+const definition = (value: object) => JSON.stringify(value, (_key, v) => typeof v === 'function' ? v.toString() : v);
+for (const [kind, assets] of [
+  ['card', [...ALL_POLITICS_CARDS, ...EXPANSION_POLITICS_CARDS]],
+  ['city', ALL_CITIES], ['event', [STARTING_EVENT, FINAL_EVENT, ...RANDOM_EVENTS]],
+  ['achievement', getAllAchievements()],
+] as const) {
+  for (const asset of assets) {
+    const key = `${kind}:${asset.id}`;
+    assetKeys.set(asset, key);
+    definitions.set(definition(asset), key);
+  }
+}
+
+/** Official immutable definitions use stable compact names. Custom or modified
+ * definitions retain their full content, so same-ID changes cannot merge states. */
+function assetKey(asset: object): string {
+  let key = assetKeys.get(asset);
+  if (key === undefined) {
+    const content = definition(asset);
+    key = definitions.get(content) ?? `custom:${content}`;
+    assetKeys.set(asset, key);
+  }
+  return key;
+}
+
+function assetList(assets: object[]): string[] {
+  let keys = assetLists.get(assets);
+  if (!keys) { keys = assets.map(assetKey); assetLists.set(assets, keys); }
+  return keys;
+}
+
+function assetRecord(record: Record<string, object[]>) {
+  return Object.fromEntries(Object.entries(record).map(([id, assets]) => [id, assetList(assets)]));
+}
+
 export type SearchState = GameState & { analysisPassed?: string[] };
 export function positionKey(state: GameState): string {
   const cached = identities.get(state);
   if (cached) return cached;
   const key = JSON.stringify({
     ...state, gameLog: [], createdAt: 0, updatedAt: 0,
-    players: state.players.map(p => ({ ...p, timeBankMs: 0, diceRollHistory: [] })),
+    players: state.players.map(p => ({ ...p, timeBankMs: 0, diceRollHistory: [], handCards: assetList(p.handCards), playedCards: assetList(p.playedCards) })),
+    politicsDeck: assetList(state.politicsDeck), eventDeck: assetList(state.eventDeck),
+    currentEvent: state.currentEvent ? assetKey(state.currentEvent) : null,
+    availableAchievements: assetList(state.availableAchievements),
+    expansionChoices: state.expansionChoices?.map(c => ({ ...c, cards: c.cards ? assetList(c.cards) : undefined })),
+    draftState: state.draftState ? {
+      ...state.draftState,
+      cityDraft: state.draftState.cityDraft ? { ...state.draftState.cityDraft,
+        allCities: assetList(state.draftState.cityDraft.allCities), remainingPool: assetList(state.draftState.cityDraft.remainingPool) } : null,
+      politicsDraft: state.draftState.politicsDraft ? { ...state.draftState.politicsDraft,
+        packs: assetRecord(state.draftState.politicsDraft.packs), selectedCards: assetRecord(state.draftState.politicsDraft.selectedCards) } : null,
+      pickBanDraft: state.draftState.pickBanDraft ? { ...state.draftState.pickBanDraft,
+        allCards: assetList(state.draftState.pickBanDraft.allCards), bannedCards: assetRecord(state.draftState.pickBanDraft.bannedCards),
+        pickedCards: assetRecord(state.draftState.pickBanDraft.pickedCards) } : null,
+    } : null,
     pendingDecisions: state.pendingDecisions.map(d => ({ ...d, timeoutAt: 0, usingTimeBank: false })),
     suspendedDecisions: state.suspendedDecisions?.map(d => ({ ...d, timeoutAt: 0, usingTimeBank: false })),
-    claimedAchievements: [...state.claimedAchievements],
+    claimedAchievements: [...state.claimedAchievements].map(([id, achievements]) => [id, assetList(achievements)]),
     disconnectedPlayers: [...state.disconnectedPlayers.keys()],
   });
   identities.set(state, key);
@@ -61,6 +113,7 @@ function hash(text: string): number {
 }
 
 const engines = new Map<string, GameEngine>();
+const seeds = new WeakMap<GameState, number>();
 /** Synchronous and worker-only in production. Restore globals even when a rule throws.
  * Fixing time/randomness makes generated token IDs and assumed future draft draws replayable.
  * This never changes the live game's clock or random generator (a separate JS realm).
@@ -70,9 +123,15 @@ export function simulate(state: GameState, playerId: string, message: ClientMess
   if ((state as SearchState).analysisPassed) state = { ...state, analysisPassed: undefined } as SearchState;
   const oldRandom = Math.random;
   const oldNow = Date.now;
-  let seed = hash(positionKey(state));
+  let positionSeed = seeds.get(state);
+  if (positionSeed === undefined) {
+    positionSeed = hash(positionKey(state));
+    seeds.set(state, positionSeed);
+  }
+  let seed = positionSeed;
+  const timestamp = 1_700_000_000_000 + positionSeed;
   Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  Date.now = () => 1_700_000_000_000 + hash(positionKey(state));
+  Date.now = () => timestamp;
   try {
     let engine = engines.get(state.draftMode);
     if (!engine) { engine = new GameEngine(state.draftMode); engines.set(state.draftMode, engine); }

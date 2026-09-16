@@ -81,13 +81,20 @@ export function* actionChoices(state: GameState, player: PlayerState, action: Ac
 
 function* diceAssignments(player: PlayerState): Generator<ClientMessage> {
   const dice = player.diceRoll ?? [];
+  const seen = new Set<string>();
   const maxSpend = Math.min(player.philosophyTokens, Math.ceil((15 - player.citizenTrack) / 3));
   function* assign(chosen: ActionType[]): Generator<ClientMessage> {
     if (chosen.length === dice.length) {
       const assignments = chosen.map((actionType, i) => ({ actionType, dieValue: dice[i], slotIndex: i as 0 | 1 | 2 }));
       const cost = assignments.reduce((sum, a) => sum + Math.max(0, ACTION_NUMBERS[a.actionType] - a.dieValue), 0);
       for (let spend = 0; spend <= maxSpend; spend++) {
-        if (Math.min(15, player.citizenTrack + spend * 3) >= cost) yield { type: 'ASSIGN_DICE', assignments, philosophyTokensToSpend: spend };
+        const key = `${[...chosen].sort().join(',')}:${cost}:${spend}`;
+        // Slot order and die identity do not affect action resolution. Preserve
+        // every action set and resource outcome, once rather than factorially.
+        if (Math.min(15, player.citizenTrack + spend * 3) >= cost && !seen.has(key)) {
+          seen.add(key);
+          yield { type: 'ASSIGN_DICE', assignments, philosophyTokensToSpend: spend };
+        }
       }
       return;
     }

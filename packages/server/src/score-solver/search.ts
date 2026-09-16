@@ -1,80 +1,18 @@
-import type { ActionType, ClientMessage, GameState, PlayerState, ScoreSolverMove, ScoreSolverResult } from '@khora/shared';
+import type { ClientMessage, GameState, ScoreSolverMove, ScoreSolverResult } from '@khora/shared';
 import { calculateFinalScores } from '../scoring-engine';
-import { ProgressPhaseManager } from '../phases/progress-phase';
-import { ALL_CITIES, ALL_POLITICS_CARDS, EXPANSION_POLITICS_CARDS } from '../game-data';
-import { actionChoices, candidateMessages, describeMove } from './choices';
+import { candidateMessages, describeMove } from './choices';
 import { positionKey, settle, simulate, type SearchState } from './simulation';
 import { getActivatableDevs } from '../city-dev-handlers';
+import { potential, priority } from './evaluation';
 
-const progress = new ProgressPhaseManager();
-const cards = new Map([...ALL_POLITICS_CARDS, ...EXPANSION_POLITICS_CARDS].map(c => [c.id, c]));
-
-/** Move ordering only. Search statistics and displayed scores use actual final scoring. */
-function potential(state: GameState, player: PlayerState): number {
-  const remaining = Math.max(0, 9 - state.roundNumber);
-  const final = calculateFinalScores(state).rankings.find(p => p.playerId === player.playerId)?.totalPoints ?? 0;
-  return final + Math.min(player.coins, 25) * (0.15 + remaining * 0.045)
-    + Math.min(player.philosophyTokens, 8) * (0.3 + remaining * 0.09)
-    + Math.min(player.citizenTrack, 9) * 0.1 + player.troopTrack * (0.1 + remaining * 0.02)
-    + player.knowledgeTokens.length * remaining * 0.6
-    + player.cultureTrack * remaining * 0.7 + player.economyTrack * remaining * 0.25
-    + player.militaryTrack * remaining * 0.3 + player.taxTrack * remaining * 0.35
-    + player.developmentLevel * remaining * 0.8
-    + (player.cultureTrack >= 4 ? remaining * 3 : 0)
-    + player.playedCards.filter(c => c.type === 'ONGOING').length * remaining * 0.55
-    + player.handCards.length * remaining * 0.15;
-}
-
-function actionPriority(state: GameState, player: PlayerState, action: ActionType): number {
-  const remaining = 10 - state.roundNumber;
-  switch (action) {
-    case 'PHILOSOPHY': return Math.max(0.2, 2.5 - player.philosophyTokens * 0.4);
-    case 'LEGISLATION': return Math.max(0.2, 2.6 - player.handCards.length * 0.35) + (player.citizenTrack < 3 ? 1 : 0);
-    case 'CULTURE': return player.cultureTrack + remaining * 0.1;
-    case 'TRADE': return player.economyTrack * (player.coins < 8 ? 1.4 : 0.4);
-    case 'MILITARY': return state.centralBoardTokens.some(t => !t.explored && (t.militaryRequirement ?? Infinity) <= player.troopTrack + player.militaryTrack) ? 5 : 1.5;
-    case 'POLITICS': return !actionChoices(state, player, 'POLITICS').next().done ? 4 : -1;
-    case 'DEVELOPMENT': {
-      const dev = ALL_CITIES.find(c => c.id === player.cityId)?.developments[player.developmentLevel];
-      return dev && !actionChoices(state, player, 'DEVELOPMENT').next().done ? 4 + remaining * 0.3 : -1;
-    }
-  }
-}
-
-function priority(state: GameState, player: PlayerState, message: ClientMessage): number {
-  switch (message.type) {
-    case 'ASSIGN_DICE': return message.assignments.reduce((sum, a) => sum + actionPriority(state, player, a.actionType)
-      - Math.max(0, ['PHILOSOPHY', 'LEGISLATION', 'CULTURE', 'TRADE', 'MILITARY', 'POLITICS', 'DEVELOPMENT'].indexOf(a.actionType) - a.dieValue) * 0.12, 0) - (message.philosophyTokensToSpend ?? 0) * 0.3;
-    case 'PROGRESS_TRACK': {
-      const applied = progress.applySubmissionToPlayer(player, message);
-      return applied.ok ? potential({ ...state, players: state.players.map(p => p.playerId === player.playerId ? applied.value : p) }, applied.value) - potential(state, player) : -Infinity;
-    }
-    case 'DRAFT_CARD': case 'PICK_BAN_CARD': {
-      const card = cards.get(message.cardId);
-      if (!card) return 0;
-      return (card.type === 'ONGOING' ? 5 : 2) - card.cost * 0.2 - (card.knowledgeRequirement.green + card.knowledgeRequirement.blue + card.knowledgeRequirement.red) * 0.3;
-    }
-    case 'RESOLVE_ACTION': {
-      const tokenValue = (id?: string) => {
-        const token = state.centralBoardTokens.find(t => t.id === id);
-        if (!token) return 0;
-        if ((token.militaryRequirement ?? Infinity) > player.troopTrack + player.militaryTrack) return -100;
-        return (token.bonusVP ?? 0) + (token.bonusCoins ?? 0) * 0.3
-          + (token.isPersepolis ? player.gloryTrack * 3 + 6 : token.tokenType === 'MAJOR' ? player.gloryTrack + 3 : 1)
-          + (player.knowledgeTokens.some(t => t.color === token.color) ? 0 : 2);
-      };
-      return actionPriority(state, player, message.actionType) + tokenValue(message.choices.explorationTokenId) + tokenValue(message.choices.secondExplorationTokenId);
-    }
-    case 'SKIP_PHASE': return -10;
-    default: return 0;
-  }
-}
-
-interface Edge { message: ClientMessage | null; state: SearchState; visits: number; totals: number[]; }
-interface Node { state: SearchState; actor: string; messages: (ClientMessage | null)[] | null; cursor: number; edges: Edge[]; visits: number; }
+interface PlanLink { move: ScoreSolverMove | null; next?: PlanLink; }
+interface Edge { message: ClientMessage | null; state: SearchState; visits: number; totals: number[]; continuation?: number[]; line?: PlanLink; solved?: boolean; }
+interface Node { state: SearchState; actor: string; messages: (ClientMessage | null)[] | null; cursor: number; edges: Edge[]; visits: number; solved: boolean; expanded: Set<string>; }
+interface Traversal { node: Node; edge: Edge; }
 
 export function preferredEdge(edges: Edge[], actorIndex: number): Edge | undefined {
-  return edges.filter(e => e.visits > 0).sort((a, b) => b.totals[actorIndex] / b.visits - a.totals[actorIndex] / a.visits || b.visits - a.visits)[0] ?? edges[0];
+  const value = (edge: Edge) => edge.continuation?.[actorIndex] ?? edge.totals[actorIndex] / edge.visits;
+  return edges.filter(e => e.visits > 0).sort((a, b) => value(b) - value(a) || b.visits - a.visits)[0] ?? edges[0];
 }
 
 export class ScoreSearch {
@@ -92,7 +30,7 @@ export class ScoreSearch {
 
   reset(state: GameState, playerId: string, requestId: string): void {
     // Reuse matching positions, including opponent moves, but bound memory.
-    if (this.original?.gameId !== state.gameId || this.playerId !== playerId || this.nodes.size > 1500) this.nodes.clear();
+    if (this.original?.gameId !== state.gameId || this.playerId !== playerId) this.nodes.clear();
     this.original = state;
     this.playerId = playerId;
     this.requestId = requestId;
@@ -108,6 +46,10 @@ export class ScoreSearch {
   private actor(state: SearchState): string {
     // For simultaneous choices, analyze the local player's still-unsubmitted choice first.
     return state.pendingDecisions.find(d => d.playerId === this.playerId && d.decisionType !== 'PHASE_DISPLAY')?.playerId
+      // An anytime ability is a real local choice even while somebody else has
+      // the pending turn. Passing this window lets that opponent continue.
+      ?? state.players.find(p => p.playerId === this.playerId && !p.hasFlagged
+        && !state.analysisPassed?.includes(p.playerId) && getActivatableDevs(p).length)?.playerId
       ?? state.pendingDecisions.find(d => d.decisionType !== 'PHASE_DISPLAY')?.playerId
       ?? [...state.players].sort((a, b) => Number(b.playerId === this.playerId) - Number(a.playerId === this.playerId))
         .find(p => !p.hasFlagged && !state.analysisPassed?.includes(p.playerId) && getActivatableDevs(p).length)?.playerId ?? '';
@@ -117,9 +59,14 @@ export class ScoreSearch {
     const key = positionKey(state);
     let node = this.nodes.get(key);
     if (!node) {
-      node = { state, actor: this.actor(state), messages: null, cursor: 0, edges: [], visits: 0 };
-      if (this.nodes.size < 2000) this.nodes.set(key, node);
+      node = { state, actor: this.actor(state), messages: null, cursor: 0, edges: [], visits: 0,
+        solved: state.currentPhase === 'GAME_OVER', expanded: new Set() };
+      // Keep caching recent continuations after the memory cap is reached.
+      // Previously the cache froze, leaving all later branches uncached.
+      if (this.nodes.size >= 2000) this.nodes.delete(this.nodes.keys().next().value!);
     }
+    this.nodes.delete(key);
+    this.nodes.set(key, node);
     return node;
   }
 
@@ -132,15 +79,28 @@ export class ScoreSearch {
       ranked.push({ message, rank: priority(node.state, player, message) });
       yield;
     }
-    if (!node.state.pendingDecisions.some(d => d.decisionType !== 'PHASE_DISPLAY')) ranked.push({ message: null, rank: 0 });
+    if (!node.state.pendingDecisions.some(d => d.playerId === node.actor && d.decisionType !== 'PHASE_DISPLAY')) ranked.push({ message: null, rank: 0 });
     ranked.sort((a, b) => b.rank - a.rank);
-    node.messages = ranked.map(r => r.message);
+    // Try distinct action sets before spending the rollout budget on alternate
+    // dice permutations or different scroll spending for the same actions.
+    const seen = new Set<string>();
+    const first: (ClientMessage | null)[] = [], later: (ClientMessage | null)[] = [];
+    for (const { message } of ranked) {
+      const key = message?.type === 'ASSIGN_DICE'
+        ? message.assignments.map(a => a.actionType).sort().join(',') : undefined;
+      if (key && seen.has(key)) later.push(message);
+      else { first.push(message); if (key) seen.add(key); }
+    }
+    node.messages = [...first, ...later];
   }
 
   private *expand(node: Node, limit: number): Generator<void> {
     yield* this.messages(node);
     while (node.cursor < node.messages!.length && node.edges.length < limit) {
       const message = node.messages![node.cursor++];
+      const key = JSON.stringify(message);
+      if (node.expanded.has(key)) continue;
+      node.expanded.add(key);
       const next = message ? simulate(node.state, node.actor, message)
         : { ...node.state, analysisPassed: [...node.state.analysisPassed ?? [], node.actor] };
       this.evaluated++;
@@ -149,66 +109,123 @@ export class ScoreSearch {
     }
   }
 
-  private *greedy(state: GameState, variation: number): Generator<void, { state: GameState; path: ScoreSolverMove[] }> {
+  private *greedy(state: GameState, variation: number): Generator<void, { state: GameState; path: ScoreSolverMove[]; visited: Traversal[] }> {
     const path: ScoreSolverMove[] = [];
+    const visited: Traversal[] = [];
+    // Coherent whole-game alternatives expose investments a single greedy
+    // policy misses. All are evaluated by actual terminal points, not this bias.
+    const strategy = variation % 4;
     for (let depth = 0; depth < 700 && state.currentPhase !== 'GAME_OVER'; depth++) {
       const node = this.node(state);
-      yield* this.expand(node, 8);
+      yield* this.expand(node, 8 + Math.floor(Math.sqrt(node.visits)));
       if (!node.edges.length) throw new Error(`No legal continuation for ${node.actor} in ${state.currentPhase}.`);
       const actorIndex = state.players.findIndex(p => p.playerId === node.actor);
       const learned = preferredEdge(node.edges.filter(e => e.visits > 0), actorIndex);
       const ordered = node.edges.map(edge => {
         const p = edge.state.players[actorIndex];
-        let value = potential(edge.state, p);
-        if (edge.message?.type === 'ASSIGN_DICE') value += priority(state, state.players[actorIndex], edge.message);
+        let value = potential(edge.state, p, strategy);
+        if (edge.message?.type === 'ASSIGN_DICE') value += priority(state, state.players[actorIndex], edge.message, strategy);
         if (edge.message?.type === 'PROGRESS_TRACK' && edge.state.progressSubmissions?.[node.actor]) {
-          value += priority(state, state.players[actorIndex], edge.message);
+          value += priority(state, state.players[actorIndex], edge.message, strategy);
         }
         if (edge.message?.type === 'DRAFT_CARD' || edge.message?.type === 'PICK_BAN_CARD') value += priority(state, state.players[actorIndex], edge.message);
         return { edge, value };
       }).sort((a, b) => b.value - a.value);
       const explore = variation > 0 && (depth + variation) % 13 === 0;
-      const edge = explore ? ordered[Math.min(ordered.length - 1, variation % 3)].edge : learned ?? ordered[0].edge;
+      const edge = explore ? ordered[Math.min(ordered.length - 1, variation % 3)].edge : (strategy === 0 ? learned : undefined) ?? ordered[0].edge;
+      visited.push({ node, edge });
       if (edge.message) path.push(describeMove(state, node.actor, edge.message));
       state = edge.state;
       yield;
     }
     if (state.currentPhase !== 'GAME_OVER') throw new Error('Continuation exceeded the search safety limit.');
-    return { state, path };
+    return { state, path, visited };
   }
 
   private *iteration(): Generator<void> {
     let node = this.root;
-    const visited: { node: Node; edge: Edge }[] = [];
+    const visited: Traversal[] = [];
+    let incumbent = this.best()?.line;
+    // Alternate broad root exploration with improvements further along the
+    // complete incumbent plan. Round-eight choices need search time too.
+    const pivot = this.rollouts % 2 ? (this.rollouts * 17) % 100 : 0;
     for (let depth = 0; depth < 120 && node.state.currentPhase !== 'GAME_OVER'; depth++) {
       // Every legal candidate can enter as the position receives more search time.
       yield* this.expand(node, 8 + Math.floor(Math.sqrt(node.visits + 1) * 2));
+      if (node.edges.every(edge => edge.solved) && node.cursor < node.messages!.length) yield* this.expand(node, node.edges.length + 1);
       if (!node.edges.length) throw new Error(`No legal move for ${node.actor}.`);
       const index = node.state.players.findIndex(p => p.playerId === node.actor);
-      const edge = node.edges.find(e => !e.visits) ?? [...node.edges].sort((a, b) => {
+      const follow = depth < pivot && incumbent;
+      let planned: Edge | undefined;
+      if (follow) {
+        const message = incumbent!.move?.message ?? null;
+        planned = node.edges.find(e => JSON.stringify(e.message) === JSON.stringify(message));
+        if (!planned) {
+          const next = message ? simulate(node.state, node.actor, message)
+            : { ...node.state, analysisPassed: [...node.state.analysisPassed ?? [], node.actor] };
+          if (next) {
+            planned = { message, state: settle(next, true), visits: 0, totals: node.state.players.map(() => 0) };
+            node.edges.push(planned);
+            node.expanded.add(JSON.stringify(message));
+          }
+        }
+      }
+      if (planned?.solved) planned = undefined;
+      const open = node.edges.filter(e => !e.solved);
+      const candidates = open.length ? open : node.edges;
+      const edge = planned ?? candidates.find(e => !e.visits) ?? [...candidates].sort((a, b) => {
         const ucb = (e: Edge) => e.totals[index] / e.visits + 18 * Math.sqrt(Math.log(node.visits + 1) / e.visits);
         return ucb(b) - ucb(a);
       })[0];
       visited.push({ node, edge });
       node = this.node(edge.state);
-      if (!edge.visits) break;
+      incumbent = planned ? incumbent?.next : undefined;
+      if (!planned && !edge.visits) break;
       yield;
     }
     const rollout = yield* this.greedy(node.state, this.rollouts);
     const scores = calculateFinalScores(rollout.state);
     const values = this.original.players.map(p => scores.rankings.find(s => s.playerId === p.playerId)?.totalPoints ?? 0);
-    for (const { node: traversed, edge } of visited) {
+    // Learn from decisions throughout the continuation, not just its shallow
+    // prefix. Otherwise later-round choices repeat the initial heuristic forever.
+    let continuation = values;
+    let line: PlanLink | undefined;
+    let solved = true;
+    for (const { node: traversed, edge } of [...visited, ...rollout.visited].reverse()) {
       traversed.visits++;
       edge.visits++;
       edge.totals = edge.totals.map((total, i) => total + values[i]);
+      const nextActor = this.actor(edge.state);
+      const nextIndex = edge.state.players.findIndex(p => p.playerId === nextActor);
+      // Evicting a cached node must not erase a stronger completed suffix. Its
+      // next decision-maker (including an opponent) controls which suffix wins.
+      if (solved || (!edge.solved && (!edge.continuation || nextIndex < 0 || continuation[nextIndex] > edge.continuation[nextIndex]))) {
+        edge.continuation = continuation;
+        edge.line = { move: edge.message ? describeMove(traversed.state, traversed.actor, edge.message) : null, next: line };
+      }
+      edge.solved ||= solved;
+      traversed.solved = traversed.messages !== null && traversed.cursor === traversed.messages.length && traversed.edges.every(e => e.solved);
+      // Deterministic max-n backup: future players choose their strongest known
+      // continuation. Do not average a newly learned plan with obsolete bad play.
+      const selected = preferredEdge(traversed.edges, traversed.state.players.findIndex(p => p.playerId === traversed.actor));
+      continuation = selected?.continuation ?? continuation;
+      line = selected?.line ?? edge.line;
+      solved = traversed.solved;
     }
     this.rollouts++;
   }
 
   private *project(): Generator<void> {
-    const projection = yield* this.greedy(this.root.state, 0);
-    this.plan = projection.path;
-    this.score = calculateFinalScores(projection.state).rankings.find(p => p.playerId === this.playerId)?.totalPoints ?? null;
+    const best = this.best();
+    if (best?.continuation) {
+      this.plan = [];
+      for (let link = best.line; link; link = link.next) if (link.move) this.plan.push(link.move);
+      this.score = best.continuation[this.root.state.players.findIndex(p => p.playerId === this.playerId)];
+    } else {
+      const projection = yield* this.greedy(this.root.state, 0);
+      this.plan = projection.path;
+      this.score = calculateFinalScores(projection.state).rankings.find(p => p.playerId === this.playerId)?.totalPoints ?? null;
+    }
     this.planMessage = JSON.stringify(this.best()?.message);
   }
 
@@ -217,14 +234,15 @@ export class ScoreSearch {
   }
 
   *work(): Generator<void> {
-    if (this.root.state.currentPhase === 'GAME_OVER') { yield* this.project(); return; }
+    if (this.root.solved) { yield* this.project(); return; }
     yield* this.expand(this.root, 1);
     yield* this.iteration();
     yield* this.project();
-    while (true) {
+    while (!this.root.solved) {
       yield* this.iteration();
       if (this.rollouts % 4 === 0 || JSON.stringify(this.best()?.message) !== this.planMessage) yield* this.project();
     }
+    yield* this.project();
   }
 
   result(status: ScoreSolverResult['status'] = 'SEARCHING', message?: string): ScoreSolverResult {

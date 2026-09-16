@@ -3,7 +3,8 @@ import type { ClientMessage, DraftMode, GameState, PlayerState } from '@khora/sh
 import { ALL_CITIES, ALL_POLITICS_CARDS, EXPANSION_POLITICS_CARDS, STARTING_EVENT, RANDOM_EVENTS, FINAL_EVENT, getAllAchievements } from '../game-data';
 import { GameEngine } from '../game-engine';
 import { calculateFinalScores } from '../scoring-engine';
-import { makeTestGameState, makeTestPlayer, makeTestKnowledgeToken } from '../test-helpers';
+import { makeTestGameState, makeTestPlayer, makeTestKnowledgeToken, makeTestPoliticsCard } from '../test-helpers';
+import { benchmarkPosition } from './benchmark-position';
 import { actionChoices, candidateMessages } from './choices';
 import { positionKey, restoreSolverSnapshot, settle, simulate, solverSnapshot } from './simulation';
 import { preferredEdge, ScoreSearch } from './search';
@@ -45,6 +46,53 @@ function replayProjection(initial: GameState, path: ReturnType<ScoreSearch['resu
 }
 
 describe('score solver rules and search', () => {
+  it('finds a high-scoring card beyond the old eight-choice rollout cutoff immediately', () => {
+    const handCards = Array.from({ length: 12 }, (_, i) => makeTestPoliticsCard(`endgame-${i}`, {
+      cost: 0, knowledgeRequirement: { green: 0, blue: 0, red: 0 }, type: 'END_GAME',
+      endGameScoring: { type: 'CUSTOM', description: 'Fixed points', calculate: () => i === 11 ? 40 : 1 },
+    }));
+    const state = makeTestGameState({ roundNumber: 9, currentPhase: 'ACTIONS',
+      players: [makeTestPlayer({ handCards, actionSlots: [{ actionType: 'POLITICS', assignedDie: 5, citizenCost: 0, resolved: false }, null, null] })],
+      pendingDecisions: [pending('RESOLVE_ACTION')],
+    });
+    const search = new ScoreSearch(); search.reset(state, 'player-1', 'card-order');
+    const { result } = finishProjection(search);
+    expect(result.immediateMove?.message).toMatchObject({ type: 'RESOLVE_ACTION', choices: { targetCardId: 'endgame-11' } });
+    expect(calculateFinalScores(replayProjection(state, result.path)).rankings[0].totalPoints).toBe(result.projectedScore);
+    expect(result.projectedScore).toBeGreaterThanOrEqual(40);
+  });
+
+  it('retains every distinct dice action/resource outcome without equivalent permutations', () => {
+    const state = benchmarkPosition('athens', 1);
+    const player = state.players[0];
+    player.diceRoll = [5, 5, 5];
+    player.citizenTrack = 15;
+    const assignments = [...candidateMessages(state, player.playerId)].filter(m => m.type === 'ASSIGN_DICE');
+    // Seven actions, three distinct choices: 35 sets rather than 210 permutations.
+    expect(assignments).toHaveLength(35);
+    for (const message of assignments) expect(simulate(state, player.playerId, message)).not.toBeNull();
+  });
+
+  it.each([1, 2])('improves and replays the retained Athens opening plan for deal %i', seed => {
+    const state = benchmarkPosition('athens', seed);
+    const original = solverSnapshot(state);
+    const search = new ScoreSearch(); search.reset(state, 'player-1', `quality-${seed}`);
+    const work = search.work();
+    let checked = 0;
+    while (search.result().completedRollouts < 80) {
+      work.next();
+      const result = search.result();
+      if (result.projectedScore !== null && result.completedRollouts >= checked + 20) {
+        const replay = replayProjection(state, result.path);
+        expect(calculateFinalScores(replay).rankings.find(p => p.playerId === 'player-1')?.totalPoints).toBe(result.projectedScore);
+        expect(result.path[0].message).toEqual(result.immediateMove?.message);
+        checked = result.completedRollouts;
+      }
+    }
+    expect(search.result().projectedScore).toBeGreaterThanOrEqual(60);
+    expect(solverSnapshot(state)).toBe(original);
+  }, 30_000);
+
   it('restores executable scoring, event, achievement and city data from a full snapshot', () => {
     const state = makeTestGameState({ eventDeck: [FINAL_EVENT], currentEvent: STARTING_EVENT,
       players: [makeTestPlayer({ playedCards: [card('bank'), card('hades')], coins: 12 })],
@@ -62,6 +110,57 @@ describe('score solver rules and search', () => {
     expect(positionKey({ ...state, eventDeck: [FINAL_EVENT] })).not.toBe(positionKey(state));
     expect(positionKey({ ...state, politicsDeck: [card('bank')] })).not.toBe(positionKey(state));
     expect(positionKey({ ...state, predeterminedDice: {} })).not.toBe(positionKey(state));
+  });
+
+  it('keeps compact position identities stable across snapshots and sensitive to asset changes', () => {
+    const state = benchmarkPosition('athens', 4);
+    expect(positionKey(restoreSolverSnapshot(solverSnapshot(state)))).toBe(positionKey(state));
+    const original = state.players[0].handCards[0];
+    const changed = { ...state, players: state.players.map((p, i) => i ? p : {
+      ...p, handCards: [{ ...original, cost: original.cost + 1 }, ...p.handCards.slice(1)],
+    }) };
+    expect(positionKey(changed)).not.toBe(positionKey(state));
+    expect(positionKey({ ...state, politicsDeck: [...state.politicsDeck].reverse() })).not.toBe(positionKey(state));
+    expect(positionKey({ ...state, currentEvent: { ...STARTING_EVENT, triggerDuringDice: false } })).not.toBe(positionKey(state));
+    const custom = makeTestPoliticsCard('custom-score', { type: 'END_GAME', endGameScoring: { type: 'CUSTOM', description: 'points', calculate: () => 1 } });
+    const alternative = { ...custom, endGameScoring: { ...custom.endGameScoring!, calculate: () => 2 } };
+    expect(positionKey({ ...state, politicsDeck: [custom] })).not.toBe(positionKey({ ...state, politicsDeck: [alternative] }));
+  });
+
+  it('finishes a fully searched endgame and matches exhaustive legal progress sequences', () => {
+    const state = makeTestGameState({ currentPhase: 'PROGRESS', roundNumber: 9,
+      players: [makeTestPlayer({ coins: 12, philosophyTokens: 2, economyTrack: 3, militaryTrack: 3,
+        playedCards: [card('proskenion')],
+        knowledgeTokens: Array.from({ length: 4 }, (_, i) => makeTestKnowledgeToken({ id: `major-${i}`, tokenType: 'MAJOR' })),
+      })], pendingDecisions: [pending('PROGRESS_TRACK')] });
+    // Independent enumeration includes all track orders, not just the solver's multisets.
+    const tracks = ['ECONOMY', 'CULTURE', 'MILITARY'] as const;
+    const messages: ClientMessage[] = [{ type: 'SKIP_PHASE' }];
+    for (const first of tracks) {
+      messages.push({ type: 'PROGRESS_TRACK', advancement: { track: first } });
+      for (const second of tracks) {
+        messages.push({ type: 'PROGRESS_TRACK', advancement: { track: first }, extraTracks: [{ track: second }] });
+        for (const third of tracks) messages.push({ type: 'PROGRESS_TRACK', advancement: { track: first }, extraTracks: [{ track: second }, { track: third }] });
+      }
+    }
+    const exact = Math.max(...messages.flatMap(message => {
+      const next = simulate(state, 'player-1', message);
+      return next ? [calculateFinalScores(settle(next)).rankings[0].totalPoints] : [];
+    }));
+    expect(exact).toBe(17);
+    const search = new ScoreSearch(); search.reset(state, 'player-1', 'exact-progress');
+    const work = search.work();
+    let done = false;
+    for (let i = 0; i < 10_000 && !done; i++) done = Boolean(work.next().done);
+    expect(done).toBe(true);
+    const result = search.result();
+    expect(result.projectedScore).toBe(exact);
+    expect(calculateFinalScores(replayProjection(state, result.path)).rankings[0].totalPoints).toBe(exact);
+    search.reset(restoreSolverSnapshot(solverSnapshot(state)), 'player-1', 'reuse-solved');
+    expect(search.work().next().done).toBe(true);
+    expect(search.result().completedRollouts).toBe(0);
+    expect(search.result().projectedScore).toBe(exact);
+    expect(search.result().immediateMove?.message).toEqual(result.immediateMove?.message);
   });
 
   it('simulates repeatably without mutating the input, clock or random generator', () => {
@@ -116,6 +215,29 @@ describe('score solver rules and search', () => {
       expect(result.projectedScore).toBe(majors ? 12 : 8);
       expect(result.immediateMove?.message.type ?? null).toBe(majors ? null : 'ACTIVATE_DEV');
       expect(calculateFinalScores(replayProjection(state, result.path)).rankings[0].totalPoints).toBe(result.projectedScore);
+    }
+  });
+
+  it('offers an anytime ability while an opponent is choosing, without forcing its use', () => {
+    for (const majors of [0, 6]) {
+      const state = makeTestGameState({ currentPhase: 'ACHIEVEMENT', roundNumber: 9,
+        players: [makeTestPlayer({ cityId: 'thebes', developmentLevel: 2, gloryTrack: 2,
+          knowledgeTokens: Array.from({ length: majors }, (_, i) => makeTestKnowledgeToken({ id: `major-${i}`, tokenType: 'MAJOR' })) }),
+        makeTestPlayer({ playerId: 'player-2' })],
+        pendingDecisions: [pending('ACHIEVEMENT_TRACK_CHOICE', 'player-2')] });
+      const search = new ScoreSearch(); search.reset(state, 'player-1', `out-of-turn-${majors}`);
+      const work = search.work();
+      let offered = false;
+      for (let i = 0; i < 2000; i++) {
+        const done = work.next().done;
+        offered ||= search.result().immediateMove?.message.type === 'ACTIVATE_DEV';
+        if (done) break;
+      }
+      const result = search.result();
+      expect(offered).toBe(true);
+      expect(result.projectedScore).toBe(majors ? 12 : 8);
+      if (majors) expect(result.immediateMove).toBeNull();
+      expect(calculateFinalScores(replayProjection(state, result.path)).rankings.find(p => p.playerId === 'player-1')?.totalPoints).toBe(result.projectedScore);
     }
   });
 
